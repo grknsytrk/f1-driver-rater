@@ -46,7 +46,18 @@ interface CountryFlagProps {
 }
 
 export function CountryFlag({ country, className = '', size = 'md' }: CountryFlagProps) {
-    const countryCode = COUNTRY_CODES[country];
+    // Check if input is already a country code (2 letters uppercase)
+    const isCountryCode = country.length === 2 && country === country.toUpperCase();
+
+    // Get the code - either from lookup or direct
+    let countryCode: keyof typeof Flags | undefined;
+    if (isCountryCode) {
+        // Direct country code like "BH", "SA"
+        countryCode = country as keyof typeof Flags;
+    } else {
+        // Country name lookup
+        countryCode = COUNTRY_CODES[country];
+    }
 
     const sizeClasses = {
         sm: 'w-5 h-3.5',

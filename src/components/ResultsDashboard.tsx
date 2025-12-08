@@ -503,7 +503,7 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
 
                     {/* Footer */}
                     <div className="mt-6 pt-4 border-t border-gray-800 flex justify-between items-center">
-                        <div className="text-[10px] text-gray-600 uppercase tracking-widest">F1 PILOT RATING</div>
+                        <div className="text-[10px] text-gray-600 uppercase tracking-widest">F1 DRIVER RATING</div>
                         <div className="text-[10px] text-gray-600">{new Date().toLocaleDateString()}</div>
                     </div>
                 </div>
