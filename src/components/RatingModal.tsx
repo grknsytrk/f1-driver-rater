@@ -158,7 +158,7 @@ export function RatingModal({ race, season, onClose, onSave }: RatingModalProps)
                     </div>
 
                     {/* Content */}
-                    <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-6 custom-scrollbar">
+                    <div className="flex-1 overflow-y-auto overflow-x-hidden p-2 md:p-6 custom-scrollbar">
                         {loading ? (
                             <div className="flex flex-col items-center justify-center py-20 gap-4">
                                 <Loader2 size={40} className="animate-spin text-[var(--accent-red)]" />
@@ -175,7 +175,7 @@ export function RatingModal({ race, season, onClose, onSave }: RatingModalProps)
                                     return (
                                         <div
                                             key={driver.driverId}
-                                            className="group relative bg-[var(--bg-panel)] p-3 hover:bg-[var(--bg-panel-hover)] transition-colors flex flex-col gap-3"
+                                            className="group relative bg-[var(--bg-panel)] p-2 md:p-3 hover:bg-[var(--bg-panel-hover)] transition-colors flex flex-col gap-2 md:gap-3 overflow-hidden"
                                         >
                                             {/* Driver Info Row */}
                                             <div className="flex items-center gap-0">
@@ -227,12 +227,12 @@ export function RatingModal({ race, season, onClose, onSave }: RatingModalProps)
                                                 </div>
                                             </div>
 
-                                            {/* Rating Section - Full width on mobile */}
-                                            <div className="flex items-center gap-2 w-full">
-                                                {/* Rating Number - Same width as position box for alignment */}
-                                                <div className="w-10 md:w-14 flex items-center justify-center flex-shrink-0">
+                                            {/* Rating Section - Full width on mobile, overflow hidden */}
+                                            <div className="flex items-center gap-1 md:gap-2 w-full overflow-hidden">
+                                                {/* Rating Number - Fixed width for alignment */}
+                                                <div className="w-8 md:w-14 flex items-center justify-center flex-shrink-0">
                                                     <div
-                                                        className="text-lg md:text-2xl font-bold leading-none tabular-nums font-oxanium"
+                                                        className="text-base md:text-2xl font-bold leading-none tabular-nums font-oxanium"
                                                         style={{
                                                             color: (() => {
                                                                 if (displayRating === 0) return 'var(--text-muted)';
@@ -253,8 +253,8 @@ export function RatingModal({ race, season, onClose, onSave }: RatingModalProps)
                                                     </div>
                                                 </div>
 
-                                                {/* Rating Bar - Fills remaining space, min-w-0 is critical */}
-                                                <div className="flex gap-[1px] md:gap-[2px] flex-1 min-w-0" onMouseLeave={() => setHoveredRating(null)}>
+                                                {/* Rating Bar - No gap on mobile, flex-1 with min-w-0 to shrink */}
+                                                <div className="flex gap-0 md:gap-[2px] flex-1 min-w-0 overflow-hidden" onMouseLeave={() => setHoveredRating(null)}>
                                                     {[...Array(20)].map((_, i) => {
                                                         const val = (i + 1) * 0.5; // 0.5, 1.0, 1.5, ..., 10.0
                                                         const isFilled = val <= displayRating;
