@@ -197,35 +197,35 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
                     animate={{ opacity: 1, y: 0 }}
                     className="space-y-6"
                 >
-                    <div className="flex flex-col items-start border-l-4 border-[var(--accent-red)] pl-4 md:pl-6">
-                        <h2 className="font-display text-3xl md:text-7xl text-white uppercase tracking-tight leading-none">
+                    <div className="flex flex-col items-start border-l-4 border-[var(--accent-red)] pl-6">
+                        <h2 className="font-display text-7xl text-white uppercase tracking-tight leading-none">
                             {season} <span className="text-[var(--accent-red)]">SEASON</span>
                         </h2>
-                        <div className="h-px w-16 md:w-32 bg-[var(--accent-red)] mt-2" />
+                        <div className="h-px w-32 bg-[var(--accent-red)] mt-2" />
                     </div>
 
-                    <div className="flex flex-col md:flex-row md:items-center md:justify-between border-b border-[var(--border-color)] pb-4 gap-3">
-                        <p className="font-oxanium text-[var(--accent-red)] tracking-widest text-xs md:text-sm uppercase">
+                    <div className="flex items-center justify-between border-b border-[var(--border-color)] pb-4">
+                        <p className="font-oxanium text-[var(--accent-red)] tracking-widest text-sm uppercase">
                             SEASON {season} • RACES RATED: <span className="text-white">{ratedCount}</span>
                         </p>
 
-                        <div className="grid grid-cols-2 md:flex gap-2">
+                        <div className="flex gap-2 flex-wrap">
                             {/* Export JSON */}
                             <button
                                 onClick={handleExportJson}
-                                className="group flex items-center justify-center gap-2 px-3 py-2 bg-[var(--bg-panel)] border border-[var(--border-color)] hover:border-[#00FF88] transition-all hover:bg-[var(--bg-panel-hover)]"
+                                className="group flex items-center gap-2 px-4 py-2 bg-[var(--bg-panel)] border border-[var(--border-color)] hover:border-[#00FF88] transition-all hover:bg-[var(--bg-panel-hover)]"
                             >
                                 <FileJson size={14} className="text-[var(--text-muted)] group-hover:text-[#00FF88]" />
-                                <span className="font-ui font-bold text-[10px] md:text-xs text-white uppercase tracking-wider hidden md:inline">EXPORT JSON</span>
+                                <span className="font-ui font-bold text-xs text-white uppercase tracking-wider">EXPORT JSON</span>
                             </button>
 
                             {/* Import JSON */}
                             <button
                                 onClick={handleImportClick}
-                                className="group flex items-center justify-center gap-2 px-3 py-2 bg-[var(--bg-panel)] border border-[var(--border-color)] hover:border-[var(--accent-yellow)] transition-all hover:bg-[var(--bg-panel-hover)]"
+                                className="group flex items-center gap-2 px-4 py-2 bg-[var(--bg-panel)] border border-[var(--border-color)] hover:border-[var(--accent-yellow)] transition-all hover:bg-[var(--bg-panel-hover)]"
                             >
                                 <Upload size={14} className="text-[var(--text-muted)] group-hover:text-[var(--accent-yellow)]" />
-                                <span className="font-ui font-bold text-[10px] md:text-xs text-white uppercase tracking-wider hidden md:inline">IMPORT JSON</span>
+                                <span className="font-ui font-bold text-xs text-white uppercase tracking-wider">IMPORT JSON</span>
                             </button>
                             <input
                                 ref={fileInputRef}
@@ -238,19 +238,19 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
                             {/* Generate Card */}
                             <button
                                 onClick={handleGenerateCard}
-                                className="group flex items-center justify-center gap-2 px-3 py-2 bg-[var(--bg-panel)] border border-[var(--border-color)] hover:border-white transition-all hover:bg-[var(--bg-panel-hover)]"
+                                className="group flex items-center gap-2 px-4 py-2 bg-[var(--bg-panel)] border border-[var(--border-color)] hover:border-white transition-all hover:bg-[var(--bg-panel-hover)]"
                             >
                                 <ImageDown size={14} className="text-[var(--text-muted)] group-hover:text-white" />
-                                <span className="font-ui font-bold text-[10px] md:text-xs text-white uppercase tracking-wider hidden md:inline">GENERATE CARD</span>
+                                <span className="font-ui font-bold text-xs text-white uppercase tracking-wider">GENERATE CARD</span>
                             </button>
 
                             {/* Clear All */}
                             <button
                                 onClick={handleReset}
-                                className="group flex items-center justify-center gap-2 px-3 py-2 bg-[var(--bg-panel)] border border-[var(--border-color)] hover:border-[var(--accent-red)] transition-all hover:bg-[var(--bg-panel-hover)]"
+                                className="group flex items-center gap-2 px-4 py-2 bg-[var(--bg-panel)] border border-[var(--border-color)] hover:border-[var(--accent-red)] transition-all hover:bg-[var(--bg-panel-hover)]"
                             >
                                 <RotateCcw size={14} className="text-[var(--text-muted)] group-hover:text-[var(--accent-red)]" />
-                                <span className="font-ui font-bold text-[10px] md:text-xs text-white uppercase tracking-wider hidden md:inline">CLEAR ALL</span>
+                                <span className="font-ui font-bold text-xs text-white uppercase tracking-wider">CLEAR ALL</span>
                             </button>
                         </div>
                     </div>
@@ -279,14 +279,14 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
                 </motion.div>
 
                 {/* 2. SECTION: PODIUM (TECHNICAL BLOCKS) */}
-                <div className="pt-4 md:pt-8 pb-8 md:pb-16">
-                    <div className="flex items-end justify-center gap-1 md:gap-8">
+                <div className="pt-8 pb-16">
+                    <div className="flex items-end justify-center gap-2 md:gap-8">
                         {podiumOrder.map((pos, visualIndex) => {
                             if (!podium[pos]) return null;
                             const driver = podium[pos];
                             const isWinner = pos === 0;
-                            // Explicit heights - smaller on mobile
-                            const blockHeight = isWinner ? 'h-32 md:h-56' : pos === 1 ? 'h-24 md:h-40' : 'h-20 md:h-32';
+                            // Explicit heights
+                            const blockHeight = isWinner ? 'h-56' : pos === 1 ? 'h-40' : 'h-32';
                             const positionColor = isWinner ? 'var(--accent-yellow)' : pos === 1 ? '#C0C0C0' : '#CD7F32';
                             const rank = isWinner ? 1 : pos === 1 ? 2 : 3;
 
@@ -296,28 +296,28 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
                                     initial={{ opacity: 0, y: 50 }}
                                     animate={{ opacity: 1, y: 0 }}
                                     transition={{ delay: 0.1 * visualIndex, ease: "circOut" }}
-                                    className={`flex flex-col w-28 md:w-56 ${isWinner ? 'z-10' : 'z-0'}`}
+                                    className={`flex flex-col w-40 md:w-56 ${isWinner ? 'z-10' : 'z-0'}`}
                                 >
                                     {/* DRIVER INFO */}
-                                    <div className="mb-1 md:mb-2 bg-[var(--bg-panel)] border border-[var(--border-color)] border-l-2 p-2 md:p-3"
+                                    <div className="mb-2 bg-[var(--bg-panel)] border border-[var(--border-color)] border-l-2 p-3"
                                         style={{ borderLeftColor: getTeamColor(driver.constructorId) }}
                                     >
-                                        <div className="flex justify-between items-start mb-0.5 md:mb-1">
-                                            <span className="font-oxanium text-[10px] md:text-xs text-[var(--text-secondary)]">P{rank}</span>
-                                            <div className="w-1.5 h-1.5 md:w-2 md:h-2 rounded-full" style={{ backgroundColor: getTeamColor(driver.constructorId) }} />
+                                        <div className="flex justify-between items-start mb-1">
+                                            <span className="font-oxanium text-xs text-[var(--text-secondary)]">P{rank}</span>
+                                            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: getTeamColor(driver.constructorId) }} />
                                         </div>
-                                        <div className="font-display-condensed text-base md:text-2xl leading-none text-white uppercase tracking-tight">
+                                        <div className="font-display-condensed text-2xl leading-none text-white uppercase tracking-tight">
                                             {driver.driverName.split(' ')[1]}
                                         </div>
-                                        <div className="font-ui text-[8px] md:text-[10px] text-[var(--text-muted)] uppercase tracking-wider mt-0.5 md:mt-1 truncate">
+                                        <div className="font-ui text-[10px] text-[var(--text-muted)] uppercase tracking-wider mt-1">
                                             {driver.constructorName}
                                         </div>
                                     </div>
 
                                     {/* RATING DISPLAY */}
-                                    <div className="bg-[var(--bg-darker)] border-x border-[var(--border-color)] px-2 md:px-4 py-1 md:py-2 flex justify-between items-center">
-                                        <span className="font-ui text-[8px] md:text-[10px] text-[var(--text-secondary)] uppercase">AVG</span>
-                                        <span className="font-oxanium text-base md:text-xl font-bold" style={{ color: positionColor }}>
+                                    <div className="bg-[var(--bg-darker)] border-x border-[var(--border-color)] px-4 py-2 flex justify-between items-center">
+                                        <span className="font-ui text-[10px] text-[var(--text-secondary)] uppercase">AVG RATING</span>
+                                        <span className="font-oxanium text-xl font-bold" style={{ color: positionColor }}>
                                             {driver.averageRating.toFixed(2)}
                                         </span>
                                     </div>
@@ -416,29 +416,29 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
                                 {averages.map((driver, index) => (
                                     <motion.div
                                         key={driver.driverId}
-                                        className="telemetry-row p-2 md:p-3 animate-enter"
-                                        style={{ animationDelay: `${index * 50}ms`, gridTemplateColumns: '30px 20px 1fr auto' }}
+                                        className="telemetry-row p-3 animate-enter"
+                                        style={{ animationDelay: `${index * 50}ms`, gridTemplateColumns: '40px 40px 1fr auto' }}
                                     >
                                         {/* POS */}
-                                        <div className="font-oxanium text-sm md:text-lg text-[var(--text-secondary)] font-bold text-center">
+                                        <div className="font-oxanium text-lg text-[var(--text-secondary)] font-bold text-center">
                                             {index + 1}
                                         </div>
 
                                         {/* TEAM STRIPE */}
-                                        <div className="h-3 md:h-4 w-1 bg-white/20 mx-auto" style={{ backgroundColor: getTeamColor(driver.constructorId) }} />
+                                        <div className="h-4 w-1 bg-white/20 mx-auto" style={{ backgroundColor: getTeamColor(driver.constructorId) }} />
 
                                         {/* DRIVER */}
                                         <div className="flex flex-col justify-center min-w-0">
-                                            <div className="font-display-condensed text-sm md:text-xl text-white leading-none uppercase tracking-tight truncate">
+                                            <div className="font-display-condensed text-xl text-white leading-none uppercase tracking-tight">
                                                 {driver.driverName}
                                             </div>
-                                            <div className="font-ui text-[8px] md:text-[10px] text-[var(--text-muted)] uppercase tracking-wider truncate">
+                                            <div className="font-ui text-[10px] text-[var(--text-muted)] uppercase tracking-wider">
                                                 {driver.constructorName}
                                             </div>
                                         </div>
 
                                         {/* RATING */}
-                                        <div className="font-oxanium text-base md:text-xl font-bold tracking-widest text-right pr-1 md:pr-2"
+                                        <div className="font-oxanium text-xl font-bold tracking-widest text-right pr-2"
                                             style={{ color: index < 3 ? 'var(--accent-yellow)' : 'white' }}>
                                             {driver.averageRating.toFixed(2)}
                                         </div>
