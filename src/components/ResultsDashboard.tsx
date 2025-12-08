@@ -1,10 +1,11 @@
 import { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Trophy, BarChart3, RotateCcw, ImageDown, Download, Share2, AlertTriangle } from 'lucide-react';
+import { Trophy, BarChart3, RotateCcw, ImageDown, Download, Share2, AlertTriangle, Table } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { toPng } from 'html-to-image';
 import { TEAM_COLORS } from '../types';
-import { calculateAverages, clearSeasonRatings, getRatedRacesCount } from '../utils/storage';
+import { calculateAverages, clearSeasonRatings, getRatedRacesCount, getRaceByRaceMatrix } from '../utils/storage';
+import { CountryFlag } from '../utils/countryFlags';
 
 interface ResultsDashboardProps {
     season: string;
@@ -14,6 +15,7 @@ interface ResultsDashboardProps {
 export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
     const averages = calculateAverages(season);
     const ratedCount = getRatedRacesCount(season);
+    const raceMatrix = getRaceByRaceMatrix(season);
     const [showCardSection, setShowCardSection] = useState(false);
     const [cardImage, setCardImage] = useState<string | null>(null);
     const [generating, setGenerating] = useState(false);
@@ -317,6 +319,124 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
                     </div>
 
                 </div>
+
+                {/* 4. SECTION: RACE-BY-RACE TABLE */}
+                {raceMatrix.races.length > 0 && (
+                    <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.3 }}
+                        className="mt-12"
+                    >
+                        <div className="mb-4 flex items-center justify-between border-b border-[var(--border-color)] pb-2">
+                            <div className="flex items-center gap-3">
+                                <Table size={16} className="text-[var(--accent-red)]" />
+                                <h3 className="font-display text-2xl text-white uppercase tracking-wider">RACE-BY-RACE BREAKDOWN</h3>
+                            </div>
+                            <span className="font-oxanium text-[10px] text-[var(--text-muted)] uppercase tracking-widest">
+                                {raceMatrix.races.length} RACES • {raceMatrix.drivers.length} DRIVERS
+                            </span>
+                        </div>
+
+                        <div className="bg-[var(--bg-panel)] border border-[var(--border-color)] overflow-hidden">
+                            <div className="overflow-x-auto">
+                                <table className="w-full min-w-max">
+                                    {/* Header */}
+                                    <thead>
+                                        <tr className="border-b border-[var(--border-color)]">
+                                            <th className="sticky left-0 z-10 bg-[var(--bg-darker)] px-3 py-2 text-left w-12">
+                                                <span className="font-oxanium text-[10px] text-[var(--text-muted)] uppercase">#</span>
+                                            </th>
+                                            <th className="sticky left-12 z-10 bg-[var(--bg-darker)] px-3 py-2 text-left min-w-[140px]">
+                                                <span className="font-oxanium text-[10px] text-[var(--text-muted)] uppercase">DRIVER</span>
+                                            </th>
+                                            <th className="bg-[var(--bg-darker)] px-3 py-2 text-center w-16">
+                                                <span className="font-oxanium text-[10px] text-[var(--accent-yellow)] uppercase">AVG</span>
+                                            </th>
+                                            {raceMatrix.races.map(race => (
+                                                <th key={race.round} className="bg-[var(--bg-darker)] px-2 py-2 text-center min-w-[48px]" title={race.raceName}>
+                                                    <div className="flex flex-col items-center gap-1">
+                                                        <CountryFlag country={race.countryCode} size="sm" />
+                                                    </div>
+                                                </th>
+                                            ))}
+                                        </tr>
+                                    </thead>
+
+                                    {/* Body */}
+                                    <tbody>
+                                        {raceMatrix.drivers.map((driver, index) => (
+                                            <tr
+                                                key={driver.driverId}
+                                                className="border-b border-[var(--border-color)] hover:bg-[var(--bg-panel-hover)] transition-colors"
+                                            >
+                                                {/* Position */}
+                                                <td className="sticky left-0 z-10 bg-[var(--bg-panel)] px-3 py-2 text-center">
+                                                    <span className="font-oxanium text-sm text-[var(--text-muted)]">{index + 1}</span>
+                                                </td>
+
+                                                {/* Driver Name */}
+                                                <td className="sticky left-12 z-10 bg-[var(--bg-panel)] px-3 py-2">
+                                                    <div className="flex items-center gap-2">
+                                                        <div className="w-1 h-6" style={{ backgroundColor: getTeamColor(driver.constructorId) }} />
+                                                        <div>
+                                                            <div className="font-display text-sm text-white uppercase leading-none">
+                                                                {driver.driverName.split(' ')[1]}
+                                                            </div>
+                                                            <div className="font-oxanium text-[8px] text-[var(--text-muted)] uppercase">
+                                                                {driver.constructorName}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </td>
+
+                                                {/* Average */}
+                                                <td className="px-3 py-2 text-center bg-[var(--bg-darker)]/50">
+                                                    <span className="font-oxanium text-sm font-bold text-[var(--accent-yellow)]">
+                                                        {driver.totalAverage.toFixed(1)}
+                                                    </span>
+                                                </td>
+
+                                                {/* Race Ratings */}
+                                                {raceMatrix.races.map(race => {
+                                                    const rating = driver.raceRatings[race.round];
+                                                    const hasRating = rating !== undefined && rating > 0;
+
+                                                    // Gradient color based on rating
+                                                    let ratingColor = 'var(--text-muted)';
+                                                    if (hasRating) {
+                                                        const t = (rating - 0.5) / 9.5;
+                                                        if (t < 0.4) {
+                                                            const localT = t / 0.4;
+                                                            ratingColor = `rgb(225, ${Math.round(6 + localT * 101)}, 0)`;
+                                                        } else if (t < 0.7) {
+                                                            const localT = (t - 0.4) / 0.3;
+                                                            ratingColor = `rgb(${Math.round(225 + localT * 17)}, ${Math.round(107 + localT * 102)}, ${Math.round(localT * 61)})`;
+                                                        } else {
+                                                            const localT = (t - 0.7) / 0.3;
+                                                            ratingColor = `rgb(${Math.round(242 - localT * 242)}, ${Math.round(209 + localT * 46)}, ${Math.round(61 + localT * 75)})`;
+                                                        }
+                                                    }
+
+                                                    return (
+                                                        <td key={race.round} className="px-2 py-2 text-center">
+                                                            <span
+                                                                className="font-oxanium text-sm font-medium"
+                                                                style={{ color: ratingColor }}
+                                                            >
+                                                                {hasRating ? (rating % 1 === 0 ? rating : rating.toFixed(1)) : '-'}
+                                                            </span>
+                                                        </td>
+                                                    );
+                                                })}
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </motion.div>
+                )}
             </div>
 
             {/* Hidden Card for Image Generation */}
