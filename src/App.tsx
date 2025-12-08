@@ -88,7 +88,7 @@ function RacesPage() {
   const { season } = useParams<{ season: string }>();
   const [races, setRaces] = useState<Race[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedRace, setSelectedRace] = useState<Race | null>(null);
+  const navigate = useNavigate();
 
   useEffect(() => {
     async function loadRaces() {
@@ -102,39 +102,114 @@ function RacesPage() {
     loadRaces();
   }, [season]);
 
-  function handleSaveRatings() {
-    setRaces([...races]);
+  function handleSelectRace(race: Race) {
+    navigate(`/${season}/race/${race.round}`);
   }
 
   if (!season) return null;
 
   return (
-    <>
-      <motion.div
-        key="races"
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: -20 }}
-        transition={{ duration: 0.3 }}
-      >
-        <RaceList
-          races={races}
-          season={season}
-          onSelectRace={setSelectedRace}
-          loading={loading}
-        />
-      </motion.div>
+    <motion.div
+      key="races"
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -20 }}
+      transition={{ duration: 0.3 }}
+    >
+      <RaceList
+        races={races}
+        season={season}
+        onSelectRace={handleSelectRace}
+        loading={loading}
+      />
+    </motion.div>
+  );
+}
 
-      {/* Rating Modal */}
-      {selectedRace && (
-        <RatingModal
-          race={selectedRace}
-          season={season}
-          onClose={() => setSelectedRace(null)}
-          onSave={handleSaveRatings}
-        />
-      )}
-    </>
+// Race Rating Page Component
+function RaceRatingPage() {
+  const { season, round } = useParams<{ season: string; round: string }>();
+  const [races, setRaces] = useState<Race[]>([]);
+  const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    async function loadRaces() {
+      if (season) {
+        setLoading(true);
+        const data = await getRaces(season);
+        setRaces(data);
+        setLoading(false);
+      }
+    }
+    loadRaces();
+  }, [season]);
+
+  const selectedRace = races.find(r => r.round === round);
+
+  function handleSaveRatings() {
+    navigate(`/${season}`);
+  }
+
+  function handleClose() {
+    navigate(`/${season}`);
+  }
+
+  if (!season || !round) return null;
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[50vh]">
+        <div className="w-8 h-8 border-2 border-[var(--accent-red)] border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (!selectedRace) {
+    return (
+      <div className="text-center py-20">
+        <p className="text-[var(--text-muted)]">Race not found</p>
+        <button
+          onClick={() => navigate(`/${season}`)}
+          className="mt-4 text-[var(--accent-red)] hover:underline"
+        >
+          Back to season
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <RatingModal
+      race={selectedRace}
+      season={season}
+      onClose={handleClose}
+      onSave={handleSaveRatings}
+    />
+  );
+}
+
+// Quick Rate Page Component
+function QuickRatePage() {
+  const { season } = useParams<{ season: string }>();
+  const navigate = useNavigate();
+
+  if (!season) return null;
+
+  function handleClose() {
+    navigate(`/${season}`);
+  }
+
+  function handleSave() {
+    navigate(`/${season}`);
+  }
+
+  return (
+    <QuickRateModal
+      season={season}
+      onClose={handleClose}
+      onSave={handleSave}
+    />
   );
 }
 
@@ -166,36 +241,28 @@ function App() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Get current path info from React Router (not window.location)
+  // Get current path info from React Router
   const pathname = location.pathname;
   const pathParts = pathname.split('/').filter(Boolean);
   const currentSeason = pathParts[0] || null;
   const isResultsPage = pathParts[1] === 'results';
+  const isQuickRatePage = pathParts[1] === 'quick-rate';
+  const isRacePage = pathParts[1] === 'race';
   const isHomePage = pathname === '/' || pathname === '';
 
-  const [showQuickRate, setShowQuickRate] = useState(false);
-  const [races, setRaces] = useState<Race[]>([]);
-
-  // Load races for header button checks
-  useEffect(() => {
-    async function loadRaces() {
-      if (currentSeason && !isResultsPage) {
-        const data = await getRaces(currentSeason);
-        setRaces(data);
-      }
-    }
-    loadRaces();
-  }, [currentSeason, isResultsPage]);
+  const ratedCount = currentSeason ? getRatedRacesCount(currentSeason) : 0;
 
   function handleBack() {
     if (isResultsPage && currentSeason) {
+      navigate(`/${currentSeason}`);
+    } else if (isQuickRatePage && currentSeason) {
+      navigate(`/${currentSeason}`);
+    } else if (isRacePage && currentSeason) {
       navigate(`/${currentSeason}`);
     } else if (currentSeason) {
       navigate('/');
     }
   }
-
-  const ratedCount = currentSeason ? getRatedRacesCount(currentSeason) : 0;
 
   return (
     <div className="min-h-screen">
@@ -244,18 +311,30 @@ function App() {
                     <span className="font-oxanium text-xs text-[var(--accent-yellow)] uppercase">Results</span>
                   </>
                 )}
+                {isQuickRatePage && (
+                  <>
+                    <span className="text-[var(--text-muted)]">/</span>
+                    <span className="font-oxanium text-xs text-[var(--accent-yellow)] uppercase">Quick Rate</span>
+                  </>
+                )}
+                {isRacePage && pathParts[2] && (
+                  <>
+                    <span className="text-[var(--text-muted)]">/</span>
+                    <span className="font-oxanium text-xs text-[var(--accent-yellow)] uppercase">Race {pathParts[2]}</span>
+                  </>
+                )}
               </div>
             )}
           </div>
 
-          {/* Actions */}
-          {currentSeason && !isResultsPage && (
+          {/* Actions - only show on races list page */}
+          {currentSeason && !isResultsPage && !isQuickRatePage && !isRacePage && (
             <div className="flex items-center gap-3">
               {/* Quick Rate Button */}
               <motion.button
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
-                onClick={() => setShowQuickRate(true)}
+                onClick={() => navigate(`/${currentSeason}/quick-rate`)}
                 className="group flex items-center gap-2 px-4 py-1.5 bg-[var(--accent-yellow)]/10 border border-[var(--accent-yellow)]/30 hover:border-[var(--accent-yellow)] transition-all"
               >
                 <Zap size={14} className="text-[var(--accent-yellow)]" />
@@ -285,6 +364,8 @@ function App() {
           <Routes location={location} key={location.pathname}>
             <Route path="/" element={<SeasonPage />} />
             <Route path="/:season" element={<RacesPage />} />
+            <Route path="/:season/race/:round" element={<RaceRatingPage />} />
+            <Route path="/:season/quick-rate" element={<QuickRatePage />} />
             <Route path="/:season/results" element={<ResultsPage />} />
           </Routes>
         </AnimatePresence>
@@ -306,15 +387,6 @@ function App() {
           </p>
         </div>
       </footer>
-
-      {/* Quick Rate Modal */}
-      {showQuickRate && currentSeason && (
-        <QuickRateModal
-          season={currentSeason}
-          onClose={() => setShowQuickRate(false)}
-          onSave={() => setRaces([...races])}
-        />
-      )}
     </div>
   );
 }
