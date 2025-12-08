@@ -228,11 +228,11 @@ export function RatingModal({ race, season, onClose, onSave }: RatingModalProps)
                                             </div>
 
                                             {/* Rating Section - Full width on mobile */}
-                                            <div className="flex items-center gap-3 w-full">
-                                                {/* Rating Number - Left side on mobile */}
-                                                <div className="flex flex-col items-center justify-center flex-shrink-0">
+                                            <div className="flex items-center gap-2 w-full">
+                                                {/* Rating Number - Same width as position box for alignment */}
+                                                <div className="w-10 md:w-14 flex items-center justify-center flex-shrink-0">
                                                     <div
-                                                        className="text-xl md:text-2xl font-bold leading-none tabular-nums font-oxanium"
+                                                        className="text-lg md:text-2xl font-bold leading-none tabular-nums font-oxanium"
                                                         style={{
                                                             color: (() => {
                                                                 if (displayRating === 0) return 'var(--text-muted)';
@@ -253,8 +253,8 @@ export function RatingModal({ race, season, onClose, onSave }: RatingModalProps)
                                                     </div>
                                                 </div>
 
-                                                {/* Rating Bar - Fills remaining space */}
-                                                <div className="flex gap-[2px] flex-1 min-w-0" onMouseLeave={() => setHoveredRating(null)}>
+                                                {/* Rating Bar - Fills remaining space, min-w-0 is critical */}
+                                                <div className="flex gap-[1px] md:gap-[2px] flex-1 min-w-0" onMouseLeave={() => setHoveredRating(null)}>
                                                     {[...Array(20)].map((_, i) => {
                                                         const val = (i + 1) * 0.5; // 0.5, 1.0, 1.5, ..., 10.0
                                                         const isFilled = val <= displayRating;
@@ -293,10 +293,10 @@ export function RatingModal({ race, season, onClose, onSave }: RatingModalProps)
                                                                 key={i}
                                                                 onMouseEnter={() => setHoveredRating({ id: driver.driverId, val })}
                                                                 onClick={() => handleRatingChange(driver.driverId, val)}
-                                                                className="flex-1 h-8 md:h-10 relative focus:outline-none cursor-pointer touch-manipulation"
+                                                                className="flex-1 h-8 md:h-10 relative focus:outline-none cursor-pointer touch-manipulation min-w-0"
                                                             >
                                                                 <div
-                                                                    className="w-full h-full rounded-sm"
+                                                                    className="w-full h-full rounded-[1px] md:rounded-sm"
                                                                     style={{
                                                                         backgroundColor: segmentColor,
                                                                         transform: isFilled ? 'scaleY(1)' : 'scaleY(0.65)',

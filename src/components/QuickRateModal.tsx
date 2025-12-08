@@ -185,7 +185,7 @@ export function QuickRateModal({ season, onClose, onSave }: QuickRateModalProps)
                                             </div>
 
                                             {/* Rating Bar */}
-                                            <div className="flex gap-[2px]" onMouseLeave={() => setHoveredRating(null)}>
+                                            <div className="flex gap-[1px] md:gap-[2px]" onMouseLeave={() => setHoveredRating(null)}>
                                                 {[...Array(20)].map((_, i) => {
                                                     const val = (i + 1) * 0.5;
                                                     const isFilled = val <= displayRating;

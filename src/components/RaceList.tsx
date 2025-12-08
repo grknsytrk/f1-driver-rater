@@ -72,29 +72,55 @@ function RaceCard({ race, season, index, onClick }: RaceCardProps) {
             {isClickable && <div className="absolute left-[-4px] top-0 bottom-0 w-1 bg-[var(--accent-red)] opacity-0 group-hover:opacity-100 transition-opacity" />}
 
             {/* Mobile: Top Row with Round + Race Info */}
-            <div className="flex items-center gap-2 md:contents">
-                {/* Round Number - Fixed width on mobile */}
-                <div className="w-10 md:w-auto flex flex-row md:flex-col items-center justify-center md:border-r border-[var(--border-color)] md:pr-4 md:h-full flex-shrink-0">
+            <div className="flex items-start gap-3 md:contents">
+                {/* Round Number - Fixed width on mobile, better centered */}
+                <div className="w-8 md:w-auto pt-1 md:pt-0 flex flex-col items-center justify-start md:justify-center md:border-r border-[var(--border-color)] md:pr-4 md:h-full flex-shrink-0">
                     <span className="font-oxanium text-[10px] text-[var(--text-muted)] tracking-wider hidden md:block">RND</span>
-                    <span className="font-display text-lg md:text-3xl text-white leading-none">{race.round.padStart(2, '0')}</span>
+                    <span className="font-display text-lg md:text-3xl text-white leading-none text-center block w-full">{race.round.padStart(2, '0')}</span>
                 </div>
 
                 {/* Race Name & Circuit */}
-                <div className="flex items-center gap-2 md:gap-4 min-w-0 flex-1">
-                    <CountryFlag country={country} size="md" />
-                    <div className="min-w-0 flex-1">
-                        <h3 className="font-display text-sm md:text-2xl text-white truncate leading-none uppercase tracking-tight group-hover:text-[var(--accent-red)] transition-colors">
-                            {race.raceName.replace(' Grand Prix', ' GP')}
-                        </h3>
-                        <div className="flex items-center gap-1 md:gap-2 text-[10px] md:text-xs font-oxanium text-[var(--text-secondary)] uppercase tracking-wide mt-0.5">
-                            <MapPin size={8} className="flex-shrink-0 md:w-[10px] md:h-[10px]" />
-                            <span className="truncate">{race.Circuit.circuitName}</span>
+                <div className="flex flex-col gap-2 min-w-0 flex-1">
+                    <div className="flex items-center gap-2 md:gap-4">
+                        <CountryFlag country={country} size="md" />
+                        <div className="min-w-0 flex-1">
+                            <h3 className="font-display text-sm md:text-2xl text-white truncate leading-none uppercase tracking-tight group-hover:text-[var(--accent-red)] transition-colors">
+                                {race.raceName.replace(' Grand Prix', ' GP')}
+                            </h3>
+                            <div className="flex items-center gap-1 md:gap-2 text-[10px] md:text-xs font-oxanium text-[var(--text-secondary)] uppercase tracking-wide mt-1">
+                                <MapPin size={8} className="flex-shrink-0 md:w-[10px] md:h-[10px]" />
+                                <span className="truncate">{race.Circuit.circuitName}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Mobile: Bottom Row with Date + Status - INSIDE the flex item to align with content */}
+                    <div className="flex md:hidden items-center justify-between gap-2 text-xs border-t border-[var(--border-color)]/30 pt-2 mt-1">
+                        <span className="font-oxanium text-[var(--text-secondary)] uppercase text-[10px] tracking-wide">
+                            {new Date(race.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }).toUpperCase()}
+                        </span>
+                        <div
+                            className="flex items-center gap-1.5 px-2 py-0.5 border font-oxanium text-[9px] uppercase tracking-wider rounded-sm"
+                            style={{
+                                borderColor: config.border,
+                                backgroundColor: config.bg,
+                                color: config.color,
+                            }}
+                        >
+                            {status === 'rated' ? (
+                                <div className="w-1.5 h-1.5 bg-[var(--accent-yellow)] rounded-full" />
+                            ) : status === 'pending' ? (
+                                <Flag size={8} className="text-[var(--accent-yellow)]" />
+                            ) : (
+                                <Lock size={8} />
+                            )}
+                            <span>{status === 'rated' ? 'RATED' : status === 'pending' ? 'READY' : 'LOCKED'}</span>
                         </div>
                     </div>
                 </div>
 
                 {/* Mobile chevron */}
-                <div className="flex md:hidden items-center justify-center flex-shrink-0">
+                <div className="flex md:hidden items-center justify-center flex-shrink-0 self-center">
                     {isClickable ? (
                         <ChevronRight
                             size={18}
@@ -103,30 +129,6 @@ function RaceCard({ race, season, index, onClick }: RaceCardProps) {
                     ) : (
                         <Lock size={14} className="text-[var(--text-muted)]" />
                     )}
-                </div>
-            </div>
-
-            {/* Mobile: Bottom Row with Date + Status */}
-            <div className="flex md:hidden items-center justify-between gap-2 text-xs ml-12">
-                <span className="font-oxanium text-[var(--text-secondary)] uppercase text-[11px]">
-                    {new Date(race.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }).toUpperCase()}
-                </span>
-                <div
-                    className="flex items-center gap-1 px-2 py-0.5 border font-oxanium text-[9px] uppercase tracking-wider"
-                    style={{
-                        borderColor: config.border,
-                        backgroundColor: config.bg,
-                        color: config.color,
-                    }}
-                >
-                    {status === 'rated' ? (
-                        <div className="w-1.5 h-1.5 bg-[var(--accent-yellow)] rounded-full" />
-                    ) : status === 'pending' ? (
-                        <Flag size={8} className="text-[var(--accent-yellow)]" />
-                    ) : (
-                        <Lock size={8} />
-                    )}
-                    <span>{status === 'rated' ? 'RATED' : status === 'pending' ? 'READY' : 'LOCKED'}</span>
                 </div>
             </div>
 
