@@ -19,9 +19,11 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
     const [showCardSection, setShowCardSection] = useState(false);
     const [cardImage, setCardImage] = useState<string | null>(null);
     const [generating, setGenerating] = useState(false);
+    const [generatingTable, setGeneratingTable] = useState(false);
     const [showConfirmModal, setShowConfirmModal] = useState(false);
     const cardRef = useRef<HTMLDivElement>(null);
     const shareSectionRef = useRef<HTMLDivElement>(null);
+    const tableRef = useRef<HTMLDivElement>(null);
 
     if (averages.length === 0) {
         return (
@@ -92,6 +94,28 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
         // Clear data and navigate away immediately
         clearSeasonRatings(season);
         onReset();
+    }
+
+    async function handleDownloadTable() {
+        if (!tableRef.current) return;
+
+        setGeneratingTable(true);
+        try {
+            const dataUrl = await toPng(tableRef.current, {
+                cacheBust: true,
+                pixelRatio: 2,
+                backgroundColor: '#0a0a0b',
+            });
+
+            const link = document.createElement('a');
+            link.download = `f1-race-breakdown-${season}.png`;
+            link.href = dataUrl;
+            link.click();
+        } catch (error) {
+            console.error('Error generating table image:', error);
+        } finally {
+            setGeneratingTable(false);
+        }
     }
 
     // Chart data
@@ -333,12 +357,28 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
                                 <Table size={16} className="text-[var(--accent-red)]" />
                                 <h3 className="font-display text-2xl text-white uppercase tracking-wider">RACE-BY-RACE BREAKDOWN</h3>
                             </div>
-                            <span className="font-oxanium text-[10px] text-[var(--text-muted)] uppercase tracking-widest">
-                                {raceMatrix.races.length} RACES • {raceMatrix.drivers.length} DRIVERS
-                            </span>
+                            <div className="flex items-center gap-4">
+                                <span className="font-oxanium text-[10px] text-[var(--text-muted)] uppercase tracking-widest">
+                                    {raceMatrix.races.length} RACES • {raceMatrix.drivers.length} DRIVERS
+                                </span>
+                                <button
+                                    onClick={handleDownloadTable}
+                                    disabled={generatingTable}
+                                    className="group flex items-center gap-2 px-4 py-1.5 bg-[var(--bg-panel)] border border-[var(--border-color)] hover:border-white transition-all hover:bg-[var(--bg-panel-hover)] disabled:opacity-50"
+                                >
+                                    {generatingTable ? (
+                                        <div className="w-3 h-3 border-2 border-[var(--accent-red)] border-t-transparent rounded-full animate-spin" />
+                                    ) : (
+                                        <Download size={12} className="text-[var(--text-muted)] group-hover:text-white" />
+                                    )}
+                                    <span className="font-ui font-bold text-[10px] text-white uppercase tracking-wider">
+                                        {generatingTable ? 'GENERATING...' : 'DOWNLOAD PNG'}
+                                    </span>
+                                </button>
+                            </div>
                         </div>
 
-                        <div className="bg-[var(--bg-panel)] border border-[var(--border-color)] overflow-hidden">
+                        <div ref={tableRef} className="bg-[var(--bg-panel)] border border-[var(--border-color)] overflow-hidden">
                             <div className="overflow-x-auto">
                                 <table className="w-full min-w-max">
                                     {/* Header */}
