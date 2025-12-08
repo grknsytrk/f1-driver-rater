@@ -329,16 +329,16 @@ function App() {
 
           {/* Actions - only show on races list page */}
           {currentSeason && !isResultsPage && !isQuickRatePage && !isRacePage && (
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 md:gap-3">
               {/* Quick Rate Button */}
               <motion.button
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 onClick={() => navigate(`/${currentSeason}/quick-rate`)}
-                className="group flex items-center gap-2 px-4 py-1.5 bg-[var(--accent-yellow)]/10 border border-[var(--accent-yellow)]/30 hover:border-[var(--accent-yellow)] transition-all"
+                className="group flex items-center justify-center gap-2 px-2 md:px-4 py-2 md:py-1.5 bg-[var(--accent-yellow)]/10 border border-[var(--accent-yellow)]/30 hover:border-[var(--accent-yellow)] transition-all min-w-[44px] min-h-[44px] md:min-w-0 md:min-h-0"
               >
-                <Zap size={14} className="text-[var(--accent-yellow)]" />
-                <span className="font-ui font-bold text-xs text-[var(--accent-yellow)] uppercase tracking-wider">Quick Rate</span>
+                <Zap size={16} className="text-[var(--accent-yellow)]" />
+                <span className="hidden md:inline font-ui font-bold text-xs text-[var(--accent-yellow)] uppercase tracking-wider">Quick Rate</span>
               </motion.button>
 
               {/* View Results Button */}
@@ -347,10 +347,10 @@ function App() {
                   initial={{ opacity: 0, scale: 0.95 }}
                   animate={{ opacity: 1, scale: 1 }}
                   onClick={() => navigate(`/${currentSeason}/results`)}
-                  className="group flex items-center gap-2 px-4 py-1.5 bg-[var(--bg-panel)] border border-[var(--border-color)] hover:border-[var(--accent-red)] transition-all"
+                  className="group flex items-center justify-center gap-2 px-2 md:px-4 py-2 md:py-1.5 bg-[var(--bg-panel)] border border-[var(--border-color)] hover:border-[var(--accent-red)] transition-all min-w-[44px] min-h-[44px] md:min-w-0 md:min-h-0"
                 >
-                  <Trophy size={14} className="text-[var(--text-secondary)] group-hover:text-[var(--accent-yellow)]" />
-                  <span className="font-ui font-bold text-xs text-white uppercase tracking-wider">View Results</span>
+                  <Trophy size={16} className="text-[var(--text-secondary)] group-hover:text-[var(--accent-yellow)]" />
+                  <span className="hidden md:inline font-ui font-bold text-xs text-white uppercase tracking-wider">View Results</span>
                 </motion.button>
               )}
             </div>

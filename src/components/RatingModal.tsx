@@ -103,7 +103,7 @@ export function RatingModal({ race, season, onClose, onSave }: RatingModalProps)
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="fixed inset-0 z-50 flex items-center justify-center p-4"
+                className="fixed inset-0 z-50 flex items-center justify-center p-0 md:p-4"
                 onClick={onClose}
             >
                 <div className="absolute inset-0 bg-[#000]/95" />
@@ -114,13 +114,13 @@ export function RatingModal({ race, season, onClose, onSave }: RatingModalProps)
                     exit={{ opacity: 0, scale: 0.95, y: 20 }}
                     transition={{ type: 'spring', damping: 25, stiffness: 300 }}
                     onClick={e => e.stopPropagation()}
-                    className="relative w-full max-w-5xl max-h-[90vh] bg-[var(--bg-main)] border border-[var(--border-color)] rounded-none overflow-hidden flex flex-col shadow-2xl"
+                    className="relative w-full max-w-5xl h-[100dvh] md:h-auto md:max-h-[90vh] bg-[var(--bg-main)] border-0 md:border border-[var(--border-color)] rounded-none overflow-hidden flex flex-col shadow-2xl"
                     style={{
                         boxShadow: '0 0 100px rgba(0,0,0,0.8)'
                     }}
                 >
                     {/* Header */}
-                    <div className="relative p-6 border-b border-[var(--border-color)] bg-[var(--bg-panel)]">
+                    <div className="relative p-4 md:p-6 border-b border-[var(--border-color)] bg-[var(--bg-panel)]">
                         {/* Technical Overlay */}
                         <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none">
                             <div className="w-32 h-32 border-2 border-white rounded-full flex items-center justify-center">
@@ -136,7 +136,7 @@ export function RatingModal({ race, season, onClose, onSave }: RatingModalProps)
                                         Round {race.round}
                                     </span>
                                 </div>
-                                <h2 className="font-display-condensed font-bold text-5xl text-white uppercase tracking-tight leading-tight mb-1 pb-1">
+                                <h2 className="font-display-condensed font-bold text-2xl md:text-5xl text-white uppercase tracking-tight leading-tight mb-1 pb-1">
                                     {race.raceName.toUpperCase()}
                                 </h2>
                                 <p className="font-oxanium text-sm text-[var(--text-secondary)] uppercase tracking-wider mt-1">
@@ -158,7 +158,7 @@ export function RatingModal({ race, season, onClose, onSave }: RatingModalProps)
                     </div>
 
                     {/* Content */}
-                    <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
+                    <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-6 custom-scrollbar">
                         {loading ? (
                             <div className="flex flex-col items-center justify-center py-20 gap-4">
                                 <Loader2 size={40} className="animate-spin text-[var(--accent-red)]" />
@@ -175,30 +175,30 @@ export function RatingModal({ race, season, onClose, onSave }: RatingModalProps)
                                     return (
                                         <div
                                             key={driver.driverId}
-                                            className="group relative bg-[var(--bg-panel)] p-3 hover:bg-[var(--bg-panel-hover)] transition-colors grid grid-cols-1 md:grid-cols-[1fr_auto] gap-4 items-center"
+                                            className="group relative bg-[var(--bg-panel)] p-3 hover:bg-[var(--bg-panel-hover)] transition-colors flex flex-col gap-3"
                                         >
-                                            {/* Driver Info */}
+                                            {/* Driver Info Row */}
                                             <div className="flex items-center gap-0">
                                                 {/* Fixed-width Position Box */}
-                                                <div className="w-14 h-12 flex flex-col items-center justify-center bg-[var(--bg-darker)] border border-[var(--border-color)] text-[var(--text-secondary)] flex-shrink-0">
-                                                    <span className="font-oxanium text-[10px] leading-none mb-0.5">POS</span>
-                                                    <span className="font-display text-xl leading-none text-white">{driver.position}</span>
+                                                <div className="w-10 md:w-14 h-10 md:h-12 flex flex-col items-center justify-center bg-[var(--bg-darker)] border border-[var(--border-color)] text-[var(--text-secondary)] flex-shrink-0">
+                                                    <span className="font-oxanium text-[8px] md:text-[10px] leading-none mb-0.5 hidden md:block">POS</span>
+                                                    <span className="font-display text-base md:text-xl leading-none text-white">{driver.position}</span>
                                                 </div>
 
-                                                {/* Grid Position */}
-                                                <div className="w-10 h-12 flex flex-col items-center justify-center bg-[var(--bg-darker)] border-y border-r border-[var(--border-color)] text-[var(--text-muted)] flex-shrink-0">
+                                                {/* Grid Position - hide on mobile */}
+                                                <div className="hidden md:flex w-10 h-12 flex-col items-center justify-center bg-[var(--bg-darker)] border-y border-r border-[var(--border-color)] text-[var(--text-muted)] flex-shrink-0">
                                                     <span className="font-oxanium text-[8px] leading-none mb-0.5">GRD</span>
                                                     <span className="font-oxanium text-sm leading-none">{driver.grid || '-'}</span>
                                                 </div>
 
                                                 {/* Team Color Stripe + Name */}
-                                                <div className="flex items-center h-12 flex-shrink-0">
+                                                <div className="flex items-center h-10 md:h-12 min-w-0 flex-1">
                                                     <div className="w-1 h-full flex-shrink-0" style={{ backgroundColor: teamColor }} />
-                                                    <div className="min-w-0 pl-3">
-                                                        <h3 className="font-display text-lg text-white truncate leading-none uppercase">
+                                                    <div className="min-w-0 pl-2 md:pl-3 flex-1">
+                                                        <h3 className="font-display text-sm md:text-lg text-white truncate leading-none uppercase">
                                                             {driver.driverName}
                                                         </h3>
-                                                        <p className="font-oxanium text-[10px] text-[var(--text-muted)] uppercase truncate tracking-wide mt-1">
+                                                        <p className="font-oxanium text-[9px] md:text-[10px] text-[var(--text-muted)] uppercase truncate tracking-wide mt-0.5 md:mt-1">
                                                             {driver.constructorName}
                                                         </p>
                                                     </div>
@@ -227,10 +227,34 @@ export function RatingModal({ race, season, onClose, onSave }: RatingModalProps)
                                                 </div>
                                             </div>
 
-                                            {/* Input Section */}
-                                            <div className="flex items-center justify-end gap-6">
-                                                {/* Segmented Bar - 20 equal segments, 0.5 increments */}
-                                                <div className="flex gap-[2px]" onMouseLeave={() => setHoveredRating(null)}>
+                                            {/* Rating Section - Full width on mobile */}
+                                            <div className="flex items-center gap-3 w-full">
+                                                {/* Rating Number - Left side on mobile */}
+                                                <div className="flex flex-col items-center justify-center flex-shrink-0">
+                                                    <div
+                                                        className="text-xl md:text-2xl font-bold leading-none tabular-nums font-oxanium"
+                                                        style={{
+                                                            color: (() => {
+                                                                if (displayRating === 0) return 'var(--text-muted)';
+                                                                const t = (displayRating - 0.5) / 9.5;
+                                                                if (t < 0.4) {
+                                                                    const localT = t / 0.4;
+                                                                    return `rgb(225, ${Math.round(6 + localT * 101)}, 0)`;
+                                                                } else if (t < 0.7) {
+                                                                    const localT = (t - 0.4) / 0.3;
+                                                                    return `rgb(${Math.round(225 + localT * 17)}, ${Math.round(107 + localT * 102)}, ${Math.round(localT * 61)})`;
+                                                                } else {
+                                                                    const localT = (t - 0.7) / 0.3;
+                                                                    return `rgb(${Math.round(242 - localT * 242)}, ${Math.round(209 + localT * 46)}, ${Math.round(61 + localT * 75)})`;
+                                                                }
+                                                            })(),
+                                                        }}>
+                                                        {displayRating % 1 === 0 ? displayRating : displayRating.toFixed(1)}
+                                                    </div>
+                                                </div>
+
+                                                {/* Rating Bar - Fills remaining space */}
+                                                <div className="flex gap-[2px] flex-1 min-w-0" onMouseLeave={() => setHoveredRating(null)}>
                                                     {[...Array(20)].map((_, i) => {
                                                         const val = (i + 1) * 0.5; // 0.5, 1.0, 1.5, ..., 10.0
                                                         const isFilled = val <= displayRating;
@@ -269,7 +293,7 @@ export function RatingModal({ race, season, onClose, onSave }: RatingModalProps)
                                                                 key={i}
                                                                 onMouseEnter={() => setHoveredRating({ id: driver.driverId, val })}
                                                                 onClick={() => handleRatingChange(driver.driverId, val)}
-                                                                className="w-3 sm:w-4 h-8 relative focus:outline-none cursor-pointer"
+                                                                className="flex-1 h-8 md:h-10 relative focus:outline-none cursor-pointer touch-manipulation"
                                                             >
                                                                 <div
                                                                     className="w-full h-full rounded-sm"
@@ -283,31 +307,6 @@ export function RatingModal({ race, season, onClose, onSave }: RatingModalProps)
                                                         );
                                                     })}
                                                 </div>
-
-                                                {/* Number Display */}
-                                                <div className="w-16 text-right font-oxanium">
-                                                    <div
-                                                        className="text-3xl font-bold leading-none tabular-nums transition-colors duration-75"
-                                                        style={{
-                                                            color: (() => {
-                                                                if (displayRating === 0) return 'var(--text-muted)';
-                                                                const t = (displayRating - 0.5) / 9.5; // 0 to 1
-                                                                if (t < 0.4) {
-                                                                    const localT = t / 0.4;
-                                                                    return `rgb(225, ${Math.round(6 + localT * 101)}, 0)`;
-                                                                } else if (t < 0.7) {
-                                                                    const localT = (t - 0.4) / 0.3;
-                                                                    return `rgb(${Math.round(225 + localT * 17)}, ${Math.round(107 + localT * 102)}, ${Math.round(localT * 61)})`;
-                                                                } else {
-                                                                    const localT = (t - 0.7) / 0.3;
-                                                                    return `rgb(${Math.round(242 - localT * 242)}, ${Math.round(209 + localT * 46)}, ${Math.round(61 + localT * 75)})`;
-                                                                }
-                                                            })(),
-                                                        }}>
-                                                        {displayRating % 1 === 0 ? displayRating : displayRating.toFixed(1)}
-                                                    </div>
-                                                    <div className="text-[10px] text-[var(--text-muted)] mt-1">RATING</div>
-                                                </div>
                                             </div>
                                         </div>
                                     );
@@ -317,18 +316,18 @@ export function RatingModal({ race, season, onClose, onSave }: RatingModalProps)
                     </div>
 
                     {/* Footer */}
-                    <div className="p-4 border-t border-[var(--border-color)] bg-[var(--bg-panel)] flex justify-end items-center z-20">
-                        <div className="flex items-center gap-4">
+                    <div className="p-4 border-t border-[var(--border-color)] bg-[var(--bg-panel)] flex flex-col md:flex-row justify-end items-stretch md:items-center gap-2 md:gap-0 z-20">
+                        <div className="flex flex-col-reverse md:flex-row items-stretch md:items-center gap-2 md:gap-4 w-full md:w-auto">
                             <button
                                 onClick={onClose}
-                                className="px-6 py-2 font-oxanium text-xs font-bold tracking-widest text-[var(--text-secondary)] hover:text-white transition-colors uppercase"
+                                className="px-6 py-3 md:py-2 font-oxanium text-xs font-bold tracking-widest text-[var(--text-secondary)] hover:text-white transition-colors uppercase border border-[var(--border-color)] md:border-0"
                             >
                                 DISCARD
                             </button>
                             <button
                                 onClick={handleSave}
                                 disabled={saving || loading}
-                                className="flex items-center px-8 py-2 bg-[var(--accent-red)] hover:bg-[#ff0000] text-white font-display text-lg tracking-widest uppercase transition-colors disabled:opacity-50"
+                                className="flex items-center justify-center px-8 py-3 md:py-2 bg-[var(--accent-red)] hover:bg-[#ff0000] text-white font-display text-lg tracking-widest uppercase transition-colors disabled:opacity-50"
                             >
                                 {saving ? (
                                     <Loader2 size={16} className="animate-spin mr-2" />

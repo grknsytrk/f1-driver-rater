@@ -305,3 +305,256 @@ h6 {
 ::-webkit-scrollbar-thumb:hover {
   background: var(--accent-red);
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   MOBILE RESPONSIVE STYLES
+   Only affects screens under 768px - PC layout untouched
+═══════════════════════════════════════════════════════════════════════════ */
+
+/* ─────────────────────────────────────────────────────────────────────────
+   MOBILE: Base & Touch Improvements
+────────────────────────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+
+  /* Better touch targets */
+  button,
+  a,
+  [role="button"] {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  /* Prevent horizontal scroll */
+  body {
+    overflow-x: hidden;
+  }
+
+  /* Smaller padding for mobile */
+  main {
+    padding: 1rem !important;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   MOBILE: Header Adjustments
+────────────────────────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+
+  /* Compact header */
+  header .max-w-7xl {
+    padding-left: 0.75rem !important;
+    padding-right: 0.75rem !important;
+  }
+
+  /* Smaller logo text */
+  header h1.font-display {
+    font-size: 1.25rem !important;
+  }
+
+  /* Hide breadcrumb on mobile */
+  header .border-l {
+    display: none !important;
+  }
+
+  /* Stack action buttons */
+  .header-actions {
+    flex-wrap: wrap;
+    gap: 0.5rem !important;
+  }
+}
+
+/* Very small phones */
+@media (max-width: 380px) {
+  header h1.font-display {
+    font-size: 1rem !important;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   MOBILE: Season Selector
+────────────────────────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+
+  /* Hero section smaller */
+  .text-center.mb-16 {
+    margin-bottom: 2rem !important;
+  }
+
+  .text-center h2.font-display {
+    font-size: 2rem !important;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   MOBILE: Race List - Full Width Cards
+────────────────────────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+
+  /* Race card: Stack layout instead of grid */
+  .race-card-mobile {
+    display: flex !important;
+    flex-direction: column !important;
+    padding: 1rem !important;
+    gap: 0.75rem !important;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   MOBILE: Rating Modal - CRITICAL for touch rating
+────────────────────────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+
+  /* Full screen modal on mobile */
+  .rating-modal-mobile {
+    max-width: 100% !important;
+    max-height: 100vh !important;
+    height: 100vh !important;
+    width: 100vw !important;
+    border-radius: 0 !important;
+    margin: 0 !important;
+  }
+
+  /* Smaller modal header */
+  .rating-modal-header-mobile {
+    padding: 1rem !important;
+  }
+
+  .rating-modal-header-mobile h2 {
+    font-size: 1.5rem !important;
+  }
+
+  /* Rating bar container - BIGGER touch targets */
+  .rating-bar-mobile {
+    gap: 3px !important;
+    padding: 0.5rem 0 !important;
+  }
+
+  /* Individual rating segments - BIGGER for touch */
+  .rating-bar-mobile button {
+    width: 100% !important;
+    min-height: 48px !important;
+    flex: 1 !important;
+  }
+
+  .rating-bar-mobile button>div {
+    min-height: 44px !important;
+  }
+
+  /* Rating number display */
+  .rating-number-mobile {
+    font-size: 2rem !important;
+  }
+
+  /* Driver row - stack on mobile */
+  .driver-row-mobile {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 0.75rem !important;
+    padding: 1rem !important;
+  }
+
+  /* Driver info section */
+  .driver-info-mobile {
+    display: flex !important;
+    align-items: center !important;
+    gap: 0.5rem !important;
+  }
+
+  /* Rating section - full width */
+  .rating-section-mobile {
+    width: 100% !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 0.5rem !important;
+  }
+
+  /* Footer buttons */
+  .modal-footer-mobile {
+    padding: 1rem !important;
+    flex-direction: column !important;
+    gap: 0.5rem !important;
+  }
+
+  .modal-footer-mobile button {
+    width: 100% !important;
+    justify-content: center !important;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   MOBILE: Quick Rate Modal
+────────────────────────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+
+  /* 1 column on mobile */
+  .quick-rate-grid-mobile {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Bigger rating bars */
+  .quick-rate-bar-mobile button {
+    min-height: 40px !important;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   MOBILE: Results Dashboard
+────────────────────────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+
+  .results-table-mobile th,
+  .results-table-mobile td {
+    padding: 0.5rem !important;
+    font-size: 0.875rem !important;
+  }
+
+  .results-table-mobile .driver-name {
+    max-width: 120px !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   MOBILE: Typography Scale Down
+────────────────────────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  h1 {
+    font-size: 1.75rem !important;
+  }
+
+  h2 {
+    font-size: 1.5rem !important;
+  }
+
+  h3 {
+    font-size: 1.125rem !important;
+  }
+
+  h4 {
+    font-size: 1rem !important;
+  }
+
+  /* Reduce letter spacing on mobile */
+  .tracking-widest {
+    letter-spacing: 0.1em !important;
+  }
+
+  .tracking-wider {
+    letter-spacing: 0.05em !important;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   MOBILE: Safe Area (iPhone notch support)
+────────────────────────────────────────────────────────────────────────── */
+@supports (padding: env(safe-area-inset-bottom)) {
+  .modal-footer-mobile {
+    padding-bottom: calc(1rem + env(safe-area-inset-bottom)) !important;
+  }
+
+  header {
+    padding-top: env(safe-area-inset-top);
+  }
+}

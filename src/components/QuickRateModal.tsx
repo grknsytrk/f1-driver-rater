@@ -92,7 +92,7 @@ export function QuickRateModal({ season, onClose, onSave }: QuickRateModalProps)
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="fixed inset-0 z-50 flex items-center justify-center p-4"
+                className="fixed inset-0 z-50 flex items-center justify-center p-0 md:p-4"
                 onClick={onClose}
             >
                 <div className="absolute inset-0 bg-black/90 backdrop-blur-md" />
@@ -103,13 +103,13 @@ export function QuickRateModal({ season, onClose, onSave }: QuickRateModalProps)
                     exit={{ opacity: 0, scale: 0.95, y: 20 }}
                     transition={{ type: 'spring', damping: 25, stiffness: 300 }}
                     onClick={e => e.stopPropagation()}
-                    className="relative w-full max-w-4xl max-h-[90vh] bg-[var(--bg-main)] border border-[var(--border-color)] rounded-none overflow-hidden flex flex-col shadow-2xl"
+                    className="relative w-full max-w-4xl h-[100dvh] md:h-auto md:max-h-[90vh] bg-[var(--bg-main)] border-0 md:border border-[var(--border-color)] rounded-none overflow-hidden flex flex-col shadow-2xl"
                     style={{
                         boxShadow: '0 0 100px rgba(0,0,0,0.8)'
                     }}
                 >
                     {/* Header */}
-                    <div className="relative p-6 border-b border-[var(--border-color)] bg-[var(--bg-panel)]">
+                    <div className="relative p-4 md:p-6 border-b border-[var(--border-color)] bg-[var(--bg-panel)]">
                         <div className="relative flex items-center justify-between z-10">
                             <div>
                                 <div className="flex items-center gap-2 mb-2">
@@ -225,28 +225,28 @@ export function QuickRateModal({ season, onClose, onSave }: QuickRateModalProps)
                     </div>
 
                     {/* Footer */}
-                    <div className="p-4 border-t border-[var(--border-color)] bg-[var(--bg-panel)] flex justify-between items-center z-20">
+                    <div className="p-4 border-t border-[var(--border-color)] bg-[var(--bg-panel)] flex flex-col md:flex-row justify-between items-stretch md:items-center gap-3 md:gap-0 z-20">
                         {/* Clear All Button */}
                         <button
                             onClick={() => setDrivers(prev => prev.map(d => ({ ...d, rating: 0 })))}
                             disabled={loading}
-                            className="flex items-center gap-2 px-4 py-2 border border-[var(--border-color)] hover:border-[var(--accent-red)] hover:bg-[var(--accent-red)]/10 text-[var(--text-muted)] hover:text-[var(--accent-red)] font-oxanium text-xs font-bold tracking-widest uppercase transition-all disabled:opacity-50"
+                            className="flex items-center justify-center gap-2 px-4 py-3 md:py-2 border border-[var(--border-color)] hover:border-[var(--accent-red)] hover:bg-[var(--accent-red)]/10 text-[var(--text-muted)] hover:text-[var(--accent-red)] font-oxanium text-xs font-bold tracking-widest uppercase transition-all disabled:opacity-50"
                         >
                             <RotateCcw size={14} />
                             CLEAR ALL
                         </button>
 
-                        <div className="flex items-center gap-4">
+                        <div className="flex flex-col-reverse md:flex-row items-stretch md:items-center gap-2 md:gap-4">
                             <button
                                 onClick={onClose}
-                                className="px-6 py-2 font-oxanium text-xs font-bold tracking-widest text-[var(--text-secondary)] hover:text-white transition-colors uppercase"
+                                className="px-6 py-3 md:py-2 font-oxanium text-xs font-bold tracking-widest text-[var(--text-secondary)] hover:text-white transition-colors uppercase border border-[var(--border-color)] md:border-0"
                             >
                                 CANCEL
                             </button>
                             <button
                                 onClick={handleSave}
                                 disabled={saving || loading}
-                                className="flex items-center px-8 py-2 bg-[var(--accent-yellow)] hover:bg-[#FFD700] text-black font-display text-lg tracking-widest uppercase transition-colors disabled:opacity-50"
+                                className="flex items-center justify-center px-8 py-3 md:py-2 bg-[var(--accent-yellow)] hover:bg-[#FFD700] text-black font-display text-lg tracking-widest uppercase transition-colors disabled:opacity-50"
                             >
                                 {saving ? (
                                     <Loader2 size={16} className="animate-spin mr-2" />

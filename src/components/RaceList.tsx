@@ -58,37 +58,75 @@ function RaceCard({ race, season, index, onClick }: RaceCardProps) {
             whileHover={isClickable ? { x: 4, backgroundColor: 'var(--bg-panel-hover)' } : {}}
             onClick={isClickable ? onClick : undefined}
             className={`
-                group relative border-b border-[var(--border-color)] p-4 bg-[var(--bg-panel)]
+                group relative border-b border-[var(--border-color)] p-3 md:p-4 bg-[var(--bg-panel)]
                 ${isClickable ? 'cursor-pointer hover:bg-[var(--bg-panel-hover)]' : 'opacity-50 cursor-not-allowed bg-[var(--bg-darker)]'}
                 transition-all duration-200
+                flex flex-col md:grid gap-2 md:gap-4
             `}
             style={{
-                display: 'grid',
                 gridTemplateColumns: '60px 1fr 90px 100px 160px 24px',
                 alignItems: 'center',
-                gap: '16px',
                 borderLeft: isClickable ? '4px solid transparent' : '1px solid var(--border-color)'
             }}
         >
             {isClickable && <div className="absolute left-[-4px] top-0 bottom-0 w-1 bg-[var(--accent-red)] opacity-0 group-hover:opacity-100 transition-opacity" />}
 
-            {/* Round Number */}
-            <div className="flex flex-col items-center justify-center border-r border-[var(--border-color)] pr-4 h-full">
-                <span className="font-oxanium text-[10px] text-[var(--text-muted)] tracking-wider">RND</span>
-                <span className="font-display text-3xl text-white leading-none">{race.round.padStart(2, '0')}</span>
+            {/* Mobile: Top Row with Round + Race Info */}
+            <div className="flex items-center gap-2 md:contents">
+                {/* Round Number - Fixed width on mobile */}
+                <div className="w-10 md:w-auto flex flex-row md:flex-col items-center justify-center md:border-r border-[var(--border-color)] md:pr-4 md:h-full flex-shrink-0">
+                    <span className="font-oxanium text-[10px] text-[var(--text-muted)] tracking-wider hidden md:block">RND</span>
+                    <span className="font-display text-lg md:text-3xl text-white leading-none">{race.round.padStart(2, '0')}</span>
+                </div>
+
+                {/* Race Name & Circuit */}
+                <div className="flex items-center gap-2 md:gap-4 min-w-0 flex-1">
+                    <CountryFlag country={country} size="md" />
+                    <div className="min-w-0 flex-1">
+                        <h3 className="font-display text-sm md:text-2xl text-white truncate leading-none uppercase tracking-tight group-hover:text-[var(--accent-red)] transition-colors">
+                            {race.raceName.replace(' Grand Prix', ' GP')}
+                        </h3>
+                        <div className="flex items-center gap-1 md:gap-2 text-[10px] md:text-xs font-oxanium text-[var(--text-secondary)] uppercase tracking-wide mt-0.5">
+                            <MapPin size={8} className="flex-shrink-0 md:w-[10px] md:h-[10px]" />
+                            <span className="truncate">{race.Circuit.circuitName}</span>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Mobile chevron */}
+                <div className="flex md:hidden items-center justify-center flex-shrink-0">
+                    {isClickable ? (
+                        <ChevronRight
+                            size={18}
+                            className="text-[var(--text-muted)] group-hover:text-[var(--accent-red)] transition-colors"
+                        />
+                    ) : (
+                        <Lock size={14} className="text-[var(--text-muted)]" />
+                    )}
+                </div>
             </div>
 
-            {/* Race Name & Circuit */}
-            <div className="flex items-center gap-4 min-w-0">
-                <CountryFlag country={country} size="md" />
-                <div className="min-w-0">
-                    <h3 className="font-display text-2xl text-white truncate leading-none uppercase tracking-tight group-hover:text-[var(--accent-red)] transition-colors">
-                        {race.raceName.replace(' Grand Prix', ' GP')}
-                    </h3>
-                    <div className="flex items-center gap-2 text-xs font-oxanium text-[var(--text-secondary)] uppercase tracking-wide">
-                        <MapPin size={10} />
-                        <span className="truncate">{race.Circuit.circuitName}</span>
-                    </div>
+            {/* Mobile: Bottom Row with Date + Status */}
+            <div className="flex md:hidden items-center justify-between gap-2 text-xs ml-12">
+                <span className="font-oxanium text-[var(--text-secondary)] uppercase text-[11px]">
+                    {new Date(race.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }).toUpperCase()}
+                </span>
+                <div
+                    className="flex items-center gap-1 px-2 py-0.5 border font-oxanium text-[9px] uppercase tracking-wider"
+                    style={{
+                        borderColor: config.border,
+                        backgroundColor: config.bg,
+                        color: config.color,
+                    }}
+                >
+                    {status === 'rated' ? (
+                        <div className="w-1.5 h-1.5 bg-[var(--accent-yellow)] rounded-full" />
+                    ) : status === 'pending' ? (
+                        <Flag size={8} className="text-[var(--accent-yellow)]" />
+                    ) : (
+                        <Lock size={8} />
+                    )}
+                    <span>{status === 'rated' ? 'RATED' : status === 'pending' ? 'READY' : 'LOCKED'}</span>
                 </div>
             </div>
 
@@ -129,8 +167,8 @@ function RaceCard({ race, season, index, onClick }: RaceCardProps) {
                 <span className="whitespace-nowrap">{config.text}</span>
             </div>
 
-            {/* Chevron - Fixed width cell */}
-            <div className="flex items-center justify-center">
+            {/* Chevron - Fixed width cell (Desktop only) */}
+            <div className="hidden md:flex items-center justify-center">
                 {isClickable ? (
                     <ChevronRight
                         size={20}
