@@ -188,7 +188,13 @@ h6 {
 
 /* Telemetry Table Row Style */
 .telemetry-row {
-  @apply relative grid items-center gap-4 bg-f1-bg-panel border-l-[3px] border-l-transparent transition-all duration-200 ease-out;
+  position: relative;
+  display: grid;
+  align-items: center;
+  gap: 1rem;
+  background-color: var(--bg-panel);
+  border-left: 3px solid transparent;
+  transition: all 0.2s ease-out;
   border-bottom: 1px solid var(--border-color);
 }
 
