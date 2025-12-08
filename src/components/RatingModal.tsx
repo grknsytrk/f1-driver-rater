@@ -235,12 +235,33 @@ export function RatingModal({ race, season, onClose, onSave }: RatingModalProps)
                                                         const val = (i + 1) * 0.5; // 0.5, 1.0, 1.5, ..., 10.0
                                                         const isFilled = val <= displayRating;
 
-                                                        // Color Logic based on value
+                                                        // Color Logic - smooth gradient from red → orange → yellow → green
                                                         let segmentColor = 'rgba(255,255,255,0.08)';
                                                         if (isFilled) {
-                                                            if (val <= 5) segmentColor = 'var(--accent-red)';
-                                                            else if (val <= 8) segmentColor = 'var(--accent-yellow)';
-                                                            else segmentColor = '#00FF88';
+                                                            // Interpolate color based on segment position (1-20)
+                                                            const t = i / 19; // 0 to 1
+                                                            if (t < 0.4) {
+                                                                // Red to Orange (segments 1-8)
+                                                                const localT = t / 0.4;
+                                                                const r = 225;
+                                                                const g = Math.round(6 + localT * 101); // 6 → 107
+                                                                const b = 0;
+                                                                segmentColor = `rgb(${r}, ${g}, ${b})`;
+                                                            } else if (t < 0.7) {
+                                                                // Orange to Yellow (segments 9-14)
+                                                                const localT = (t - 0.4) / 0.3;
+                                                                const r = Math.round(225 + localT * 17); // 225 → 242
+                                                                const g = Math.round(107 + localT * 102); // 107 → 209
+                                                                const b = Math.round(localT * 61); // 0 → 61
+                                                                segmentColor = `rgb(${r}, ${g}, ${b})`;
+                                                            } else {
+                                                                // Yellow to Green (segments 15-20)
+                                                                const localT = (t - 0.7) / 0.3;
+                                                                const r = Math.round(242 - localT * 242); // 242 → 0
+                                                                const g = Math.round(209 + localT * 46); // 209 → 255
+                                                                const b = Math.round(61 + localT * 75); // 61 → 136
+                                                                segmentColor = `rgb(${r}, ${g}, ${b})`;
+                                                            }
                                                         }
 
                                                         return (
@@ -268,7 +289,20 @@ export function RatingModal({ race, season, onClose, onSave }: RatingModalProps)
                                                     <div
                                                         className="text-3xl font-bold leading-none tabular-nums transition-colors duration-75"
                                                         style={{
-                                                            color: displayRating > 8 ? '#00FF88' : displayRating > 5 ? 'var(--accent-yellow)' : displayRating > 0 ? 'var(--accent-red)' : 'var(--text-muted)',
+                                                            color: (() => {
+                                                                if (displayRating === 0) return 'var(--text-muted)';
+                                                                const t = (displayRating - 0.5) / 9.5; // 0 to 1
+                                                                if (t < 0.4) {
+                                                                    const localT = t / 0.4;
+                                                                    return `rgb(225, ${Math.round(6 + localT * 101)}, 0)`;
+                                                                } else if (t < 0.7) {
+                                                                    const localT = (t - 0.4) / 0.3;
+                                                                    return `rgb(${Math.round(225 + localT * 17)}, ${Math.round(107 + localT * 102)}, ${Math.round(localT * 61)})`;
+                                                                } else {
+                                                                    const localT = (t - 0.7) / 0.3;
+                                                                    return `rgb(${Math.round(242 - localT * 242)}, ${Math.round(209 + localT * 46)}, ${Math.round(61 + localT * 75)})`;
+                                                                }
+                                                            })(),
                                                         }}>
                                                         {displayRating % 1 === 0 ? displayRating : displayRating.toFixed(1)}
                                                     </div>
