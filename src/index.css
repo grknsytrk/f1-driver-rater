@@ -186,6 +186,19 @@ h6 {
    COMPONENTS & UTILITIES
 ────────────────────────────────────────────────────────────────────────── */
 
+/* Hide scrollbar but keep scroll functionality */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  /* IE and Edge */
+  scrollbar-width: none;
+  /* Firefox */
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+  /* Chrome, Safari and Opera */
+}
+
 /* Telemetry Table Row Style */
 .telemetry-row {
   position: relative;

@@ -253,59 +253,61 @@ export function RatingModal({ race, season, onClose, onSave }: RatingModalProps)
                                                     </div>
                                                 </div>
 
-                                                {/* Rating Bar - No gap on mobile, flex-1 with min-w-0 to shrink */}
-                                                <div className="flex gap-0 md:gap-[2px] flex-1 min-w-0 overflow-hidden" onMouseLeave={() => setHoveredRating(null)}>
-                                                    {[...Array(20)].map((_, i) => {
-                                                        const val = (i + 1) * 0.5; // 0.5, 1.0, 1.5, ..., 10.0
-                                                        const isFilled = val <= displayRating;
+                                                {/* Rating Bar - Horizontal scroll on mobile */}
+                                                <div className="flex-1 overflow-x-auto md:overflow-visible scrollbar-hide">
+                                                    <div className="flex gap-[2px]" style={{ minWidth: 'max-content' }} onMouseLeave={() => setHoveredRating(null)}>
+                                                        {[...Array(20)].map((_, i) => {
+                                                            const val = (i + 1) * 0.5; // 0.5, 1.0, 1.5, ..., 10.0
+                                                            const isFilled = val <= displayRating;
 
-                                                        // Color Logic - smooth gradient from red → orange → yellow → green
-                                                        let segmentColor = 'rgba(255,255,255,0.08)';
-                                                        if (isFilled) {
-                                                            // Interpolate color based on segment position (1-20)
-                                                            const t = i / 19; // 0 to 1
-                                                            if (t < 0.4) {
-                                                                // Red to Orange (segments 1-8)
-                                                                const localT = t / 0.4;
-                                                                const r = 225;
-                                                                const g = Math.round(6 + localT * 101); // 6 → 107
-                                                                const b = 0;
-                                                                segmentColor = `rgb(${r}, ${g}, ${b})`;
-                                                            } else if (t < 0.7) {
-                                                                // Orange to Yellow (segments 9-14)
-                                                                const localT = (t - 0.4) / 0.3;
-                                                                const r = Math.round(225 + localT * 17); // 225 → 242
-                                                                const g = Math.round(107 + localT * 102); // 107 → 209
-                                                                const b = Math.round(localT * 61); // 0 → 61
-                                                                segmentColor = `rgb(${r}, ${g}, ${b})`;
-                                                            } else {
-                                                                // Yellow to Green (segments 15-20)
-                                                                const localT = (t - 0.7) / 0.3;
-                                                                const r = Math.round(242 - localT * 242); // 242 → 0
-                                                                const g = Math.round(209 + localT * 46); // 209 → 255
-                                                                const b = Math.round(61 + localT * 75); // 61 → 136
-                                                                segmentColor = `rgb(${r}, ${g}, ${b})`;
+                                                            // Color Logic - smooth gradient from red → orange → yellow → green
+                                                            let segmentColor = 'rgba(255,255,255,0.08)';
+                                                            if (isFilled) {
+                                                                // Interpolate color based on segment position (1-20)
+                                                                const t = i / 19; // 0 to 1
+                                                                if (t < 0.4) {
+                                                                    // Red to Orange (segments 1-8)
+                                                                    const localT = t / 0.4;
+                                                                    const r = 225;
+                                                                    const g = Math.round(6 + localT * 101); // 6 → 107
+                                                                    const b = 0;
+                                                                    segmentColor = `rgb(${r}, ${g}, ${b})`;
+                                                                } else if (t < 0.7) {
+                                                                    // Orange to Yellow (segments 9-14)
+                                                                    const localT = (t - 0.4) / 0.3;
+                                                                    const r = Math.round(225 + localT * 17); // 225 → 242
+                                                                    const g = Math.round(107 + localT * 102); // 107 → 209
+                                                                    const b = Math.round(localT * 61); // 0 → 61
+                                                                    segmentColor = `rgb(${r}, ${g}, ${b})`;
+                                                                } else {
+                                                                    // Yellow to Green (segments 15-20)
+                                                                    const localT = (t - 0.7) / 0.3;
+                                                                    const r = Math.round(242 - localT * 242); // 242 → 0
+                                                                    const g = Math.round(209 + localT * 46); // 209 → 255
+                                                                    const b = Math.round(61 + localT * 75); // 61 → 136
+                                                                    segmentColor = `rgb(${r}, ${g}, ${b})`;
+                                                                }
                                                             }
-                                                        }
 
-                                                        return (
-                                                            <button
-                                                                key={i}
-                                                                onMouseEnter={() => setHoveredRating({ id: driver.driverId, val })}
-                                                                onClick={() => handleRatingChange(driver.driverId, val)}
-                                                                className="flex-1 h-8 md:h-10 relative focus:outline-none cursor-pointer touch-manipulation min-w-0"
-                                                            >
-                                                                <div
-                                                                    className="w-full h-full rounded-[1px] md:rounded-sm"
-                                                                    style={{
-                                                                        backgroundColor: segmentColor,
-                                                                        transform: isFilled ? 'scaleY(1)' : 'scaleY(0.65)',
-                                                                        opacity: isFilled ? 1 : 0.4,
-                                                                    }}
-                                                                />
-                                                            </button>
-                                                        );
-                                                    })}
+                                                            return (
+                                                                <button
+                                                                    key={i}
+                                                                    onMouseEnter={() => setHoveredRating({ id: driver.driverId, val })}
+                                                                    onClick={() => handleRatingChange(driver.driverId, val)}
+                                                                    className="w-4 md:w-5 h-7 md:h-10 relative focus:outline-none cursor-pointer touch-manipulation flex-shrink-0"
+                                                                >
+                                                                    <div
+                                                                        className="w-full h-full rounded-sm"
+                                                                        style={{
+                                                                            backgroundColor: segmentColor,
+                                                                            transform: isFilled ? 'scaleY(1)' : 'scaleY(0.65)',
+                                                                            opacity: isFilled ? 1 : 0.4,
+                                                                        }}
+                                                                    />
+                                                                </button>
+                                                            );
+                                                        })}
+                                                    </div>
                                                 </div>
                                             </div>
                                         </div>

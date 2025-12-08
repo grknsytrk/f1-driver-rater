@@ -184,38 +184,40 @@ export function QuickRateModal({ season, onClose, onSave }: QuickRateModalProps)
                                                 </motion.div>
                                             </div>
 
-                                            {/* Rating Bar */}
-                                            <div className="flex gap-[1px] md:gap-[2px]" onMouseLeave={() => setHoveredRating(null)}>
-                                                {[...Array(20)].map((_, i) => {
-                                                    const val = (i + 1) * 0.5;
-                                                    const isFilled = val <= displayRating;
+                                            {/* Rating Bar - Horizontal scroll on mobile */}
+                                            <div className="overflow-x-auto scrollbar-hide">
+                                                <div className="flex gap-[2px]" style={{ minWidth: 'max-content' }} onMouseLeave={() => setHoveredRating(null)}>
+                                                    {[...Array(20)].map((_, i) => {
+                                                        const val = (i + 1) * 0.5;
+                                                        const isFilled = val <= displayRating;
 
-                                                    let segmentColor = 'rgba(255,255,255,0.08)';
-                                                    if (isFilled) {
-                                                        if (val <= 5) segmentColor = 'var(--accent-red)';
-                                                        else if (val <= 8) segmentColor = 'var(--accent-yellow)';
-                                                        else segmentColor = '#00FF88';
-                                                    }
+                                                        let segmentColor = 'rgba(255,255,255,0.08)';
+                                                        if (isFilled) {
+                                                            if (val <= 5) segmentColor = 'var(--accent-red)';
+                                                            else if (val <= 8) segmentColor = 'var(--accent-yellow)';
+                                                            else segmentColor = '#00FF88';
+                                                        }
 
-                                                    return (
-                                                        <button
-                                                            key={i}
-                                                            onMouseEnter={() => setHoveredRating({ id: driver.driverId, val })}
-                                                            onClick={() => handleRatingChange(driver.driverId, val)}
-                                                            className="flex-1 h-6 relative focus:outline-none cursor-pointer"
-                                                        >
-                                                            <div
-                                                                className="w-full h-full rounded-sm"
-                                                                style={{
-                                                                    backgroundColor: segmentColor,
-                                                                    transform: isFilled ? 'scaleY(1)' : 'scaleY(0.65)',
-                                                                    opacity: isFilled ? 1 : 0.4,
-                                                                    transition: 'all 50ms cubic-bezier(0.2, 0, 0, 1)',
-                                                                }}
-                                                            />
-                                                        </button>
-                                                    );
-                                                })}
+                                                        return (
+                                                            <button
+                                                                key={i}
+                                                                onMouseEnter={() => setHoveredRating({ id: driver.driverId, val })}
+                                                                onClick={() => handleRatingChange(driver.driverId, val)}
+                                                                className="w-4 md:w-5 h-7 md:h-8 relative focus:outline-none cursor-pointer flex-shrink-0"
+                                                            >
+                                                                <div
+                                                                    className="w-full h-full rounded-sm"
+                                                                    style={{
+                                                                        backgroundColor: segmentColor,
+                                                                        transform: isFilled ? 'scaleY(1)' : 'scaleY(0.65)',
+                                                                        opacity: isFilled ? 1 : 0.4,
+                                                                        transition: 'all 50ms cubic-bezier(0.2, 0, 0, 1)',
+                                                                    }}
+                                                                />
+                                                            </button>
+                                                        );
+                                                    })}
+                                                </div>
                                             </div>
                                         </motion.div>
                                     );
