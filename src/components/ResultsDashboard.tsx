@@ -1,10 +1,10 @@
 import { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Trophy, BarChart3, RotateCcw, ImageDown, Download, Share2, AlertTriangle, Table } from 'lucide-react';
+import { Trophy, BarChart3, RotateCcw, ImageDown, Download, Share2, AlertTriangle, Table, Upload, FileJson, CheckCircle, XCircle } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { toPng } from 'html-to-image';
 import { TEAM_COLORS } from '../types';
-import { calculateAverages, clearSeasonRatings, getRatedRacesCount, getRaceByRaceMatrix } from '../utils/storage';
+import { calculateAverages, clearSeasonRatings, getRatedRacesCount, getRaceByRaceMatrix, downloadRatingsAsJson, importRatings } from '../utils/storage';
 import { CountryFlag } from '../utils/countryFlags';
 
 interface ResultsDashboardProps {
@@ -21,9 +21,11 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
     const [generating, setGenerating] = useState(false);
     const [generatingTable, setGeneratingTable] = useState(false);
     const [showConfirmModal, setShowConfirmModal] = useState(false);
+    const [importMessage, setImportMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
     const cardRef = useRef<HTMLDivElement>(null);
     const shareSectionRef = useRef<HTMLDivElement>(null);
     const tableRef = useRef<HTMLDivElement>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     if (averages.length === 0) {
         return (
@@ -118,6 +120,40 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
         }
     }
 
+    function handleExportJson() {
+        downloadRatingsAsJson(season);
+    }
+
+    function handleImportClick() {
+        fileInputRef.current?.click();
+    }
+
+    function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            const content = event.target?.result as string;
+            const result = importRatings(content);
+
+            if (result.success) {
+                setImportMessage({ type: 'success', text: result.message });
+                // Reload page to reflect imported data
+                setTimeout(() => {
+                    window.location.reload();
+                }, 1500);
+            } else {
+                setImportMessage({ type: 'error', text: result.message });
+                setTimeout(() => setImportMessage(null), 3000);
+            }
+        };
+        reader.readAsText(file);
+
+        // Reset input so same file can be imported again
+        e.target.value = '';
+    }
+
     // Chart data
     const chartData = averages.slice(0, 10).map(d => ({
         name: d.driverName.split(' ').pop()?.toUpperCase(),
@@ -153,23 +189,73 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
                             SEASON {season} • RACES RATED: <span className="text-white">{ratedCount}</span>
                         </p>
 
-                        <div className="flex gap-4">
+                        <div className="flex gap-2 flex-wrap">
+                            {/* Export JSON */}
+                            <button
+                                onClick={handleExportJson}
+                                className="group flex items-center gap-2 px-4 py-2 bg-[var(--bg-panel)] border border-[var(--border-color)] hover:border-[#00FF88] transition-all hover:bg-[var(--bg-panel-hover)]"
+                            >
+                                <FileJson size={14} className="text-[var(--text-muted)] group-hover:text-[#00FF88]" />
+                                <span className="font-ui font-bold text-xs text-white uppercase tracking-wider">EXPORT JSON</span>
+                            </button>
+
+                            {/* Import JSON */}
+                            <button
+                                onClick={handleImportClick}
+                                className="group flex items-center gap-2 px-4 py-2 bg-[var(--bg-panel)] border border-[var(--border-color)] hover:border-[var(--accent-yellow)] transition-all hover:bg-[var(--bg-panel-hover)]"
+                            >
+                                <Upload size={14} className="text-[var(--text-muted)] group-hover:text-[var(--accent-yellow)]" />
+                                <span className="font-ui font-bold text-xs text-white uppercase tracking-wider">IMPORT JSON</span>
+                            </button>
+                            <input
+                                ref={fileInputRef}
+                                type="file"
+                                accept=".json"
+                                onChange={handleFileChange}
+                                className="hidden"
+                            />
+
+                            {/* Generate Card */}
                             <button
                                 onClick={handleGenerateCard}
-                                className="group flex items-center gap-2 px-6 py-2 bg-[var(--bg-panel)] border border-[var(--border-color)] hover:border-white transition-all hover:bg-[var(--bg-panel-hover)]"
+                                className="group flex items-center gap-2 px-4 py-2 bg-[var(--bg-panel)] border border-[var(--border-color)] hover:border-white transition-all hover:bg-[var(--bg-panel-hover)]"
                             >
                                 <ImageDown size={14} className="text-[var(--text-muted)] group-hover:text-white" />
                                 <span className="font-ui font-bold text-xs text-white uppercase tracking-wider">GENERATE CARD</span>
                             </button>
+
+                            {/* Clear All */}
                             <button
                                 onClick={handleReset}
-                                className="group flex items-center gap-2 px-6 py-2 bg-[var(--bg-panel)] border border-[var(--border-color)] hover:border-[var(--accent-red)] transition-all hover:bg-[var(--bg-panel-hover)]"
+                                className="group flex items-center gap-2 px-4 py-2 bg-[var(--bg-panel)] border border-[var(--border-color)] hover:border-[var(--accent-red)] transition-all hover:bg-[var(--bg-panel-hover)]"
                             >
                                 <RotateCcw size={14} className="text-[var(--text-muted)] group-hover:text-[var(--accent-red)]" />
                                 <span className="font-ui font-bold text-xs text-white uppercase tracking-wider">CLEAR ALL</span>
                             </button>
                         </div>
                     </div>
+
+                    {/* Import Notification */}
+                    <AnimatePresence>
+                        {importMessage && (
+                            <motion.div
+                                initial={{ opacity: 0, y: -10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0, y: -10 }}
+                                className={`mt-4 p-4 border flex items-center gap-3 ${importMessage.type === 'success'
+                                        ? 'bg-[#00FF88]/10 border-[#00FF88]'
+                                        : 'bg-[var(--accent-red)]/10 border-[var(--accent-red)]'
+                                    }`}
+                            >
+                                {importMessage.type === 'success' ? (
+                                    <CheckCircle size={20} className="text-[#00FF88]" />
+                                ) : (
+                                    <XCircle size={20} className="text-[var(--accent-red)]" />
+                                )}
+                                <span className="font-oxanium text-sm text-white">{importMessage.text}</span>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
                 </motion.div>
 
                 {/* 2. SECTION: PODIUM (TECHNICAL BLOCKS) */}

@@ -170,7 +170,76 @@ export function clearAllRatings(): void {
 // Export ratings as JSON
 export function exportRatings(season: string): string {
     const seasonRatings = getSeasonRatings(season);
-    return JSON.stringify(seasonRatings, null, 2);
+    const quickRatings = getQuickRatings(season);
+
+    const exportData = {
+        version: 1,
+        exportDate: new Date().toISOString(),
+        season,
+        raceRatings: seasonRatings,
+        quickRatings: quickRatings,
+    };
+
+    return JSON.stringify(exportData, null, 2);
+}
+
+// Download ratings as JSON file
+export function downloadRatingsAsJson(season: string): void {
+    const jsonData = exportRatings(season);
+    const blob = new Blob([jsonData], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+
+    const link = document.createElement('a');
+    link.download = `f1-ratings-${season}-${new Date().toISOString().split('T')[0]}.json`;
+    link.href = url;
+    link.click();
+
+    URL.revokeObjectURL(url);
+}
+
+// Import ratings from JSON
+export interface ImportResult {
+    success: boolean;
+    message: string;
+    season?: string;
+    racesImported?: number;
+}
+
+export function importRatings(jsonString: string): ImportResult {
+    try {
+        const data = JSON.parse(jsonString);
+
+        // Validate structure
+        if (!data.season) {
+            return { success: false, message: 'Invalid file: missing season' };
+        }
+
+        const season = data.season;
+        let racesImported = 0;
+
+        // Import race-by-race ratings
+        if (data.raceRatings && data.raceRatings.races) {
+            const allRatings = getAllRatings();
+            allRatings[season] = data.raceRatings;
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(allRatings));
+            racesImported = data.raceRatings.races.length;
+        }
+
+        // Import quick ratings
+        if (data.quickRatings && data.quickRatings.length > 0) {
+            saveQuickRatings(season, data.quickRatings);
+        }
+
+        return {
+            success: true,
+            message: `Successfully imported ${racesImported} races for ${season}`,
+            season,
+            racesImported
+        };
+    } catch (error) {
+        console.error('Import error:', error);
+        return { success: false, message: 'Invalid JSON file format' };
+    }
 }
 
 // Quick Rate Storage Key
