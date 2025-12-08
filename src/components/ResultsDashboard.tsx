@@ -102,11 +102,26 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
         if (!tableRef.current) return;
 
         setGeneratingTable(true);
+
+        // Store original styles - need to capture full table without scroll
+        const tableContainer = tableRef.current;
+        const scrollContainer = tableContainer.querySelector('.overflow-x-auto') as HTMLElement;
+
+        // Temporarily remove overflow to capture full table
+        const originalOverflow = scrollContainer?.style.overflow;
+        const originalMaxWidth = scrollContainer?.style.maxWidth;
+        if (scrollContainer) {
+            scrollContainer.style.overflow = 'visible';
+            scrollContainer.style.maxWidth = 'none';
+        }
+
         try {
             const dataUrl = await toPng(tableRef.current, {
                 cacheBust: true,
                 pixelRatio: 2,
                 backgroundColor: '#0a0a0b',
+                width: tableRef.current.scrollWidth,
+                height: tableRef.current.scrollHeight,
             });
 
             const link = document.createElement('a');
@@ -116,6 +131,11 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
         } catch (error) {
             console.error('Error generating table image:', error);
         } finally {
+            // Restore original styles
+            if (scrollContainer) {
+                scrollContainer.style.overflow = originalOverflow || '';
+                scrollContainer.style.maxWidth = originalMaxWidth || '';
+            }
             setGeneratingTable(false);
         }
     }
@@ -243,8 +263,8 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
                                 animate={{ opacity: 1, y: 0 }}
                                 exit={{ opacity: 0, y: -10 }}
                                 className={`mt-4 p-4 border flex items-center gap-3 ${importMessage.type === 'success'
-                                        ? 'bg-[#00FF88]/10 border-[#00FF88]'
-                                        : 'bg-[var(--accent-red)]/10 border-[var(--accent-red)]'
+                                    ? 'bg-[#00FF88]/10 border-[#00FF88]'
+                                    : 'bg-[var(--accent-red)]/10 border-[var(--accent-red)]'
                                     }`}
                             >
                                 {importMessage.type === 'success' ? (
