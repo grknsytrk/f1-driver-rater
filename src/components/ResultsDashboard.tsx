@@ -496,7 +496,7 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
                                             <th className="sticky left-12 z-10 bg-[var(--bg-darker)] px-3 py-2 text-left min-w-[140px]">
                                                 <span className="font-oxanium text-[10px] text-[var(--text-muted)] uppercase">DRIVER</span>
                                             </th>
-                                            <th className="bg-[var(--bg-darker)] px-3 py-2 text-center w-16">
+                                            <th className="sticky left-[188px] z-10 bg-[var(--bg-darker)] px-3 py-2 text-center w-16 border-r border-[var(--border-color)]">
                                                 <span className="font-oxanium text-[10px] text-[var(--accent-yellow)] uppercase">AVG</span>
                                             </th>
                                             {raceMatrix.races.map(race => (
@@ -537,7 +537,7 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
                                                 </td>
 
                                                 {/* Average */}
-                                                <td className="px-3 py-2 text-center bg-[var(--bg-darker)]/50">
+                                                <td className="sticky left-[188px] z-10 px-3 py-2 text-center bg-[var(--bg-darker)] border-r border-[var(--border-color)]">
                                                     <span className="font-oxanium text-sm font-bold text-[var(--accent-yellow)]">
                                                         {driver.totalAverage.toFixed(1)}
                                                     </span>
