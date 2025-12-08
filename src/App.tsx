@@ -1,5 +1,5 @@
-import { useEffect } from 'react';
-import { Routes, Route, useNavigate, useParams } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { Routes, Route, useNavigate, useParams, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronLeft, Trophy, Zap } from 'lucide-react';
 import { SeasonSelector } from './components/SeasonSelector';
@@ -10,7 +10,6 @@ import { ResultsDashboard } from './components/ResultsDashboard';
 import { getSeasons, getRaces } from './api/f1Api';
 import { getRatedRacesCount, hasQuickRatings } from './utils/storage';
 import type { Season, Race } from './types';
-import { useState } from 'react';
 
 // Season Page Component
 function SeasonPage() {
@@ -90,8 +89,6 @@ function RacesPage() {
   const [races, setRaces] = useState<Race[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedRace, setSelectedRace] = useState<Race | null>(null);
-  const [showQuickRate, setShowQuickRate] = useState(false);
-  const navigate = useNavigate();
 
   useEffect(() => {
     async function loadRaces() {
@@ -108,8 +105,6 @@ function RacesPage() {
   function handleSaveRatings() {
     setRaces([...races]);
   }
-
-  const ratedCount = season ? getRatedRacesCount(season) : 0;
 
   if (!season) return null;
 
@@ -139,17 +134,6 @@ function RacesPage() {
           onSave={handleSaveRatings}
         />
       )}
-
-      {/* Quick Rate Modal */}
-      {showQuickRate && (
-        <QuickRateModal
-          season={season}
-          onClose={() => setShowQuickRate(false)}
-          onSave={() => setRaces([...races])}
-        />
-      )}
-
-      {/* Header Actions - injected via context or passed as props */}
     </>
   );
 }
@@ -180,10 +164,10 @@ function ResultsPage() {
 // Main App with Header
 function App() {
   const navigate = useNavigate();
-  const params = useParams();
+  const location = useLocation();
 
-  // Get current path info
-  const pathname = window.location.pathname;
+  // Get current path info from React Router (not window.location)
+  const pathname = location.pathname;
   const pathParts = pathname.split('/').filter(Boolean);
   const currentSeason = pathParts[0] || null;
   const isResultsPage = pathParts[1] === 'results';
@@ -298,7 +282,7 @@ function App() {
       {/* Main Content */}
       <main className="max-w-6xl mx-auto px-4 py-8">
         <AnimatePresence mode="wait">
-          <Routes>
+          <Routes location={location} key={location.pathname}>
             <Route path="/" element={<SeasonPage />} />
             <Route path="/:season" element={<RacesPage />} />
             <Route path="/:season/results" element={<ResultsPage />} />
