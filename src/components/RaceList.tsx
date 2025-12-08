@@ -61,7 +61,7 @@ function RaceCard({ race, season, index, onClick }: RaceCardProps) {
                 group relative border-b border-[var(--border-color)] p-3 md:p-4 bg-[var(--bg-panel)]
                 ${isClickable ? 'cursor-pointer hover:bg-[var(--bg-panel-hover)]' : 'opacity-50 cursor-not-allowed bg-[var(--bg-darker)]'}
                 transition-all duration-200
-                flex flex-col md:grid gap-2 md:gap-4
+                flex flex-col md:grid gap-2 md:gap-4 race-card
             `}
             style={{
                 gridTemplateColumns: '60px 1fr 90px 100px 160px 24px',
@@ -72,16 +72,20 @@ function RaceCard({ race, season, index, onClick }: RaceCardProps) {
             {isClickable && <div className="absolute left-[-4px] top-0 bottom-0 w-1 bg-[var(--accent-red)] opacity-0 group-hover:opacity-100 transition-opacity" />}
 
             {/* Mobile Layout - Simple flexbox */}
-            <div className="flex md:hidden flex-col gap-1.5">
+            <div className="flex md:hidden flex-col gap-1.5 race-card-mobile">
                 {/* Main row: Round + Flag + Name + Chevron */}
-                <div className="flex items-center gap-2">
-                    {/* Round Number - fixed width */}
-                    <div className="w-8 text-center flex-shrink-0">
-                        <span className="font-display text-base text-white leading-none">{race.round.padStart(2, '0')}</span>
+                <div className="race-card-mobile-row">
+                    {/* Round Number - fixed width & aligned */}
+                    <div className="w-9 text-left pl-1 flex-shrink-0">
+                        <span className="font-oxanium font-bold text-lg text-white leading-none tabular-nums tracking-tighter">
+                            {race.round.padStart(2, '0')}
+                        </span>
                     </div>
 
-                    {/* Flag */}
-                    <CountryFlag country={country} size="md" />
+                    {/* Flag - sabit genişlik ile hizalama */}
+                    <div className="w-10 flex-shrink-0 flex items-center justify-center">
+                        <CountryFlag country={country} size="md" />
+                    </div>
 
                     {/* Race Name + Circuit + Date/Status - takes remaining space */}
                     <div className="min-w-0 flex-1">
@@ -93,12 +97,12 @@ function RaceCard({ race, season, index, onClick }: RaceCardProps) {
                             <span className="truncate">{race.Circuit.circuitName}</span>
                         </div>
                         {/* Date + Status */}
-                        <div className="flex items-center gap-2 mt-1">
+                        <div className="race-card-mobile-meta mt-1">
                             <span className="font-oxanium text-[var(--text-muted)] uppercase text-[9px]">
                                 {new Date(race.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }).toUpperCase()}
                             </span>
                             <div
-                                className="flex items-center gap-1 px-1.5 py-0.5 border font-oxanium text-[8px] uppercase tracking-wider rounded-sm"
+                                className="flex items-center gap-1 px-1.5 py-0.5 border font-oxanium text-[8px] uppercase tracking-wider rounded-sm race-card-mobile-status"
                                 style={{
                                     borderColor: config.border,
                                     backgroundColor: config.bg,

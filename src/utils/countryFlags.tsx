@@ -24,6 +24,10 @@ export const COUNTRY_CODES: Record<string, keyof typeof Flags> = {
     'Brazil': 'BR',
     'Qatar': 'QA',
     'UAE': 'AE',
+    'United Arab Emirates': 'AE',
+    // Regional/alias names
+    'United Kingdom': 'GB',
+    'Great Britain': 'GB',
     // City-based races (use country code)
     'Las Vegas': 'US',
     'Miami': 'US',
@@ -39,6 +43,11 @@ export const COUNTRY_CODES: Record<string, keyof typeof Flags> = {
     'Malaysia': 'MY',
 };
 
+// Country code aliases that need remapping (e.g., UK -> GB)
+const COUNTRY_CODE_ALIASES: Record<string, keyof typeof Flags> = {
+    UK: 'GB',
+};
+
 interface CountryFlagProps {
     country: string;
     className?: string;
@@ -46,17 +55,18 @@ interface CountryFlagProps {
 }
 
 export function CountryFlag({ country, className = '', size = 'md' }: CountryFlagProps) {
+    const normalizedInput = country.trim();
     // Check if input is already a country code (2 letters uppercase)
-    const isCountryCode = country.length === 2 && country === country.toUpperCase();
+    const isCountryCode = normalizedInput.length === 2 && normalizedInput === normalizedInput.toUpperCase();
 
     // Get the code - either from lookup or direct
     let countryCode: keyof typeof Flags | undefined;
     if (isCountryCode) {
         // Direct country code like "BH", "SA"
-        countryCode = country as keyof typeof Flags;
+        countryCode = COUNTRY_CODE_ALIASES[normalizedInput] ?? (normalizedInput as keyof typeof Flags);
     } else {
         // Country name lookup
-        countryCode = COUNTRY_CODES[country];
+        countryCode = COUNTRY_CODES[normalizedInput];
     }
 
     const sizeClasses = {

@@ -409,6 +409,35 @@ h6 {
     flex-direction: column !important;
     padding: 1rem !important;
     gap: 0.75rem !important;
+    width: 100% !important;
+  }
+
+  /* Keep the outer card full width */
+  .race-card {
+    width: 100% !important;
+  }
+
+  /* Align number / flag / name / chevron to a fixed grid on mobile */
+  .race-card-mobile-row {
+    display: grid !important;
+    grid-template-columns: 44px 44px 1fr auto;
+    align-items: center;
+    column-gap: 0.5rem;
+    row-gap: 0.25rem;
+  }
+
+  /* Date + status row stays on one line */
+  .race-card-mobile-meta {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 0.75rem !important;
+    flex-wrap: nowrap !important;
+  }
+
+  .race-card-mobile-status {
+    flex-shrink: 0 !important;
+    white-space: nowrap !important;
   }
 }
 
