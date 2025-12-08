@@ -275,14 +275,14 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
                 </motion.div>
 
                 {/* 2. SECTION: PODIUM (TECHNICAL BLOCKS) */}
-                <div className="pt-4 md:pt-8 pb-8 md:pb-16">
+                <div className="pt-4 md:pt-8 pb-8 md:pb-16 overflow-hidden">
                     <div className="flex items-end justify-center gap-1 md:gap-8">
                         {podiumOrder.map((pos, visualIndex) => {
                             if (!podium[pos]) return null;
                             const driver = podium[pos];
                             const isWinner = pos === 0;
                             // Explicit heights - smaller on mobile
-                            const blockHeight = isWinner ? 'h-32 md:h-56' : pos === 1 ? 'h-24 md:h-40' : 'h-20 md:h-32';
+                            const blockHeight = isWinner ? 'h-20 md:h-56' : pos === 1 ? 'h-16 md:h-40' : 'h-12 md:h-32';
                             const positionColor = isWinner ? 'var(--accent-yellow)' : pos === 1 ? '#C0C0C0' : '#CD7F32';
                             const rank = isWinner ? 1 : pos === 1 ? 2 : 3;
 
@@ -292,28 +292,28 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
                                     initial={{ opacity: 0, y: 50 }}
                                     animate={{ opacity: 1, y: 0 }}
                                     transition={{ delay: 0.1 * visualIndex, ease: "circOut" }}
-                                    className={`flex flex-col w-24 md:w-56 ${isWinner ? 'z-10' : 'z-0'}`}
+                                    className={`flex flex-col w-[30%] max-w-[100px] md:max-w-none md:w-56 ${isWinner ? 'z-10' : 'z-0'}`}
                                 >
                                     {/* DRIVER INFO */}
-                                    <div className="mb-1 md:mb-2 bg-[var(--bg-panel)] border border-[var(--border-color)] border-l-2 p-2 md:p-3"
+                                    <div className="mb-1 md:mb-2 bg-[var(--bg-panel)] border border-[var(--border-color)] border-l-2 p-1.5 md:p-3 overflow-hidden"
                                         style={{ borderLeftColor: getTeamColor(driver.constructorId) }}
                                     >
                                         <div className="flex justify-between items-start mb-0.5 md:mb-1">
-                                            <span className="font-oxanium text-[8px] md:text-xs text-[var(--text-secondary)]">P{rank}</span>
-                                            <div className="w-1.5 h-1.5 md:w-2 md:h-2 rounded-full" style={{ backgroundColor: getTeamColor(driver.constructorId) }} />
+                                            <span className="font-oxanium text-[7px] md:text-xs text-[var(--text-secondary)]">P{rank}</span>
+                                            <div className="w-1 h-1 md:w-2 md:h-2 rounded-full flex-shrink-0" style={{ backgroundColor: getTeamColor(driver.constructorId) }} />
                                         </div>
-                                        <div className="font-display-condensed text-sm md:text-2xl leading-none text-white uppercase tracking-tight">
+                                        <div className="font-display-condensed text-[10px] md:text-2xl leading-none text-white uppercase tracking-tight truncate">
                                             {driver.driverName.split(' ')[1]}
                                         </div>
-                                        <div className="font-ui text-[7px] md:text-[10px] text-[var(--text-muted)] uppercase tracking-wider mt-0.5 md:mt-1 truncate">
+                                        <div className="font-ui text-[6px] md:text-[10px] text-[var(--text-muted)] uppercase tracking-wider mt-0.5 md:mt-1 truncate">
                                             {driver.constructorName}
                                         </div>
                                     </div>
 
                                     {/* RATING DISPLAY */}
-                                    <div className="bg-[var(--bg-darker)] border-x border-[var(--border-color)] px-2 md:px-4 py-1 md:py-2 flex justify-between items-center">
-                                        <span className="font-ui text-[7px] md:text-[10px] text-[var(--text-secondary)] uppercase">AVG</span>
-                                        <span className="font-oxanium text-sm md:text-xl font-bold" style={{ color: positionColor }}>
+                                    <div className="bg-[var(--bg-darker)] border-x border-[var(--border-color)] px-1.5 md:px-4 py-0.5 md:py-2 flex justify-between items-center">
+                                        <span className="font-ui text-[6px] md:text-[10px] text-[var(--text-secondary)] uppercase">AVG</span>
+                                        <span className="font-oxanium text-xs md:text-xl font-bold" style={{ color: positionColor }}>
                                             {driver.averageRating.toFixed(2)}
                                         </span>
                                     </div>
@@ -327,7 +327,7 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
 
                                         <div className="absolute bottom-0 left-0 w-full h-1" style={{ backgroundColor: positionColor }} />
 
-                                        <span className="absolute bottom-1 md:bottom-2 right-2 md:right-4 font-oxanium text-3xl md:text-6xl opacity-10 font-bold leading-none">
+                                        <span className="absolute bottom-0.5 md:bottom-2 right-1 md:right-4 font-oxanium text-xl md:text-6xl opacity-10 font-bold leading-none">
                                             {rank}
                                         </span>
                                     </div>
