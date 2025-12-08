@@ -266,8 +266,8 @@ function App() {
 
   return (
     <div className="min-h-screen">
-      {/* Header */}
-      <header className="sticky top-0 z-40 border-b border-[var(--border-color)] bg-[var(--bg-main)]/95 backdrop-blur-sm">
+      {/* Header - Frosted Glass */}
+      <header className="sticky top-0 z-40 border-b border-white/5 bg-gradient-to-b from-[var(--bg-main)]/80 to-[var(--bg-main)]/60 backdrop-blur-xl backdrop-saturate-150 shadow-[0_4px_30px_rgba(0,0,0,0.3)]">
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
           {/* Logo / Back */}
           <div className="flex items-center gap-6">
