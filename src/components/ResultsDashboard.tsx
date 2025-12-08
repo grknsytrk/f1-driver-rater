@@ -32,13 +32,13 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
             <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                className="flex flex-col items-center justify-center p-20 border border-[var(--border-color)] bg-[var(--bg-panel)] min-h-[400px]"
+                className="flex flex-col items-center justify-center p-8 md:p-20 border border-[var(--border-color)] bg-[var(--bg-panel)] min-h-[300px] md:min-h-[400px] mx-4 md:mx-0"
             >
                 <div className="w-16 h-16 border border-[var(--text-muted)] flex items-center justify-center mb-6 opacity-50">
                     <Trophy size={24} className="text-[var(--text-muted)]" />
                 </div>
-                <h3 className="font-display text-4xl mb-2 text-white uppercase tracking-wide">NO RATINGS YET</h3>
-                <p className="font-oxanium text-[var(--text-secondary)] uppercase tracking-wider text-sm">
+                <h3 className="font-display text-2xl md:text-4xl mb-2 text-white uppercase tracking-wide text-center">NO RATINGS YET</h3>
+                <p className="font-oxanium text-[var(--text-secondary)] uppercase tracking-wider text-xs md:text-sm text-center">
                     Rate some races to see your results
                 </p>
             </motion.div>
@@ -188,44 +188,42 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
     const podiumOrder = [1, 0, 2]; // Silver, Gold, Bronze positions
 
     return (
-        <div className="min-h-screen py-8">
-            <div className="max-w-6xl mx-auto space-y-20">
+        <div className="min-h-screen py-4 md:py-8 px-3 md:px-6">
+            <div className="max-w-6xl mx-auto space-y-8 md:space-y-20">
 
                 {/* 1. SECTION: HEADER */}
                 <motion.div
                     initial={{ opacity: 0, y: -20 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="space-y-6"
+                    className="space-y-4 md:space-y-6"
                 >
-                    <div className="flex flex-col items-start border-l-4 border-[var(--accent-red)] pl-6">
-                        <h2 className="font-display text-7xl text-white uppercase tracking-tight leading-none">
+                    <div className="flex flex-col items-start border-l-4 border-[var(--accent-red)] pl-4 md:pl-6">
+                        <h2 className="font-display text-3xl md:text-7xl text-white uppercase tracking-tight leading-none">
                             {season} <span className="text-[var(--accent-red)]">SEASON</span>
                         </h2>
-                        <div className="h-px w-32 bg-[var(--accent-red)] mt-2" />
+                        <div className="h-px w-16 md:w-32 bg-[var(--accent-red)] mt-2" />
                     </div>
 
-                    <div className="flex items-center justify-between border-b border-[var(--border-color)] pb-4">
-                        <p className="font-oxanium text-[var(--accent-red)] tracking-widest text-sm uppercase">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-[var(--border-color)] pb-4">
+                        <p className="font-oxanium text-[var(--accent-red)] tracking-widest text-xs md:text-sm uppercase">
                             SEASON {season} • RACES RATED: <span className="text-white">{ratedCount}</span>
                         </p>
 
-                        <div className="flex gap-2 flex-wrap">
-                            {/* Export JSON */}
+                        <div className="grid grid-cols-2 md:flex gap-2 w-full md:w-auto">
                             <button
                                 onClick={handleExportJson}
-                                className="group flex items-center gap-2 px-4 py-2 bg-[var(--bg-panel)] border border-[var(--border-color)] hover:border-[#00FF88] transition-all hover:bg-[var(--bg-panel-hover)]"
+                                className="group flex items-center justify-center gap-2 px-3 md:px-4 py-2 bg-[var(--bg-panel)] border border-[var(--border-color)] hover:border-[#00FF88] transition-all hover:bg-[var(--bg-panel-hover)]"
                             >
                                 <FileJson size={14} className="text-[var(--text-muted)] group-hover:text-[#00FF88]" />
-                                <span className="font-ui font-bold text-xs text-white uppercase tracking-wider">EXPORT JSON</span>
+                                <span className="font-ui font-bold text-[10px] md:text-xs text-white uppercase tracking-wider hidden md:inline">EXPORT JSON</span>
                             </button>
 
-                            {/* Import JSON */}
                             <button
                                 onClick={handleImportClick}
-                                className="group flex items-center gap-2 px-4 py-2 bg-[var(--bg-panel)] border border-[var(--border-color)] hover:border-[var(--accent-yellow)] transition-all hover:bg-[var(--bg-panel-hover)]"
+                                className="group flex items-center justify-center gap-2 px-3 md:px-4 py-2 bg-[var(--bg-panel)] border border-[var(--border-color)] hover:border-[var(--accent-yellow)] transition-all hover:bg-[var(--bg-panel-hover)]"
                             >
                                 <Upload size={14} className="text-[var(--text-muted)] group-hover:text-[var(--accent-yellow)]" />
-                                <span className="font-ui font-bold text-xs text-white uppercase tracking-wider">IMPORT JSON</span>
+                                <span className="font-ui font-bold text-[10px] md:text-xs text-white uppercase tracking-wider hidden md:inline">IMPORT JSON</span>
                             </button>
                             <input
                                 ref={fileInputRef}
@@ -235,22 +233,20 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
                                 className="hidden"
                             />
 
-                            {/* Generate Card */}
                             <button
                                 onClick={handleGenerateCard}
-                                className="group flex items-center gap-2 px-4 py-2 bg-[var(--bg-panel)] border border-[var(--border-color)] hover:border-white transition-all hover:bg-[var(--bg-panel-hover)]"
+                                className="group flex items-center justify-center gap-2 px-3 md:px-4 py-2 bg-[var(--bg-panel)] border border-[var(--border-color)] hover:border-white transition-all hover:bg-[var(--bg-panel-hover)]"
                             >
                                 <ImageDown size={14} className="text-[var(--text-muted)] group-hover:text-white" />
-                                <span className="font-ui font-bold text-xs text-white uppercase tracking-wider">GENERATE CARD</span>
+                                <span className="font-ui font-bold text-[10px] md:text-xs text-white uppercase tracking-wider hidden md:inline">GENERATE CARD</span>
                             </button>
 
-                            {/* Clear All */}
                             <button
                                 onClick={handleReset}
-                                className="group flex items-center gap-2 px-4 py-2 bg-[var(--bg-panel)] border border-[var(--border-color)] hover:border-[var(--accent-red)] transition-all hover:bg-[var(--bg-panel-hover)]"
+                                className="group flex items-center justify-center gap-2 px-3 md:px-4 py-2 bg-[var(--bg-panel)] border border-[var(--border-color)] hover:border-[var(--accent-red)] transition-all hover:bg-[var(--bg-panel-hover)]"
                             >
                                 <RotateCcw size={14} className="text-[var(--text-muted)] group-hover:text-[var(--accent-red)]" />
-                                <span className="font-ui font-bold text-xs text-white uppercase tracking-wider">CLEAR ALL</span>
+                                <span className="font-ui font-bold text-[10px] md:text-xs text-white uppercase tracking-wider hidden md:inline">CLEAR ALL</span>
                             </button>
                         </div>
                     </div>
@@ -279,14 +275,14 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
                 </motion.div>
 
                 {/* 2. SECTION: PODIUM (TECHNICAL BLOCKS) */}
-                <div className="pt-8 pb-16">
-                    <div className="flex items-end justify-center gap-2 md:gap-8">
+                <div className="pt-4 md:pt-8 pb-8 md:pb-16">
+                    <div className="flex items-end justify-center gap-1 md:gap-8">
                         {podiumOrder.map((pos, visualIndex) => {
                             if (!podium[pos]) return null;
                             const driver = podium[pos];
                             const isWinner = pos === 0;
-                            // Explicit heights
-                            const blockHeight = isWinner ? 'h-56' : pos === 1 ? 'h-40' : 'h-32';
+                            // Explicit heights - smaller on mobile
+                            const blockHeight = isWinner ? 'h-32 md:h-56' : pos === 1 ? 'h-24 md:h-40' : 'h-20 md:h-32';
                             const positionColor = isWinner ? 'var(--accent-yellow)' : pos === 1 ? '#C0C0C0' : '#CD7F32';
                             const rank = isWinner ? 1 : pos === 1 ? 2 : 3;
 
@@ -296,42 +292,42 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
                                     initial={{ opacity: 0, y: 50 }}
                                     animate={{ opacity: 1, y: 0 }}
                                     transition={{ delay: 0.1 * visualIndex, ease: "circOut" }}
-                                    className={`flex flex-col w-40 md:w-56 ${isWinner ? 'z-10' : 'z-0'}`}
+                                    className={`flex flex-col w-24 md:w-56 ${isWinner ? 'z-10' : 'z-0'}`}
                                 >
                                     {/* DRIVER INFO */}
-                                    <div className="mb-2 bg-[var(--bg-panel)] border border-[var(--border-color)] border-l-2 p-3"
+                                    <div className="mb-1 md:mb-2 bg-[var(--bg-panel)] border border-[var(--border-color)] border-l-2 p-2 md:p-3"
                                         style={{ borderLeftColor: getTeamColor(driver.constructorId) }}
                                     >
-                                        <div className="flex justify-between items-start mb-1">
-                                            <span className="font-oxanium text-xs text-[var(--text-secondary)]">P{rank}</span>
-                                            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: getTeamColor(driver.constructorId) }} />
+                                        <div className="flex justify-between items-start mb-0.5 md:mb-1">
+                                            <span className="font-oxanium text-[8px] md:text-xs text-[var(--text-secondary)]">P{rank}</span>
+                                            <div className="w-1.5 h-1.5 md:w-2 md:h-2 rounded-full" style={{ backgroundColor: getTeamColor(driver.constructorId) }} />
                                         </div>
-                                        <div className="font-display-condensed text-2xl leading-none text-white uppercase tracking-tight">
+                                        <div className="font-display-condensed text-sm md:text-2xl leading-none text-white uppercase tracking-tight">
                                             {driver.driverName.split(' ')[1]}
                                         </div>
-                                        <div className="font-ui text-[10px] text-[var(--text-muted)] uppercase tracking-wider mt-1">
+                                        <div className="font-ui text-[7px] md:text-[10px] text-[var(--text-muted)] uppercase tracking-wider mt-0.5 md:mt-1 truncate">
                                             {driver.constructorName}
                                         </div>
                                     </div>
 
                                     {/* RATING DISPLAY */}
-                                    <div className="bg-[var(--bg-darker)] border-x border-[var(--border-color)] px-4 py-2 flex justify-between items-center">
-                                        <span className="font-ui text-[10px] text-[var(--text-secondary)] uppercase">AVG RATING</span>
-                                        <span className="font-oxanium text-xl font-bold" style={{ color: positionColor }}>
+                                    <div className="bg-[var(--bg-darker)] border-x border-[var(--border-color)] px-2 md:px-4 py-1 md:py-2 flex justify-between items-center">
+                                        <span className="font-ui text-[7px] md:text-[10px] text-[var(--text-secondary)] uppercase">AVG</span>
+                                        <span className="font-oxanium text-sm md:text-xl font-bold" style={{ color: positionColor }}>
                                             {driver.averageRating.toFixed(2)}
                                         </span>
                                     </div>
 
                                     {/* BAR BLOCK */}
                                     <div
-                                        className={`w-full ${blockHeight} relative bg-[var(--bg-panel)] border border-[var(--border-color)] border-t-0 p-2 overflow-hidden`}
+                                        className={`w-full ${blockHeight} relative bg-[var(--bg-panel)] border border-[var(--border-color)] border-t-0 p-1 md:p-2 overflow-hidden`}
                                     >
                                         <div className="absolute inset-0 opacity-10"
                                             style={{ backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 2px, #fff 2px, #fff 3px)' }} />
 
                                         <div className="absolute bottom-0 left-0 w-full h-1" style={{ backgroundColor: positionColor }} />
 
-                                        <span className="absolute bottom-2 right-4 font-oxanium text-6xl opacity-10 font-bold leading-none">
+                                        <span className="absolute bottom-1 md:bottom-2 right-2 md:right-4 font-oxanium text-3xl md:text-6xl opacity-10 font-bold leading-none">
                                             {rank}
                                         </span>
                                     </div>
@@ -342,16 +338,16 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
                 </div>
 
                 {/* 3. SECTION: STATS GRID */}
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-12">
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 md:gap-12">
 
-                    {/* CHART (Span 6) */}
-                    <div className="lg:col-span-6">
+                    {/* CHART (Span 6) - Hidden on mobile */}
+                    <div className="hidden md:block lg:col-span-6">
                         <div className="mb-4 flex items-center justify-between border-b border-[var(--border-color)] pb-2">
-                            <h3 className="font-display text-2xl text-white uppercase tracking-wider">PERFORMANCE ANALYSIS</h3>
+                            <h3 className="font-display text-xl md:text-2xl text-white uppercase tracking-wider">PERFORMANCE ANALYSIS</h3>
                             <BarChart3 className="text-[var(--accent-red)] opacity-50" size={16} />
                         </div>
 
-                        <div className="bg-[var(--bg-panel)] border border-[var(--border-color)] p-6 h-[600px] relative scanline">
+                        <div className="bg-[var(--bg-panel)] border border-[var(--border-color)] p-4 md:p-6 h-[400px] md:h-[600px] relative scanline">
                             {/* Grid Lines Overlay */}
                             <div className="absolute inset-0 pointer-events-none opacity-5"
                                 style={{ backgroundImage: 'linear-gradient(var(--border-color) 1px, transparent 1px), linear-gradient(90deg, var(--border-color) 1px, transparent 1px)', backgroundSize: '20px 20px' }} />
@@ -401,8 +397,8 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
                     {/* STANDINGS TABLE (Span 6) */}
                     <div className="lg:col-span-6">
                         <div className="mb-4 flex items-center justify-between border-b border-[var(--border-color)] pb-2">
-                            <h3 className="font-display text-2xl text-white uppercase tracking-wider">DRIVER STANDINGS</h3>
-                            <div className="flex gap-2 text-[10px] font-oxanium text-[var(--text-muted)]">
+                            <h3 className="font-display text-lg md:text-2xl text-white uppercase tracking-wider">DRIVER STANDINGS</h3>
+                            <div className="hidden md:flex gap-2 text-[10px] font-oxanium text-[var(--text-muted)]">
                                 <span>POS</span>
                                 <span>//</span>
                                 <span>DRIVER</span>
@@ -412,15 +408,15 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
                         </div>
 
                         <div className="bg-[var(--bg-panel)] border-t border-[var(--border-color)]">
-                            <div className="max-h-[600px] overflow-y-auto pr-1">
+                            <div className="max-h-[400px] md:max-h-[600px] overflow-y-auto pr-1">
                                 {averages.map((driver, index) => (
                                     <motion.div
                                         key={driver.driverId}
-                                        className="telemetry-row p-3 animate-enter"
-                                        style={{ animationDelay: `${index * 50}ms`, gridTemplateColumns: '40px 40px 1fr auto' }}
+                                        className="telemetry-row p-2 md:p-3 animate-enter"
+                                        style={{ animationDelay: `${index * 50}ms`, gridTemplateColumns: '30px 20px 1fr auto' }}
                                     >
                                         {/* POS */}
-                                        <div className="font-oxanium text-lg text-[var(--text-secondary)] font-bold text-center">
+                                        <div className="font-oxanium text-sm md:text-lg text-[var(--text-secondary)] font-bold text-center">
                                             {index + 1}
                                         </div>
 
@@ -429,16 +425,16 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
 
                                         {/* DRIVER */}
                                         <div className="flex flex-col justify-center min-w-0">
-                                            <div className="font-display-condensed text-xl text-white leading-none uppercase tracking-tight">
+                                            <div className="font-display-condensed text-sm md:text-xl text-white leading-none uppercase tracking-tight truncate">
                                                 {driver.driverName}
                                             </div>
-                                            <div className="font-ui text-[10px] text-[var(--text-muted)] uppercase tracking-wider">
+                                            <div className="font-ui text-[8px] md:text-[10px] text-[var(--text-muted)] uppercase tracking-wider truncate">
                                                 {driver.constructorName}
                                             </div>
                                         </div>
 
                                         {/* RATING */}
-                                        <div className="font-oxanium text-xl font-bold tracking-widest text-right pr-2"
+                                        <div className="font-oxanium text-base md:text-xl font-bold tracking-widest text-right pr-1 md:pr-2"
                                             style={{ color: index < 3 ? 'var(--accent-yellow)' : 'white' }}>
                                             {driver.averageRating.toFixed(2)}
                                         </div>
