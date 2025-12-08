@@ -106,7 +106,7 @@ export function RatingModal({ race, season, onClose, onSave }: RatingModalProps)
                 className="fixed inset-0 z-50 flex items-center justify-center p-4"
                 onClick={onClose}
             >
-                <div className="absolute inset-0 bg-black/90 backdrop-blur-md" />
+                <div className="absolute inset-0 bg-[#000]/95" />
 
                 <motion.div
                     initial={{ opacity: 0, scale: 0.95, y: 20 }}
@@ -166,18 +166,15 @@ export function RatingModal({ race, season, onClose, onSave }: RatingModalProps)
                             </div>
                         ) : (
                             <div className="grid grid-cols-1 gap-px bg-[var(--border-color)] border border-[var(--border-color)]">
-                                {drivers.map((driver, index) => {
+                                {drivers.map((driver) => {
                                     const teamColor = getTeamColor(driver.constructorId);
                                     const currentRating = driver.rating;
                                     const isHovered = hoveredRating?.id === driver.driverId;
                                     const displayRating = isHovered ? hoveredRating.val : currentRating;
 
                                     return (
-                                        <motion.div
+                                        <div
                                             key={driver.driverId}
-                                            initial={{ opacity: 0, x: -10 }}
-                                            animate={{ opacity: 1, x: 0 }}
-                                            transition={{ delay: index * 0.03 }}
                                             className="group relative bg-[var(--bg-panel)] p-3 hover:bg-[var(--bg-panel-hover)] transition-colors grid grid-cols-1 md:grid-cols-[1fr_auto] gap-4 items-center"
                                         >
                                             {/* Driver Info */}
@@ -252,9 +249,6 @@ export function RatingModal({ race, season, onClose, onSave }: RatingModalProps)
                                                                 onMouseEnter={() => setHoveredRating({ id: driver.driverId, val })}
                                                                 onClick={() => handleRatingChange(driver.driverId, val)}
                                                                 className="w-3 sm:w-4 h-8 relative focus:outline-none cursor-pointer"
-                                                                style={{
-                                                                    willChange: 'transform',
-                                                                }}
                                                             >
                                                                 <div
                                                                     className="w-full h-full rounded-sm"
@@ -262,8 +256,6 @@ export function RatingModal({ race, season, onClose, onSave }: RatingModalProps)
                                                                         backgroundColor: segmentColor,
                                                                         transform: isFilled ? 'scaleY(1)' : 'scaleY(0.65)',
                                                                         opacity: isFilled ? 1 : 0.4,
-                                                                        transition: 'all 50ms cubic-bezier(0.2, 0, 0, 1)',
-                                                                        willChange: 'transform, opacity, background-color',
                                                                     }}
                                                                 />
                                                             </button>
@@ -273,21 +265,17 @@ export function RatingModal({ race, season, onClose, onSave }: RatingModalProps)
 
                                                 {/* Number Display */}
                                                 <div className="w-16 text-right font-oxanium">
-                                                    <motion.div
-                                                        key={displayRating}
-                                                        initial={{ scale: 0.8, opacity: 0.5 }}
-                                                        animate={{ scale: 1, opacity: 1 }}
-                                                        transition={{ duration: 0.08, ease: 'easeOut' }}
-                                                        className="text-3xl font-bold leading-none tabular-nums"
+                                                    <div
+                                                        className="text-3xl font-bold leading-none tabular-nums transition-colors duration-75"
                                                         style={{
                                                             color: displayRating > 8 ? '#00FF88' : displayRating > 5 ? 'var(--accent-yellow)' : displayRating > 0 ? 'var(--accent-red)' : 'var(--text-muted)',
                                                         }}>
                                                         {displayRating % 1 === 0 ? displayRating : displayRating.toFixed(1)}
-                                                    </motion.div>
+                                                    </div>
                                                     <div className="text-[10px] text-[var(--text-muted)] mt-1">RATING</div>
                                                 </div>
                                             </div>
-                                        </motion.div>
+                                        </div>
                                     );
                                 })}
                             </div>
