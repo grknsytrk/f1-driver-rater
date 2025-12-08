@@ -1,0 +1,168 @@
+import axios from 'axios';
+import type { Season, Race, RaceResult, Driver, Constructor } from '../types';
+
+// Jolpica API - Ergast successor
+const API_BASE = 'https://api.jolpi.ca/ergast/f1';
+
+const api = axios.create({
+    baseURL: API_BASE,
+    timeout: 15000,
+});
+
+// Fetch available seasons (2020-current)
+export async function getSeasons(): Promise<Season[]> {
+    try {
+        const response = await api.get('/seasons.json?limit=10&offset=70');
+        const seasons = response.data.MRData.SeasonTable.Seasons as Season[];
+        // Filter to recent seasons and reverse for newest first
+        return seasons.filter(s => parseInt(s.season) >= 2020).reverse();
+    } catch (error) {
+        console.error('Error fetching seasons:', error);
+        // Return fallback seasons
+        return [
+            { season: '2025', url: '' },
+            { season: '2024', url: '' },
+            { season: '2023', url: '' },
+            { season: '2022', url: '' },
+            { season: '2021', url: '' },
+            { season: '2020', url: '' },
+        ];
+    }
+}
+
+// Fetch all races for a season
+export async function getRaces(season: string): Promise<Race[]> {
+    try {
+        const response = await api.get(`/${season}.json`);
+        return response.data.MRData.RaceTable.Races as Race[];
+    } catch (error) {
+        console.error(`Error fetching races for ${season}:`, error);
+        return [];
+    }
+}
+
+// Fetch race results with drivers
+export async function getRaceResults(season: string, round: string): Promise<RaceResult[]> {
+    try {
+        const response = await api.get(`/${season}/${round}/results.json`);
+        const races = response.data.MRData.RaceTable.Races as Race[];
+        if (races.length > 0 && races[0].Results) {
+            return races[0].Results;
+        }
+        return [];
+    } catch (error) {
+        console.error(`Error fetching results for ${season} round ${round}:`, error);
+        return [];
+    }
+}
+
+// Fetch all drivers for a season
+export async function getDrivers(season: string): Promise<Driver[]> {
+    try {
+        const response = await api.get(`/${season}/drivers.json`);
+        return response.data.MRData.DriverTable.Drivers as Driver[];
+    } catch (error) {
+        console.error(`Error fetching drivers for ${season}:`, error);
+        return [];
+    }
+}
+
+// Fetch all constructors for a season
+export async function getConstructors(season: string): Promise<Constructor[]> {
+    try {
+        const response = await api.get(`/${season}/constructors.json`);
+        return response.data.MRData.ConstructorTable.Constructors as Constructor[];
+    } catch (error) {
+        console.error(`Error fetching constructors for ${season}:`, error);
+        return [];
+    }
+}
+
+// Fetch driver standings
+export async function getDriverStandings(season: string): Promise<any[]> {
+    try {
+        const response = await api.get(`/${season}/driverStandings.json`);
+        return response.data.MRData.StandingsTable.StandingsLists[0]?.DriverStandings || [];
+    } catch (error) {
+        console.error(`Error fetching standings for ${season}:`, error);
+        return [];
+    }
+}
+
+// Check if a race has been completed (date is in the past)
+export function isRaceCompleted(raceDate: string): boolean {
+    const today = new Date();
+    const race = new Date(raceDate);
+    return race < today;
+}
+
+// Get drivers who participated in a specific race
+export async function getRaceDrivers(season: string, round: string): Promise<Array<{
+    driver: Driver;
+    constructor: Constructor;
+    position: string;
+    time?: string;
+    gap?: string;
+    laps: string;
+    status: string;
+    grid: string;
+}>> {
+    const results = await getRaceResults(season, round);
+
+    return results.map((result, index) => {
+        let gap: string | undefined;
+
+        // Check if driver was lapped (status contains "Lap" like "+1 Lap", "+2 Laps")
+        if (result.status && result.status.includes('Lap')) {
+            gap = result.status; // Shows "+1 Lap", "+2 Laps", etc.
+        }
+        // Check for DNF situations
+        else if (result.status && result.status !== 'Finished' && !result.Time?.time) {
+            gap = result.status; // Shows "Collision", "Engine", "Retired", etc.
+        }
+        // Winner - show their finish time
+        else if (index === 0) {
+            gap = result.Time?.time;
+        }
+        // Normal finishers - show gap to leader
+        else if (result.Time?.time) {
+            // API returns gap to leader as "+X.XXX" or "+1:XX.XXX"
+            gap = result.Time.time;
+        }
+
+        return {
+            driver: result.Driver,
+            constructor: result.Constructor,
+            position: result.position,
+            time: result.Time?.time,
+            gap,
+            laps: result.laps,
+            status: result.status,
+            grid: result.grid,
+        };
+    });
+}
+
+// Get all drivers for a season with their constructor (for Quick Rate)
+export async function getSeasonDrivers(season: string): Promise<Array<{
+    driverId: string;
+    givenName: string;
+    familyName: string;
+    constructorId: string;
+    constructorName: string;
+}>> {
+    try {
+        const standings = await getDriverStandings(season);
+
+        return standings.map((standing: any) => ({
+            driverId: standing.Driver.driverId,
+            givenName: standing.Driver.givenName,
+            familyName: standing.Driver.familyName,
+            constructorId: standing.Constructors?.[0]?.constructorId || 'unknown',
+            constructorName: standing.Constructors?.[0]?.name || 'Unknown',
+        }));
+    } catch (error) {
+        console.error(`Error fetching season drivers for ${season}:`, error);
+        return [];
+    }
+}
