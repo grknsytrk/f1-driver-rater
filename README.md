@@ -14,6 +14,9 @@ A Formula 1 driver rating application that lets you rate drivers race-by-race an
 - **Quick Rate Mode** - If you don't want to rate every race individually, you can assign season-wide ratings to all drivers at once
 - **Results Dashboard** - View your season averages with charts and visualizations
 - **Teammate Wars** - Compare teammates with real race and qualifying statistics. The app fetches actual finishing positions and calculates head-to-head records
+- **Export/Import Ratings** - Download your ratings as a JSON file or import previously saved ratings. Useful for backup or sharing
+- **Share as Image** - Generate a shareable image of your driver standings or podium to post on social media
+- **Driver Statistics** - See real stats like wins, poles, and podiums fetched from the API
 - **Team Colors** - Each driver is color-coded with their authentic F1 team colors for easy recognition
 - **Country Flags** - Visual country flags for each Grand Prix location
 - **Local Storage** - All your ratings are automatically saved in your browser, so you won't lose them
@@ -53,7 +56,7 @@ You'll need Node.js version 18 or higher installed on your machine. You can use 
    npm run dev
    ```
 
-4. Open your browser and go to `http://localhost:5173`. You should see the app running.
+4. Open your browser and go to the localhost URL shown in the terminal. The app should be running.
 
 If you want to build for production instead, you can run `npm run build` and the output will be in the `dist` folder.
 
