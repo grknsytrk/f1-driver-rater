@@ -81,20 +81,25 @@ export function getRatedRacesCount(season: string): number {
 }
 
 // Calculate average ratings for all drivers in a season
+// Now tracks drivers PER CONSTRUCTOR to handle mid-season team changes
 export function calculateAverages(season: string): AverageRating[] {
     const seasonRatings = getSeasonRatings(season);
     const quickRatings = getQuickRatings(season);
 
     // If we have race-by-race ratings, calculate from those
     if (seasonRatings && seasonRatings.races.length > 0) {
-        const driverMap = new Map<string, AverageRating>();
+        // Use composite key: driverId_constructorId to track drivers per team
+        const driverTeamMap = new Map<string, AverageRating>();
 
         for (const race of seasonRatings.races) {
             if (!race.completed) continue;
 
             for (const rating of race.ratings) {
-                if (!driverMap.has(rating.driverId)) {
-                    driverMap.set(rating.driverId, {
+                // Composite key: tracks same driver separately for each team they drove for
+                const compositeKey = `${rating.driverId}_${rating.constructorId}`;
+
+                if (!driverTeamMap.has(compositeKey)) {
+                    driverTeamMap.set(compositeKey, {
                         driverId: rating.driverId,
                         driverName: rating.driverName,
                         constructorId: rating.constructorId,
@@ -105,18 +110,18 @@ export function calculateAverages(season: string): AverageRating[] {
                     });
                 }
 
-                const driver = driverMap.get(rating.driverId)!;
-                driver.ratings.push(rating.rating);
-                driver.totalRaces++;
+                const driverEntry = driverTeamMap.get(compositeKey)!;
+                driverEntry.ratings.push(rating.rating);
+                driverEntry.totalRaces++;
             }
         }
 
         // Calculate averages
         const results: AverageRating[] = [];
-        for (const driver of driverMap.values()) {
-            const sum = driver.ratings.reduce((a, b) => a + b, 0);
-            driver.averageRating = parseFloat((sum / driver.ratings.length).toFixed(2));
-            results.push(driver);
+        for (const driverEntry of driverTeamMap.values()) {
+            const sum = driverEntry.ratings.reduce((a, b) => a + b, 0);
+            driverEntry.averageRating = parseFloat((sum / driverEntry.ratings.length).toFixed(2));
+            results.push(driverEntry);
         }
 
         // Sort by average rating descending

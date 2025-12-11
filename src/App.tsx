@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
 import { Routes, Route, useNavigate, useParams, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronLeft, Trophy, Zap } from 'lucide-react';
+import { ChevronLeft, Trophy, Zap, Swords } from 'lucide-react';
 import { SeasonSelector } from './components/SeasonSelector';
 import { RaceList } from './components/RaceList';
 import { RatingModal } from './components/RatingModal';
 import { QuickRateModal } from './components/QuickRateModal';
 import { ResultsDashboard } from './components/ResultsDashboard';
+import { TeammateWars } from './components/TeammateWars';
 import { DeveloperCredit } from './components/DeveloperCredit';
 import { getSeasons, getRaces } from './api/f1Api';
 import { getRatedRacesCount, hasQuickRatings } from './utils/storage';
@@ -222,6 +223,29 @@ function ResultsPage() {
   );
 }
 
+// Teammate Wars Page Component
+function TeammateWarsPage() {
+  const { season } = useParams<{ season: string }>();
+  const navigate = useNavigate();
+
+  if (!season) return null;
+
+  return (
+    <motion.div
+      key="teammate-wars"
+      initial={{ opacity: 0, scale: 0.95 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.95 }}
+      transition={{ duration: 0.3 }}
+    >
+      <TeammateWars
+        season={season}
+        onBack={() => navigate(`/${season}`)}
+      />
+    </motion.div>
+  );
+}
+
 // Main App with Header
 function App() {
   const navigate = useNavigate();
@@ -234,6 +258,7 @@ function App() {
   const isResultsPage = pathParts[1] === 'results';
   const isQuickRatePage = pathParts[1] === 'quick-rate';
   const isRacePage = pathParts[1] === 'race';
+  const isTeammateWarsPage = pathParts[1] === 'teammate-wars';
   const isHomePage = pathname === '/' || pathname === '';
 
   const ratedCount = currentSeason ? getRatedRacesCount(currentSeason) : 0;
@@ -244,6 +269,8 @@ function App() {
     } else if (isQuickRatePage && currentSeason) {
       navigate(`/${currentSeason}`);
     } else if (isRacePage && currentSeason) {
+      navigate(`/${currentSeason}`);
+    } else if (isTeammateWarsPage && currentSeason) {
       navigate(`/${currentSeason}`);
     } else if (currentSeason) {
       navigate('/');
@@ -309,13 +336,32 @@ function App() {
                     <span className="font-oxanium text-xs text-[var(--accent-yellow)] uppercase">Race {pathParts[2]}</span>
                   </>
                 )}
+                {isTeammateWarsPage && (
+                  <>
+                    <span className="text-[var(--text-muted)]">/</span>
+                    <span className="font-oxanium text-xs text-[var(--accent-yellow)] uppercase">Teammate Wars</span>
+                  </>
+                )}
               </div>
             )}
           </div>
 
           {/* Actions - only show on races list page */}
-          {currentSeason && !isResultsPage && !isQuickRatePage && !isRacePage && (
+          {currentSeason && !isResultsPage && !isQuickRatePage && !isRacePage && !isTeammateWarsPage && (
             <div className="flex items-center gap-2 md:gap-3">
+              {/* Teammate Wars Button */}
+              {ratedCount > 0 && (
+                <motion.button
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  onClick={() => navigate(`/${currentSeason}/teammate-wars`)}
+                  className="group flex items-center justify-center gap-2 px-2 md:px-4 py-2 md:py-1.5 bg-[var(--bg-panel)] border border-[var(--border-color)] hover:border-[var(--accent-red)] transition-all min-w-[44px] min-h-[44px] md:min-w-0 md:min-h-0"
+                  title="Teammate Wars"
+                >
+                  <Swords size={16} className="text-[var(--text-secondary)] group-hover:text-[var(--accent-red)]" />
+                  <span className="hidden md:inline font-ui font-bold text-xs text-white uppercase tracking-wider">VS</span>
+                </motion.button>
+              )}
               {/* Quick Rate Button */}
               <motion.button
                 initial={{ opacity: 0, scale: 0.95 }}
@@ -353,6 +399,7 @@ function App() {
             <Route path="/:season/race/:round" element={<RaceRatingPage />} />
             <Route path="/:season/quick-rate" element={<QuickRatePage />} />
             <Route path="/:season/results" element={<ResultsPage />} />
+            <Route path="/:season/teammate-wars" element={<TeammateWarsPage />} />
           </Routes>
         </AnimatePresence>
       </main>

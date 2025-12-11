@@ -340,7 +340,10 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
 
                                         <div className="absolute bottom-0 left-0 w-full h-1" style={{ backgroundColor: positionColor }} />
 
-                                        <span className="absolute bottom-0.5 md:bottom-2 right-1 md:right-4 font-oxanium text-xl md:text-6xl opacity-10 font-bold leading-none">
+                                        <span
+                                            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 font-oxanium text-4xl md:text-8xl font-bold leading-none select-none z-10"
+                                            style={{ color: positionColor, opacity: 0.4 }}
+                                        >
                                             {rank}
                                         </span>
                                     </div>

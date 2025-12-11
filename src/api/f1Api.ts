@@ -276,3 +276,71 @@ export async function getDriverSeasonStats(season: string): Promise<DriverSeason
         return [];
     }
 }
+
+// Get all race results for a season (for H2H calculations)
+export interface SeasonRaceResult {
+    round: string;
+    driverId: string;
+    constructorId: string;
+    position: number | null; // null = DNF/DSQ
+    status: string;
+}
+
+export async function getAllSeasonResults(season: string): Promise<SeasonRaceResult[]> {
+    try {
+        const allRaces = await fetchAllPaginated(`/${season}/results.json`);
+        const results: SeasonRaceResult[] = [];
+
+        allRaces.forEach((race: any) => {
+            race.Results?.forEach((result: any) => {
+                const positionText = result.positionText;
+                // R = Retired, D = Disqualified, E = Excluded, W = Withdrew, F = Failed to qualify, N = Not classified
+                const isClassified = !['R', 'D', 'E', 'W', 'F', 'N'].includes(positionText);
+
+                results.push({
+                    round: race.round,
+                    driverId: result.Driver.driverId,
+                    constructorId: result.Constructor.constructorId,
+                    position: isClassified ? parseInt(result.position) : null,
+                    status: result.status
+                });
+            });
+        });
+
+        return results;
+    } catch (error) {
+        console.error(`Error fetching season results for ${season}:`, error);
+        return [];
+    }
+}
+
+// Get all qualifying results for a season (for H2H calculations)
+export interface SeasonQualifyingResult {
+    round: string;
+    driverId: string;
+    constructorId: string;
+    position: number;
+}
+
+export async function getAllSeasonQualifying(season: string): Promise<SeasonQualifyingResult[]> {
+    try {
+        const allQualifying = await fetchAllPaginated(`/${season}/qualifying.json`);
+        const results: SeasonQualifyingResult[] = [];
+
+        allQualifying.forEach((race: any) => {
+            race.QualifyingResults?.forEach((result: any) => {
+                results.push({
+                    round: race.round,
+                    driverId: result.Driver.driverId,
+                    constructorId: result.Constructor.constructorId,
+                    position: parseInt(result.position)
+                });
+            });
+        });
+
+        return results;
+    } catch (error) {
+        console.error(`Error fetching season qualifying for ${season}:`, error);
+        return [];
+    }
+}
