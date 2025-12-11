@@ -166,3 +166,113 @@ export async function getSeasonDrivers(season: string): Promise<Array<{
         return [];
     }
 }
+
+// Get driver statistics for a season (wins, poles, podiums)
+export interface DriverSeasonStats {
+    driverId: string;
+    driverName: string;
+    constructorId: string;
+    constructorName: string;
+    position: string;
+    points: string;
+    wins: number;
+    poles: number;
+    podiums: number;
+}
+
+// Helper function to fetch all paginated results from Jolpica API
+// The API has a max limit of 100 per request, so we need pagination
+async function fetchAllPaginated(endpoint: string): Promise<any[]> {
+    const allRaces: any[] = [];
+    let offset = 0;
+    const limit = 100; // API max limit
+    let hasMore = true;
+
+    while (hasMore) {
+        const response = await api.get(`${endpoint}?limit=${limit}&offset=${offset}`);
+        const races = response.data.MRData.RaceTable?.Races || [];
+        const total = parseInt(response.data.MRData.total) || 0;
+
+        allRaces.push(...races);
+        offset += limit;
+
+        // Check if we've fetched all available data
+        hasMore = offset < total && races.length > 0;
+    }
+
+    return allRaces;
+}
+
+export async function getDriverSeasonStats(season: string): Promise<DriverSeasonStats[]> {
+    try {
+        // Fetch standings (This is reliable for Points, Position and Wins)
+        const standings = await getDriverStandings(season);
+
+        // Fetch ALL race results for podiums using pagination
+        const allRaces = await fetchAllPaginated(`/${season}/results.json`);
+
+        // Fetch ALL qualifying results for poles using pagination
+        const allQualifying = await fetchAllPaginated(`/${season}/qualifying.json`);
+
+        // Map to store calculated stats
+        const driverStats: Map<string, { poles: number; podiums: number }> = new Map();
+
+        // Initialize map for all drivers in standings
+        standings.forEach((standing: any) => {
+            driverStats.set(standing.Driver.driverId, { poles: 0, podiums: 0 });
+        });
+
+        // Calculate Podiums (Position 1, 2, 3)
+        allRaces.forEach((race: any) => {
+            const results = race.Results || [];
+            results.forEach((result: any) => {
+                const pos = parseInt(result.position);
+                if (pos >= 1 && pos <= 3) {
+                    const driverId = result.Driver.driverId;
+                    const stats = driverStats.get(driverId);
+                    if (stats) {
+                        stats.podiums += 1;
+                        driverStats.set(driverId, stats);
+                    }
+                }
+            });
+        });
+
+        // Calculate Poles (Qualifying Position 1)
+        allQualifying.forEach((race: any) => {
+            const qualifyingResults = race.QualifyingResults || [];
+            const poleDriver = qualifyingResults.find((r: any) => r.position === '1');
+
+            if (poleDriver) {
+                const driverId = poleDriver.Driver.driverId;
+                const stats = driverStats.get(driverId);
+                if (stats) {
+                    stats.poles += 1;
+                    driverStats.set(driverId, stats);
+                }
+            }
+        });
+
+        // Merge reliable standings data with calculated stats
+        return standings.map((standing: any) => {
+            const driverId = standing.Driver.driverId;
+            const stats = driverStats.get(driverId) || { poles: 0, podiums: 0 };
+
+            return {
+                driverId,
+                driverName: `${standing.Driver.givenName} ${standing.Driver.familyName}`,
+                constructorId: standing.Constructors?.[0]?.constructorId || 'unknown',
+                constructorName: standing.Constructors?.[0]?.name || 'Unknown',
+                position: standing.position,
+                points: standing.points,
+                wins: parseInt(standing.wins) || 0, // Trust the API for wins
+                poles: stats.poles,
+                podiums: stats.podiums,
+            };
+        });
+
+    } catch (error) {
+        console.error(`Error calculating driver stats for ${season}:`, error);
+        return [];
+    }
+}

@@ -7,9 +7,14 @@ import { RaceList } from './components/RaceList';
 import { RatingModal } from './components/RatingModal';
 import { QuickRateModal } from './components/QuickRateModal';
 import { ResultsDashboard } from './components/ResultsDashboard';
+import { DeveloperCredit } from './components/DeveloperCredit';
 import { getSeasons, getRaces } from './api/f1Api';
 import { getRatedRacesCount, hasQuickRatings } from './utils/storage';
+import { fetchWithMinDelay } from './utils/delay';
 import type { Season, Race } from './types';
+
+// Minimum loading time in ms for better UX
+const MIN_LOADING_TIME = 800;
 
 // Season Page Component
 function SeasonPage() {
@@ -20,7 +25,7 @@ function SeasonPage() {
   useEffect(() => {
     async function loadSeasons() {
       setLoading(true);
-      const data = await getSeasons();
+      const data = await fetchWithMinDelay(() => getSeasons(), MIN_LOADING_TIME);
       setSeasons(data);
       setLoading(false);
     }
@@ -94,7 +99,7 @@ function RacesPage() {
     async function loadRaces() {
       if (season) {
         setLoading(true);
-        const data = await getRaces(season);
+        const data = await fetchWithMinDelay(() => getRaces(season), MIN_LOADING_TIME);
         setRaces(data);
         setLoading(false);
       }
@@ -157,27 +162,8 @@ function RaceRatingPage() {
 
   if (!season || !round) return null;
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-[50vh]">
-        <div className="w-8 h-8 border-2 border-[var(--accent-red)] border-t-transparent rounded-full animate-spin" />
-      </div>
-    );
-  }
-
-  if (!selectedRace) {
-    return (
-      <div className="text-center py-20">
-        <p className="text-[var(--text-muted)]">Race not found</p>
-        <button
-          onClick={() => navigate(`/${season}`)}
-          className="mt-4 text-[var(--accent-red)] hover:underline"
-        >
-          Back to season
-        </button>
-      </div>
-    );
-  }
+  // Wait for race data
+  if (loading || !selectedRace) return null;
 
   return (
     <RatingModal
@@ -265,7 +251,7 @@ function App() {
   }
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen flex flex-col">
       {/* Header - Frosted Glass */}
       <header className="sticky top-0 z-40 border-b border-white/5 bg-gradient-to-b from-[var(--bg-main)]/80 to-[var(--bg-main)]/60 backdrop-blur-xl backdrop-saturate-150 shadow-[0_4px_30px_rgba(0,0,0,0.3)]">
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
@@ -358,8 +344,8 @@ function App() {
         </div>
       </header>
 
-      {/* Main Content */}
-      <main className="max-w-6xl mx-auto px-4 py-8">
+      {/* Main Content - flex-1 pushes footer to bottom */}
+      <main className="flex-1 max-w-6xl mx-auto px-4 py-8 w-full">
         <AnimatePresence mode="wait">
           <Routes location={location} key={location.pathname}>
             <Route path="/" element={<SeasonPage />} />
@@ -371,8 +357,8 @@ function App() {
         </AnimatePresence>
       </main>
 
-      {/* Footer */}
-      <footer className="border-t border-[var(--border-carbon)] py-6 mt-12">
+      {/* Footer - always at bottom thanks to flexbox */}
+      <footer className="border-t border-[var(--border-carbon)] py-6 mt-auto relative z-0">
         <div className="max-w-6xl mx-auto px-4 text-center">
           <p className="text-sm text-[var(--text-muted)]">
             F1 data provided by{' '}
@@ -387,6 +373,7 @@ function App() {
           </p>
         </div>
       </footer>
+      <DeveloperCredit />
     </div>
   );
 }

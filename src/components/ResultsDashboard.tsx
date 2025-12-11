@@ -1,8 +1,9 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Trophy, BarChart3, RotateCcw, ImageDown, Download, Share2, AlertTriangle, Table, Upload, FileJson, CheckCircle, XCircle } from 'lucide-react';
+import { Trophy, BarChart3, RotateCcw, ImageDown, Download, Share2, AlertTriangle, Table, Upload, FileJson, ChevronsUp } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { toPng } from 'html-to-image';
+import { toast } from 'sonner';
 import { TEAM_COLORS } from '../types';
 import { calculateAverages, clearSeasonRatings, getRatedRacesCount, getRaceByRaceMatrix, downloadRatingsAsJson, importRatings } from '../utils/storage';
 import { CountryFlag } from '../utils/countryFlags';
@@ -17,15 +18,39 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
     const ratedCount = getRatedRacesCount(season);
     const raceMatrix = getRaceByRaceMatrix(season);
     const [showCardSection, setShowCardSection] = useState(false);
+    const [showScrollTop, setShowScrollTop] = useState(false);
     const [cardImage, setCardImage] = useState<string | null>(null);
     const [generating, setGenerating] = useState(false);
     const [generatingTable, setGeneratingTable] = useState(false);
     const [showConfirmModal, setShowConfirmModal] = useState(false);
-    const [importMessage, setImportMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
     const cardRef = useRef<HTMLDivElement>(null);
     const shareSectionRef = useRef<HTMLDivElement>(null);
     const tableRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const isScrollingToTop = useRef(false);
+
+    // Track scroll position to show/hide "Top" button
+    useEffect(() => {
+        const handleScroll = () => {
+            const scrolledDistance = window.scrollY;
+            const threshold = 500;
+
+            // If we are programmatically scrolling to top, don't show the button
+            // untill we reach the top (reset logic handled below)
+            if (isScrollingToTop.current) {
+                if (scrolledDistance < 50) {
+                    isScrollingToTop.current = false;
+                }
+                return;
+            }
+
+            // Show if scrolled down significantly
+            setShowScrollTop(scrolledDistance > threshold);
+        };
+
+        window.addEventListener('scroll', handleScroll);
+        return () => window.removeEventListener('scroll', handleScroll);
+    }, []);
 
     if (averages.length === 0) {
         return (
@@ -95,6 +120,9 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
         setShowConfirmModal(false);
         // Clear data and navigate away immediately
         clearSeasonRatings(season);
+        toast.success('Data Cleared', {
+            description: `All ${season} season ratings have been deleted`,
+        });
         onReset();
     }
 
@@ -142,6 +170,9 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
 
     function handleExportJson() {
         downloadRatingsAsJson(season);
+        toast.success('Export Complete', {
+            description: `${season} season data downloaded as JSON`,
+        });
     }
 
     function handleImportClick() {
@@ -158,14 +189,17 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
             const result = importRatings(content);
 
             if (result.success) {
-                setImportMessage({ type: 'success', text: result.message });
+                toast.success('Import Successful', {
+                    description: result.message,
+                });
                 // Reload page to reflect imported data
                 setTimeout(() => {
                     window.location.reload();
                 }, 1500);
             } else {
-                setImportMessage({ type: 'error', text: result.message });
-                setTimeout(() => setImportMessage(null), 3000);
+                toast.error('Import Failed', {
+                    description: result.message,
+                });
             }
         };
         reader.readAsText(file);
@@ -251,27 +285,6 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
                         </div>
                     </div>
 
-                    {/* Import Notification */}
-                    <AnimatePresence>
-                        {importMessage && (
-                            <motion.div
-                                initial={{ opacity: 0, y: -10 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                exit={{ opacity: 0, y: -10 }}
-                                className={`mt-4 p-4 border flex items-center gap-3 ${importMessage.type === 'success'
-                                    ? 'bg-[#00FF88]/10 border-[#00FF88]'
-                                    : 'bg-[var(--accent-red)]/10 border-[var(--accent-red)]'
-                                    }`}
-                            >
-                                {importMessage.type === 'success' ? (
-                                    <CheckCircle size={20} className="text-[#00FF88]" />
-                                ) : (
-                                    <XCircle size={20} className="text-[var(--accent-red)]" />
-                                )}
-                                <span className="font-oxanium text-sm text-white">{importMessage.text}</span>
-                            </motion.div>
-                        )}
-                    </AnimatePresence>
                 </motion.div>
 
                 {/* 2. SECTION: PODIUM (TECHNICAL BLOCKS) */}
@@ -729,6 +742,33 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
                     </div>
                 </motion.div>
             )}
+
+            {/* F1 Style Scroll to Top Button */}
+            <AnimatePresence>
+                {showScrollTop && (
+                    <motion.button
+                        initial={{ opacity: 0, y: 50, x: 20 }}
+                        animate={{ opacity: 1, y: 0, x: 0 }}
+                        exit={{ opacity: 0, y: 50, x: 20 }}
+                        whileHover={{ scale: 1.1, x: -5 }}
+                        whileTap={{ scale: 0.9 }}
+                        onClick={() => {
+                            isScrollingToTop.current = true; // Prevent button from reappearing while scrolling up
+                            setShowScrollTop(false);
+                            window.scrollTo({ top: 0, behavior: 'smooth' });
+                        }}
+                        className="fixed bottom-8 right-8 z-50 group flex items-center justify-center w-12 h-12 bg-[var(--accent-red)] border border-white/20 shadow-[0_4px_20px_rgba(225,6,0,0.4)] backdrop-blur-sm -skew-x-12 hover:bg-[#ff0000] transition-colors"
+                    >
+                        <div className="skew-x-12">
+                            <ChevronsUp size={28} className="text-white animate-bounce-custom" />
+                        </div>
+
+                        {/* Decorative corner accent */}
+                        <div className="absolute -top-1 -right-1 w-2 h-2 bg-white skew-x-12 opacity-50" />
+                        <div className="absolute -bottom-1 -left-1 w-2 h-2 bg-[var(--bg-darker)] skew-x-12 opacity-50" />
+                    </motion.button>
+                )}
+            </AnimatePresence>
 
             {/* Confirmation Modal */}
             <AnimatePresence>

@@ -1,10 +1,16 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Save, Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
 import type { Race, DriverRating } from '../types';
 import { TEAM_COLORS } from '../types';
 import { getRaceDrivers } from '../api/f1Api';
 import { saveRaceRatings, getRaceRatings } from '../utils/storage';
+import { fetchWithMinDelay } from '../utils/delay';
+import { RatingDriverSkeleton } from './Skeleton';
+
+// Minimum loading time for smooth UX
+const MIN_LOADING_TIME = 800;
 
 interface RatingModalProps {
     race: Race;
@@ -39,7 +45,10 @@ export function RatingModal({ race, season, onClose, onSave }: RatingModalProps)
     async function loadDrivers() {
         setLoading(true);
         try {
-            const raceDrivers = await getRaceDrivers(season, race.round);
+            const raceDrivers = await fetchWithMinDelay(
+                () => getRaceDrivers(season, race.round),
+                MIN_LOADING_TIME
+            );
             const existingRatings = getRaceRatings(season, race.round);
 
             const driversWithRatings: DriverWithRating[] = raceDrivers.map(d => {
@@ -84,10 +93,16 @@ export function RatingModal({ race, season, onClose, onSave }: RatingModalProps)
             }));
 
             saveRaceRatings(season, race.round, race.raceName, race.date, ratings);
+            toast.success('Ratings Saved', {
+                description: `${race.raceName} • ${drivers.length} drivers rated`,
+            });
             onSave();
             onClose();
         } catch (error) {
             console.error('Error saving ratings:', error);
+            toast.error('Failed to save', {
+                description: 'Please try again',
+            });
         } finally {
             setSaving(false);
         }
@@ -160,10 +175,7 @@ export function RatingModal({ race, season, onClose, onSave }: RatingModalProps)
                     {/* Content */}
                     <div className="flex-1 overflow-y-auto overflow-x-hidden p-2 md:p-6 custom-scrollbar">
                         {loading ? (
-                            <div className="flex flex-col items-center justify-center py-20 gap-4">
-                                <Loader2 size={40} className="animate-spin text-[var(--accent-red)]" />
-                                <span className="font-oxanium text-sm text-[var(--text-muted)] animate-pulse uppercase tracking-[0.2em]">Loading drivers...</span>
-                            </div>
+                            <RatingDriverSkeleton count={20} />
                         ) : (
                             <div className="grid grid-cols-1 gap-px bg-[var(--border-color)] border border-[var(--border-color)]">
                                 {drivers.map((driver) => {
