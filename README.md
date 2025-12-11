@@ -1,4 +1,4 @@
-# 🏎️ F1 Pilot Rating
+# 🏎️ F1 Driver Rating
 
 A premium Formula 1 driver rating application that lets you rate drivers race-by-race and track their season performance with beautiful visualizations.
 
