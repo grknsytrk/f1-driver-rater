@@ -227,28 +227,28 @@ export function StandingsPage({ season }: StandingsPageProps) {
             </div>
 
             {/* Tabs */}
-            <div className="mb-6 flex gap-2">
+            <div className="mb-6 grid grid-cols-2 gap-2 w-full">
                 <button
                     onClick={() => setActiveTab('wdc')}
-                    className={`flex items-center gap-2 px-4 py-2 border transition-all ${
+                    className={`w-full flex items-center justify-center gap-2 px-3 md:px-4 py-2 border transition-all ${
                         activeTab === 'wdc'
                             ? 'bg-[var(--accent-yellow)]/10 border-[var(--accent-yellow)] text-[var(--accent-yellow)]'
                             : 'bg-[var(--bg-panel)] border-[var(--border-color)] text-[var(--text-muted)] hover:border-white hover:text-white'
                     }`}
                 >
-                    <Medal size={16} />
-                    <span className="font-display text-sm uppercase tracking-wider">Drivers</span>
+                    <Medal size={16} className="hidden md:inline-block" />
+                    <span className="font-display text-xs md:text-sm uppercase tracking-wider">DRIVERS</span>
                 </button>
                 <button
                     onClick={() => setActiveTab('wcc')}
-                    className={`flex items-center gap-2 px-4 py-2 border transition-all ${
+                    className={`w-full flex items-center justify-center gap-2 px-3 md:px-4 py-2 border transition-all ${
                         activeTab === 'wcc'
                             ? 'bg-[var(--accent-yellow)]/10 border-[var(--accent-yellow)] text-[var(--accent-yellow)]'
                             : 'bg-[var(--bg-panel)] border-[var(--border-color)] text-[var(--text-muted)] hover:border-white hover:text-white'
                     }`}
                 >
-                    <Users size={16} />
-                    <span className="font-display text-sm uppercase tracking-wider">Constructors</span>
+                    <Users size={16} className="hidden md:inline-block" />
+                    <span className="font-display text-xs md:text-sm uppercase tracking-wider">CONSTRUCTORS</span>
                 </button>
             </div>
 
@@ -304,26 +304,26 @@ function WDCTable({ drivers, races, raceMap, latestTeamMap, getTeamColor }: WDCT
                     {/* Header */}
                     <thead>
                         <tr className="border-b border-[var(--border-color)]">
-                            <th className="sticky left-0 z-10 bg-[var(--bg-darker)] px-3 py-2 text-left w-12">
+                            <th className="sticky left-0 z-10 bg-[var(--bg-darker)] px-2 md:px-3 py-2 text-left w-12">
                                 <span className="font-oxanium text-[10px] text-[var(--text-muted)] uppercase">#</span>
                             </th>
-                            <th className="sticky left-12 z-10 bg-[var(--bg-darker)] px-3 py-2 text-left min-w-[140px]">
+                            <th className="sticky left-12 z-10 bg-[var(--bg-darker)] px-2 md:px-3 py-2 text-left min-w-[140px]">
                                 <span className="font-oxanium text-[10px] text-[var(--text-muted)] uppercase">DRIVER</span>
                             </th>
-                            <th className="sticky left-[188px] z-10 bg-[var(--bg-darker)] px-3 py-2 text-center w-16">
+                            <th className="sticky left-[188px] z-10 bg-[var(--bg-darker)] px-2 md:px-3 py-2 text-center w-16">
                                 <span className="font-oxanium text-[10px] text-[var(--accent-yellow)] uppercase">PTS</span>
                             </th>
-                            <th className="sticky left-[252px] z-10 bg-[var(--bg-darker)] px-2 py-2 text-center w-12">
+                            <th className="sticky left-[252px] z-10 bg-[var(--bg-darker)] px-2 py-2 text-center w-12 hidden md:table-cell">
                                 <span className="font-oxanium text-[10px] text-[#00FF88] uppercase">WIN</span>
                             </th>
-                            <th className="sticky left-[300px] z-10 bg-[var(--bg-darker)] px-2 py-2 text-center w-12">
+                            <th className="sticky left-[300px] z-10 bg-[var(--bg-darker)] px-2 py-2 text-center w-12 hidden md:table-cell">
                                 <span className="font-oxanium text-[10px] text-[#FF00FF] uppercase">PP</span>
                             </th>
-                            <th className="sticky left-[348px] z-10 bg-[var(--bg-darker)] px-2 py-2 text-center w-12 border-r border-[var(--border-color)]">
+                            <th className="sticky left-[348px] z-10 bg-[var(--bg-darker)] px-2 py-2 text-center w-12 border-r border-[var(--border-color)] hidden md:table-cell">
                                 <span className="font-oxanium text-[10px] text-[var(--accent-orange)] uppercase">POD</span>
                             </th>
                             {races.map(race => (
-                                <th key={race.round} className="bg-[var(--bg-darker)] px-2 py-2 text-center min-w-[56px]" title={race.raceName}>
+                                <th key={race.round} className="bg-[var(--bg-darker)] px-1 md:px-2 py-2 text-center min-w-[44px] md:min-w-[56px]" title={race.raceName}>
                                     <div className="flex flex-col items-center gap-1">
                                         <CountryFlag country={race.countryCode} size="sm" />
                                     </div>
@@ -347,21 +347,21 @@ function WDCTable({ drivers, races, raceMap, latestTeamMap, getTeamColor }: WDCT
                                     className="border-b border-[var(--border-color)] hover:bg-[var(--bg-panel-hover)] transition-colors"
                                 >
                                     {/* Position */}
-                                    <td className="sticky left-0 z-10 bg-[var(--bg-panel)] px-3 py-2 text-center">
+                                    <td className="sticky left-0 z-10 bg-[var(--bg-panel)] px-2 md:px-3 py-2 text-center">
                                         <span className={`font-oxanium text-sm ${index < 3 ? 'text-[var(--accent-yellow)] font-bold' : 'text-[var(--text-muted)]'}`}>
                                             {driver.position}
                                         </span>
                                     </td>
 
                                     {/* Driver Name */}
-                                    <td className="sticky left-12 z-10 bg-[var(--bg-panel)] px-3 py-2">
+                                    <td className="sticky left-12 z-10 bg-[var(--bg-panel)] px-2 md:px-3 py-2">
                                         <div className="flex items-center gap-2">
                                             <div className="w-1 h-6" style={{ backgroundColor: getTeamColor(displayConstructorId) }} />
                                             <div>
-                                                <div className="font-display text-sm text-white uppercase leading-none">
+                                                <div className="font-display text-xs md:text-sm text-white uppercase leading-none">
                                                     {driver.driverName.split(' ')[1] || driver.driverName}
                                                 </div>
-                                                <div className="font-oxanium text-[8px] text-[var(--text-muted)] uppercase">
+                                                <div className="font-oxanium text-[7px] md:text-[8px] text-[var(--text-muted)] uppercase">
                                                     {displayConstructorName}
                                                 </div>
                                             </div>
@@ -369,28 +369,28 @@ function WDCTable({ drivers, races, raceMap, latestTeamMap, getTeamColor }: WDCT
                                     </td>
 
                                     {/* Points */}
-                                    <td className="sticky left-[188px] z-10 px-3 py-2 text-center bg-[var(--bg-panel)]">
+                                    <td className="sticky left-[188px] z-10 px-2 md:px-3 py-2 text-center bg-[var(--bg-panel)]">
                                         <span className="font-oxanium text-sm font-bold text-[var(--accent-yellow)]">
                                             {driver.points}
                                         </span>
                                     </td>
 
                                     {/* Wins */}
-                                    <td className="sticky left-[252px] z-10 px-2 py-2 text-center bg-[var(--bg-panel)]">
+                                    <td className="sticky left-[252px] z-10 px-2 py-2 text-center bg-[var(--bg-panel)] hidden md:table-cell">
                                         <span className={`font-oxanium text-sm font-bold ${driver.wins > 0 ? 'text-[#00FF88]' : 'text-[var(--text-muted)]'}`}>
                                             {driver.wins}
                                         </span>
                                     </td>
 
                                     {/* Poles */}
-                                    <td className="sticky left-[300px] z-10 px-2 py-2 text-center bg-[var(--bg-panel)]">
+                                    <td className="sticky left-[300px] z-10 px-2 py-2 text-center bg-[var(--bg-panel)] hidden md:table-cell">
                                         <span className={`font-oxanium text-sm font-bold ${driver.poles > 0 ? 'text-[#FF00FF]' : 'text-[var(--text-muted)]'}`}>
                                             {driver.poles}
                                         </span>
                                     </td>
 
                                     {/* Podiums */}
-                                    <td className="sticky left-[348px] z-10 px-2 py-2 text-center border-r border-[var(--border-color)] bg-[var(--bg-panel)]">
+                                    <td className="sticky left-[348px] z-10 px-2 py-2 text-center border-r border-[var(--border-color)] bg-[var(--bg-panel)] hidden md:table-cell">
                                         <span className={`font-oxanium text-sm font-bold ${driver.podiums > 0 ? 'text-[var(--accent-orange)]' : 'text-[var(--text-muted)]'}`}>
                                             {driver.podiums}
                                         </span>
@@ -404,9 +404,9 @@ function WDCTable({ drivers, races, raceMap, latestTeamMap, getTeamColor }: WDCT
                                         const points = raceData?.points || 0;
 
                                         return (
-                                            <td key={race.round} className="px-2 py-2 text-center">
+                                            <td key={race.round} className="px-1 md:px-2 py-1.5 md:py-2 text-center">
                                                 {hasData ? (
-                                                    <span className="font-oxanium text-sm font-medium whitespace-nowrap">
+                                                    <span className="font-oxanium text-xs md:text-sm font-medium whitespace-nowrap">
                                                         {position === null ? (
                                                             <span className="text-[var(--text-muted)]">DNF</span>
                                                         ) : (
@@ -419,7 +419,7 @@ function WDCTable({ drivers, races, raceMap, latestTeamMap, getTeamColor }: WDCT
                                                                     {points}
                                                                 </span>
                                                                 {position !== undefined && (
-                                                                    <span className="text-[10px] text-[var(--text-muted)]">
+                                                                    <span className="text-[9px] md:text-[10px] text-[var(--text-muted)]">
                                                                         /{position}
                                                                     </span>
                                                                 )}
@@ -472,26 +472,26 @@ function WCCTable({ constructors, races, raceMap, polesMap, podiumsMap, getTeamC
                     {/* Header */}
                     <thead>
                         <tr className="border-b border-[var(--border-color)]">
-                            <th className="sticky left-0 z-10 bg-[var(--bg-darker)] px-3 py-2 text-left w-12">
+                            <th className="sticky left-0 z-10 bg-[var(--bg-darker)] px-2 md:px-3 py-2 text-left w-12">
                                 <span className="font-oxanium text-[10px] text-[var(--text-muted)] uppercase">#</span>
                             </th>
-                            <th className="sticky left-12 z-10 bg-[var(--bg-darker)] px-3 py-2 text-left min-w-[160px]">
+                            <th className="sticky left-12 z-10 bg-[var(--bg-darker)] px-2 md:px-3 py-2 text-left min-w-[160px]">
                                 <span className="font-oxanium text-[10px] text-[var(--text-muted)] uppercase">CONSTRUCTOR</span>
                             </th>
-                            <th className="sticky left-[208px] z-10 bg-[var(--bg-darker)] px-3 py-2 text-center w-16">
+                            <th className="sticky left-[208px] z-10 bg-[var(--bg-darker)] px-2 md:px-3 py-2 text-center w-16">
                                 <span className="font-oxanium text-[10px] text-[var(--accent-yellow)] uppercase">PTS</span>
                             </th>
-                            <th className="sticky left-[272px] z-10 bg-[var(--bg-darker)] px-2 py-2 text-center w-12">
+                            <th className="sticky left-[272px] z-10 bg-[var(--bg-darker)] px-2 py-2 text-center w-12 hidden md:table-cell">
                                 <span className="font-oxanium text-[10px] text-[#00FF88] uppercase">WIN</span>
                             </th>
-                            <th className="sticky left-[320px] z-10 bg-[var(--bg-darker)] px-2 py-2 text-center w-12">
+                            <th className="sticky left-[320px] z-10 bg-[var(--bg-darker)] px-2 py-2 text-center w-12 hidden md:table-cell">
                                 <span className="font-oxanium text-[10px] text-[#FF00FF] uppercase">PP</span>
                             </th>
-                            <th className="sticky left-[368px] z-10 bg-[var(--bg-darker)] px-2 py-2 text-center w-12 border-r border-[var(--border-color)]">
+                            <th className="sticky left-[368px] z-10 bg-[var(--bg-darker)] px-2 py-2 text-center w-12 border-r border-[var(--border-color)] hidden md:table-cell">
                                 <span className="font-oxanium text-[10px] text-[var(--accent-orange)] uppercase">POD</span>
                             </th>
                             {races.map(race => (
-                                <th key={race.round} className="bg-[var(--bg-darker)] px-2 py-2 text-center min-w-[48px]" title={race.raceName}>
+                                <th key={race.round} className="bg-[var(--bg-darker)] px-1 md:px-2 py-2 text-center min-w-[40px] md:min-w-[48px]" title={race.raceName}>
                                     <div className="flex flex-col items-center gap-1">
                                         <CountryFlag country={race.countryCode} size="sm" />
                                     </div>
@@ -511,45 +511,45 @@ function WCCTable({ constructors, races, raceMap, polesMap, podiumsMap, getTeamC
                                     className="border-b border-[var(--border-color)] hover:bg-[var(--bg-panel-hover)] transition-colors"
                                 >
                                     {/* Position */}
-                                    <td className="sticky left-0 z-10 bg-[var(--bg-panel)] px-3 py-2 text-center">
+                                    <td className="sticky left-0 z-10 bg-[var(--bg-panel)] px-2 md:px-3 py-2 text-center">
                                         <span className={`font-oxanium text-sm ${constructor.position <= 3 ? 'text-[var(--accent-yellow)] font-bold' : 'text-[var(--text-muted)]'}`}>
                                             {constructor.position}
                                         </span>
                                     </td>
 
                                     {/* Constructor Name */}
-                                    <td className="sticky left-12 z-10 bg-[var(--bg-panel)] px-3 py-2">
+                                    <td className="sticky left-12 z-10 bg-[var(--bg-panel)] px-2 md:px-3 py-2">
                                         <div className="flex items-center gap-2">
                                             <div className="w-1 h-6" style={{ backgroundColor: getTeamColor(constructor.constructorId) }} />
-                                            <div className="font-display text-sm text-white uppercase leading-none">
+                                            <div className="font-display text-xs md:text-sm text-white uppercase leading-none">
                                                 {constructor.constructorName}
                                             </div>
                                         </div>
                                     </td>
 
                                     {/* Points */}
-                                    <td className="sticky left-[208px] z-10 px-3 py-2 text-center bg-[var(--bg-panel)]">
+                                    <td className="sticky left-[208px] z-10 px-2 md:px-3 py-2 text-center bg-[var(--bg-panel)]">
                                         <span className="font-oxanium text-sm font-bold text-[var(--accent-yellow)]">
                                             {constructor.points}
                                         </span>
                                     </td>
 
                                     {/* Wins */}
-                                    <td className="sticky left-[272px] z-10 px-2 py-2 text-center bg-[var(--bg-panel)]">
+                                    <td className="sticky left-[272px] z-10 px-2 py-2 text-center bg-[var(--bg-panel)] hidden md:table-cell">
                                         <span className={`font-oxanium text-sm font-bold ${constructor.wins > 0 ? 'text-[#00FF88]' : 'text-[var(--text-muted)]'}`}>
                                             {constructor.wins}
                                         </span>
                                     </td>
 
                                     {/* Poles */}
-                                    <td className="sticky left-[320px] z-10 px-2 py-2 text-center bg-[var(--bg-panel)]">
+                                    <td className="sticky left-[320px] z-10 px-2 py-2 text-center bg-[var(--bg-panel)] hidden md:table-cell">
                                         <span className={`font-oxanium text-sm font-bold ${(polesMap.get(constructor.constructorId) || 0) > 0 ? 'text-[#FF00FF]' : 'text-[var(--text-muted)]'}`}>
                                             {polesMap.get(constructor.constructorId) || 0}
                                         </span>
                                     </td>
 
                                     {/* Podiums */}
-                                    <td className="sticky left-[368px] z-10 px-2 py-2 text-center border-r border-[var(--border-color)] bg-[var(--bg-panel)]">
+                                    <td className="sticky left-[368px] z-10 px-2 py-2 text-center border-r border-[var(--border-color)] bg-[var(--bg-panel)] hidden md:table-cell">
                                         <span className={`font-oxanium text-sm font-bold ${(podiumsMap.get(constructor.constructorId) || 0) > 0 ? 'text-[var(--accent-orange)]' : 'text-[var(--text-muted)]'}`}>
                                             {podiumsMap.get(constructor.constructorId) || 0}
                                         </span>
@@ -561,8 +561,8 @@ function WCCTable({ constructors, races, raceMap, polesMap, podiumsMap, getTeamC
                                         const hasData = points !== undefined;
 
                                         return (
-                                            <td key={race.round} className="px-2 py-2 text-center">
-                                                <span className={`font-oxanium text-sm font-medium ${
+                                            <td key={race.round} className="px-1 md:px-2 py-1.5 md:py-2 text-center">
+                                                <span className={`font-oxanium text-xs md:text-sm font-medium ${
                                                     hasData && points > 0 ? 'text-white' : 'text-[var(--text-muted)]'
                                                 }`}>
                                                     {hasData ? points : '—'}
