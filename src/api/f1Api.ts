@@ -9,6 +9,76 @@ const api = axios.create({
     timeout: 15000,
 });
 
+export class RateLimitError extends Error {
+    status = 429 as const;
+    constructor(message = 'Too Many Requests') {
+        super(message);
+        this.name = 'RateLimitError';
+    }
+}
+
+function isRateLimitAxiosError(error: unknown): boolean {
+    return axios.isAxiosError(error) && error.response?.status === 429;
+}
+
+function sleep(ms: number) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function getSeasonCacheTtlMs(season: string | number, opts?: { currentMs?: number; pastMs?: number }) {
+    const currentMs = opts?.currentMs ?? 2 * 60 * 1000; // 2 minutes
+    const pastMs = opts?.pastMs ?? 24 * 60 * 60 * 1000; // 24 hours
+
+    const seasonNum = typeof season === 'number' ? season : parseInt(season, 10);
+    const currentYear = new Date().getFullYear();
+
+    // If season is invalid/unknown, keep a conservative TTL.
+    if (!Number.isFinite(seasonNum)) return 10 * 60 * 1000; // 10 minutes
+
+    // Current (or future) season: short TTL. Past seasons: long TTL.
+    return seasonNum >= currentYear ? currentMs : pastMs;
+}
+
+function getEndpointSeason(endpoint: string): string | null {
+    const match = endpoint.match(/^\/(\d{4})\//);
+    return match?.[1] ?? null;
+}
+
+type CacheRecord<T> = { expiresAt: number; data: T };
+
+function getCache<T>(key: string): T | null {
+    try {
+        const raw = localStorage.getItem(key);
+        if (!raw) return null;
+        const parsed = JSON.parse(raw) as CacheRecord<T>;
+        if (!parsed || typeof parsed.expiresAt !== 'number') return null;
+        if (Date.now() > parsed.expiresAt) return null;
+        return parsed.data ?? null;
+    } catch {
+        return null;
+    }
+}
+
+function getStaleCache<T>(key: string): T | null {
+    try {
+        const raw = localStorage.getItem(key);
+        if (!raw) return null;
+        const parsed = JSON.parse(raw) as CacheRecord<T>;
+        return parsed?.data ?? null;
+    } catch {
+        return null;
+    }
+}
+
+function setCache<T>(key: string, data: T, ttlMs: number) {
+    try {
+        const record: CacheRecord<T> = { expiresAt: Date.now() + ttlMs, data };
+        localStorage.setItem(key, JSON.stringify(record));
+    } catch {
+        // ignore storage failures (private mode, quota, etc.)
+    }
+}
+
 // Fetch available seasons (2020-current)
 export async function getSeasons(): Promise<Season[]> {
     try {
@@ -187,20 +257,105 @@ async function fetchAllPaginated(endpoint: string): Promise<any[]> {
     let offset = 0;
     const limit = 100; // API max limit
     let hasMore = true;
+    const cacheKey = `jolpica:paginated:${endpoint}`;
+
+    // Season-aware TTL: current season refreshes frequently; past seasons are stable.
+    const endpointSeason = getEndpointSeason(endpoint);
+    const ttlMs = endpointSeason ? getSeasonCacheTtlMs(endpointSeason) : 10 * 60 * 1000; // fallback 10 minutes
 
     while (hasMore) {
-        const response = await api.get(`${endpoint}?limit=${limit}&offset=${offset}`);
-        const races = response.data.MRData.RaceTable?.Races || [];
-        const total = parseInt(response.data.MRData.total) || 0;
+        const url = `${endpoint}?limit=${limit}&offset=${offset}`;
+        let response: any;
+        try {
+            // Retry a couple of times on 429 with exponential backoff (best-effort).
+            const maxRetries = 2;
+            for (let attempt = 0; attempt <= maxRetries; attempt++) {
+                try {
+                    response = await api.get(url);
+                    break;
+                } catch (err) {
+                    if (!isRateLimitAxiosError(err) || attempt === maxRetries) throw err;
+                    const backoffMs = 500 * Math.pow(2, attempt) + Math.floor(Math.random() * 250);
+                    await sleep(backoffMs);
+                }
+            }
 
-        allRaces.push(...races);
-        offset += limit;
+            const races = response.data.MRData.RaceTable?.Races || [];
+            const total = parseInt(response.data.MRData.total) || 0;
 
-        // Check if we've fetched all available data
-        hasMore = offset < total && races.length > 0;
+            allRaces.push(...races);
+            offset += limit;
+
+            // Check if we've fetched all available data
+            hasMore = offset < total && races.length > 0;
+        } catch (error) {
+            // If we get rate-limited, try cache (fresh, then stale) and otherwise surface a typed error.
+            if (isRateLimitAxiosError(error)) {
+                const cached = getCache<any[]>(cacheKey) ?? getStaleCache<any[]>(cacheKey);
+                if (cached) return cached;
+                throw new RateLimitError('API rate limit reached (429). Please try again shortly.');
+            }
+            throw error;
+        }
     }
 
+    // Cache the combined dataset for a short time to prevent repeated heavy pagination calls.
+    setCache(cacheKey, allRaces, ttlMs);
     return allRaces;
+}
+
+export interface ConstructorStanding {
+    constructorId: string;
+    constructorName: string;
+    position: number;
+    points: number;
+    wins: number;
+}
+
+export async function getConstructorStandings(season: string): Promise<ConstructorStanding[]> {
+    const endpoint = `/${season}/constructorStandings.json`;
+    const cacheKey = `jolpica:constructor-standings:${season}`;
+    const ttlMs = getSeasonCacheTtlMs(season);
+
+    const cached = getCache<ConstructorStanding[]>(cacheKey);
+    if (cached) return cached;
+
+    try {
+        const maxRetries = 2;
+        let response: any;
+        for (let attempt = 0; attempt <= maxRetries; attempt++) {
+            try {
+                response = await api.get(endpoint);
+                break;
+            } catch (err) {
+                if (!isRateLimitAxiosError(err) || attempt === maxRetries) throw err;
+                const backoffMs = 500 * Math.pow(2, attempt) + Math.floor(Math.random() * 250);
+                await sleep(backoffMs);
+            }
+        }
+
+        const standings =
+            response?.data?.MRData?.StandingsTable?.StandingsLists?.[0]?.ConstructorStandings ?? [];
+
+        const normalized: ConstructorStanding[] = standings.map((s: any) => ({
+            constructorId: s.Constructor?.constructorId ?? 'unknown',
+            constructorName: s.Constructor?.name ?? 'Unknown',
+            position: parseInt(s.position) || 0,
+            points: parseFloat(s.points) || 0,
+            wins: parseInt(s.wins) || 0,
+        }));
+
+        setCache(cacheKey, normalized, ttlMs);
+        return normalized;
+    } catch (error) {
+        if (isRateLimitAxiosError(error)) {
+            const stale = getStaleCache<ConstructorStanding[]>(cacheKey);
+            if (stale) return stale;
+            throw new RateLimitError('API rate limit reached (429). Please try again shortly.');
+        }
+        console.error(`Error fetching constructor standings for ${season}:`, error);
+        return [];
+    }
 }
 
 export async function getDriverSeasonStats(season: string): Promise<DriverSeasonStats[]> {
@@ -277,12 +432,15 @@ export async function getDriverSeasonStats(season: string): Promise<DriverSeason
     }
 }
 
-// Get all race results for a season (for H2H calculations)
+// Get all race results for a season (for H2H calculations and standings race-by-race)
 export interface SeasonRaceResult {
     round: string;
     driverId: string;
+    driverName: string;
     constructorId: string;
+    constructorName: string;
     position: number | null; // null = DNF/DSQ
+    points: number;
     status: string;
 }
 
@@ -300,8 +458,11 @@ export async function getAllSeasonResults(season: string): Promise<SeasonRaceRes
                 results.push({
                     round: race.round,
                     driverId: result.Driver.driverId,
+                    driverName: `${result.Driver.givenName} ${result.Driver.familyName}`,
                     constructorId: result.Constructor.constructorId,
+                    constructorName: result.Constructor.name,
                     position: isClassified ? parseInt(result.position) : null,
+                    points: parseFloat(result.points) || 0,
                     status: result.status
                 });
             });
@@ -309,7 +470,57 @@ export async function getAllSeasonResults(season: string): Promise<SeasonRaceRes
 
         return results;
     } catch (error) {
+        if (error instanceof RateLimitError) {
+            // Let the UI decide how to render "unavailable" vs "0 results"
+            throw error;
+        }
         console.error(`Error fetching season results for ${season}:`, error);
+        return [];
+    }
+}
+
+// Get all sprint results for a season (for standings race-by-race points)
+export interface SeasonSprintResult {
+    round: string;
+    driverId: string;
+    driverName: string;
+    constructorId: string;
+    constructorName: string;
+    position: number | null; // null = DNF/DSQ
+    points: number;
+    status: string;
+}
+
+export async function getAllSeasonSprints(season: string): Promise<SeasonSprintResult[]> {
+    try {
+        const allSprints = await fetchAllPaginated(`/${season}/sprint.json`);
+        const results: SeasonSprintResult[] = [];
+
+        allSprints.forEach((race: any) => {
+            const sprintResults = race.SprintResults || [];
+            sprintResults.forEach((result: any) => {
+                const positionText = result.positionText;
+                const isClassified = !['R', 'D', 'E', 'W', 'F', 'N'].includes(positionText);
+
+                results.push({
+                    round: race.round,
+                    driverId: result.Driver.driverId,
+                    driverName: `${result.Driver.givenName} ${result.Driver.familyName}`,
+                    constructorId: result.Constructor.constructorId,
+                    constructorName: result.Constructor.name,
+                    position: isClassified ? parseInt(result.position) : null,
+                    points: parseFloat(result.points) || 0,
+                    status: result.status,
+                });
+            });
+        });
+
+        return results;
+    } catch (error) {
+        if (error instanceof RateLimitError) {
+            throw error;
+        }
+        console.error(`Error fetching season sprints for ${season}:`, error);
         return [];
     }
 }
@@ -318,7 +529,9 @@ export async function getAllSeasonResults(season: string): Promise<SeasonRaceRes
 export interface SeasonQualifyingResult {
     round: string;
     driverId: string;
+    driverName: string;
     constructorId: string;
+    constructorName: string;
     position: number;
 }
 
@@ -332,7 +545,9 @@ export async function getAllSeasonQualifying(season: string): Promise<SeasonQual
                 results.push({
                     round: race.round,
                     driverId: result.Driver.driverId,
+                    driverName: `${result.Driver.givenName} ${result.Driver.familyName}`,
                     constructorId: result.Constructor.constructorId,
+                    constructorName: result.Constructor.name,
                     position: parseInt(result.position)
                 });
             });
@@ -340,6 +555,10 @@ export async function getAllSeasonQualifying(season: string): Promise<SeasonQual
 
         return results;
     } catch (error) {
+        if (error instanceof RateLimitError) {
+            // Let the UI decide how to render "unavailable" vs "0 sessions"
+            throw error;
+        }
         console.error(`Error fetching season qualifying for ${season}:`, error);
         return [];
     }

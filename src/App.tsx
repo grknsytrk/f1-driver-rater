@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react';
 import { Routes, Route, useNavigate, useParams, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronLeft, Trophy, Zap, Swords } from 'lucide-react';
+import { ChevronLeft, Trophy, Zap, Swords, Medal } from 'lucide-react';
 import { SeasonSelector } from './components/SeasonSelector';
 import { RaceList } from './components/RaceList';
 import { RatingModal } from './components/RatingModal';
 import { QuickRateModal } from './components/QuickRateModal';
 import { ResultsDashboard } from './components/ResultsDashboard';
 import { TeammateWars } from './components/TeammateWars';
+import { StandingsPage } from './components/StandingsPage';
 import { DeveloperCredit } from './components/DeveloperCredit';
 import { getSeasons, getRaces } from './api/f1Api';
 import { getRatedRacesCount, hasQuickRatings } from './utils/storage';
@@ -246,6 +247,29 @@ function TeammateWarsPage() {
   );
 }
 
+// Standings Page Component
+function StandingsPageWrapper() {
+  const { season } = useParams<{ season: string }>();
+  const navigate = useNavigate();
+
+  if (!season) return null;
+
+  return (
+    <motion.div
+      key="standings"
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -20 }}
+      transition={{ duration: 0.3 }}
+    >
+      <StandingsPage
+        season={season}
+        onBack={() => navigate(`/${season}`)}
+      />
+    </motion.div>
+  );
+}
+
 // Main App with Header
 function App() {
   const navigate = useNavigate();
@@ -259,6 +283,7 @@ function App() {
   const isQuickRatePage = pathParts[1] === 'quick-rate';
   const isRacePage = pathParts[1] === 'race';
   const isTeammateWarsPage = pathParts[1] === 'teammate-wars';
+  const isStandingsPage = pathParts[1] === 'standings';
   const isHomePage = pathname === '/' || pathname === '';
 
   const ratedCount = currentSeason ? getRatedRacesCount(currentSeason) : 0;
@@ -271,6 +296,8 @@ function App() {
     } else if (isRacePage && currentSeason) {
       navigate(`/${currentSeason}`);
     } else if (isTeammateWarsPage && currentSeason) {
+      navigate(`/${currentSeason}`);
+    } else if (isStandingsPage && currentSeason) {
       navigate(`/${currentSeason}`);
     } else if (currentSeason) {
       navigate('/');
@@ -342,26 +369,41 @@ function App() {
                     <span className="font-oxanium text-xs text-[var(--accent-yellow)] uppercase">Teammate Wars</span>
                   </>
                 )}
+                {isStandingsPage && (
+                  <>
+                    <span className="text-[var(--text-muted)]">/</span>
+                    <span className="font-oxanium text-xs text-[var(--accent-yellow)] uppercase">Standings</span>
+                  </>
+                )}
               </div>
             )}
           </div>
 
           {/* Actions - only show on races list page */}
-          {currentSeason && !isResultsPage && !isQuickRatePage && !isRacePage && !isTeammateWarsPage && (
+          {currentSeason && !isResultsPage && !isQuickRatePage && !isRacePage && !isTeammateWarsPage && !isStandingsPage && (
             <div className="flex items-center gap-2 md:gap-3">
+              {/* Standings Button */}
+              <motion.button
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                onClick={() => navigate(`/${currentSeason}/standings`)}
+                className="group flex items-center justify-center gap-2 px-2 md:px-4 py-2 md:py-1.5 bg-[var(--bg-panel)] border border-[var(--border-color)] hover:border-[var(--accent-yellow)] transition-all min-w-[44px] min-h-[44px] md:min-w-0 md:min-h-0"
+                title="Standings"
+              >
+                <Medal size={16} className="text-[var(--text-secondary)] group-hover:text-[var(--accent-yellow)]" />
+                <span className="hidden md:inline font-ui font-bold text-xs text-white uppercase tracking-wider">Standings</span>
+              </motion.button>
               {/* Teammate Wars Button */}
-              {ratedCount > 0 && (
-                <motion.button
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  onClick={() => navigate(`/${currentSeason}/teammate-wars`)}
-                  className="group flex items-center justify-center gap-2 px-2 md:px-4 py-2 md:py-1.5 bg-[var(--bg-panel)] border border-[var(--border-color)] hover:border-[var(--accent-red)] transition-all min-w-[44px] min-h-[44px] md:min-w-0 md:min-h-0"
-                  title="Teammate Wars"
-                >
-                  <Swords size={16} className="text-[var(--text-secondary)] group-hover:text-[var(--accent-red)]" />
-                  <span className="hidden md:inline font-ui font-bold text-xs text-white uppercase tracking-wider">VS</span>
-                </motion.button>
-              )}
+              <motion.button
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                onClick={() => navigate(`/${currentSeason}/teammate-wars`)}
+                className="group flex items-center justify-center gap-2 px-2 md:px-4 py-2 md:py-1.5 bg-[var(--bg-panel)] border border-[var(--border-color)] hover:border-[var(--accent-red)] transition-all min-w-[44px] min-h-[44px] md:min-w-0 md:min-h-0"
+                title="Teammate Wars"
+              >
+                <Swords size={16} className="text-[var(--text-secondary)] group-hover:text-[var(--accent-red)]" />
+                <span className="hidden md:inline font-ui font-bold text-xs text-white uppercase tracking-wider">VS</span>
+              </motion.button>
               {/* Quick Rate Button */}
               <motion.button
                 initial={{ opacity: 0, scale: 0.95 }}
@@ -400,6 +442,7 @@ function App() {
             <Route path="/:season/quick-rate" element={<QuickRatePage />} />
             <Route path="/:season/results" element={<ResultsPage />} />
             <Route path="/:season/teammate-wars" element={<TeammateWarsPage />} />
+            <Route path="/:season/standings" element={<StandingsPageWrapper />} />
           </Routes>
         </AnimatePresence>
       </main>

@@ -4,6 +4,15 @@ import { Trophy, BarChart3, RotateCcw, ImageDown, Download, Share2, AlertTriangl
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { toPng } from 'html-to-image';
 import { toast } from 'sonner';
+import { Tooltip as ShadcnTooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { TEAM_COLORS } from '../types';
 import { calculateAverages, clearSeasonRatings, getRatedRacesCount, getRaceByRaceMatrix, downloadRatingsAsJson, importRatings } from '../utils/storage';
 import { CountryFlag } from '../utils/countryFlags';
@@ -244,21 +253,45 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
                         </p>
 
                         <div className="grid grid-cols-2 md:flex gap-2 w-full md:w-auto">
-                            <button
-                                onClick={handleExportJson}
-                                className="group flex items-center justify-center gap-2 px-3 md:px-4 py-2 bg-[var(--bg-panel)] border border-[var(--border-color)] hover:border-[#00FF88] transition-all hover:bg-[var(--bg-panel-hover)]"
-                            >
-                                <FileJson size={14} className="text-[var(--text-muted)] group-hover:text-[#00FF88]" />
-                                <span className="font-ui font-bold text-[10px] md:text-xs text-white uppercase tracking-wider hidden md:inline">EXPORT JSON</span>
-                            </button>
+                            <ShadcnTooltip>
+                                <TooltipTrigger asChild>
+                                    <button
+                                        aria-label="Export your season ratings as a JSON backup file"
+                                        onClick={handleExportJson}
+                                        className="group flex items-center justify-center gap-2 px-3 md:px-4 py-2 bg-[var(--bg-panel)] border border-[var(--border-color)] hover:border-[#00FF88] transition-all hover:bg-[var(--bg-panel-hover)]"
+                                    >
+                                        <FileJson size={14} className="text-[var(--text-muted)] group-hover:text-[#00FF88]" />
+                                        <span className="font-ui font-bold text-[10px] md:text-xs text-white uppercase tracking-wider hidden md:inline">EXPORT JSON</span>
+                                    </button>
+                                </TooltipTrigger>
+                                <TooltipContent
+                                    side="bottom"
+                                    sideOffset={8}
+                                    className="bg-[var(--bg-darker)] text-white border border-[var(--border-color)]"
+                                >
+                                    Download a JSON backup of all your ratings for this season
+                                </TooltipContent>
+                            </ShadcnTooltip>
 
-                            <button
-                                onClick={handleImportClick}
-                                className="group flex items-center justify-center gap-2 px-3 md:px-4 py-2 bg-[var(--bg-panel)] border border-[var(--border-color)] hover:border-[var(--accent-yellow)] transition-all hover:bg-[var(--bg-panel-hover)]"
-                            >
-                                <Upload size={14} className="text-[var(--text-muted)] group-hover:text-[var(--accent-yellow)]" />
-                                <span className="font-ui font-bold text-[10px] md:text-xs text-white uppercase tracking-wider hidden md:inline">IMPORT JSON</span>
-                            </button>
+                            <ShadcnTooltip>
+                                <TooltipTrigger asChild>
+                                    <button
+                                        aria-label="Import a JSON backup to restore your season ratings"
+                                        onClick={handleImportClick}
+                                        className="group flex items-center justify-center gap-2 px-3 md:px-4 py-2 bg-[var(--bg-panel)] border border-[var(--border-color)] hover:border-[var(--accent-yellow)] transition-all hover:bg-[var(--bg-panel-hover)]"
+                                    >
+                                        <Upload size={14} className="text-[var(--text-muted)] group-hover:text-[var(--accent-yellow)]" />
+                                        <span className="font-ui font-bold text-[10px] md:text-xs text-white uppercase tracking-wider hidden md:inline">IMPORT JSON</span>
+                                    </button>
+                                </TooltipTrigger>
+                                <TooltipContent
+                                    side="bottom"
+                                    sideOffset={8}
+                                    className="bg-[var(--bg-darker)] text-white border border-[var(--border-color)]"
+                                >
+                                    Import a previously exported JSON file to restore your ratings
+                                </TooltipContent>
+                            </ShadcnTooltip>
                             <input
                                 ref={fileInputRef}
                                 type="file"
@@ -267,21 +300,45 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
                                 className="hidden"
                             />
 
-                            <button
-                                onClick={handleGenerateCard}
-                                className="group flex items-center justify-center gap-2 px-3 md:px-4 py-2 bg-[var(--bg-panel)] border border-[var(--border-color)] hover:border-white transition-all hover:bg-[var(--bg-panel-hover)]"
-                            >
-                                <ImageDown size={14} className="text-[var(--text-muted)] group-hover:text-white" />
-                                <span className="font-ui font-bold text-[10px] md:text-xs text-white uppercase tracking-wider hidden md:inline">GENERATE CARD</span>
-                            </button>
+                            <ShadcnTooltip>
+                                <TooltipTrigger asChild>
+                                    <button
+                                        aria-label="Generate a shareable PNG card from your season ratings"
+                                        onClick={handleGenerateCard}
+                                        className="group flex items-center justify-center gap-2 px-3 md:px-4 py-2 bg-[var(--bg-panel)] border border-[var(--border-color)] hover:border-white transition-all hover:bg-[var(--bg-panel-hover)]"
+                                    >
+                                        <ImageDown size={14} className="text-[var(--text-muted)] group-hover:text-white" />
+                                        <span className="font-ui font-bold text-[10px] md:text-xs text-white uppercase tracking-wider hidden md:inline">GENERATE CARD</span>
+                                    </button>
+                                </TooltipTrigger>
+                                <TooltipContent
+                                    side="bottom"
+                                    sideOffset={8}
+                                    className="bg-[var(--bg-darker)] text-white border border-[var(--border-color)]"
+                                >
+                                    Create a shareable PNG card from your ratings (opens the Share section)
+                                </TooltipContent>
+                            </ShadcnTooltip>
 
-                            <button
-                                onClick={handleReset}
-                                className="group flex items-center justify-center gap-2 px-3 md:px-4 py-2 bg-[var(--bg-panel)] border border-[var(--border-color)] hover:border-[var(--accent-red)] transition-all hover:bg-[var(--bg-panel-hover)]"
-                            >
-                                <RotateCcw size={14} className="text-[var(--text-muted)] group-hover:text-[var(--accent-red)]" />
-                                <span className="font-ui font-bold text-[10px] md:text-xs text-white uppercase tracking-wider hidden md:inline">CLEAR ALL</span>
-                            </button>
+                            <ShadcnTooltip>
+                                <TooltipTrigger asChild>
+                                    <button
+                                        aria-label="Clear all season ratings"
+                                        onClick={handleReset}
+                                        className="group flex items-center justify-center gap-2 px-3 md:px-4 py-2 bg-[var(--bg-panel)] border border-[var(--border-color)] hover:border-[var(--accent-red)] transition-all hover:bg-[var(--bg-panel-hover)]"
+                                    >
+                                        <RotateCcw size={14} className="text-[var(--text-muted)] group-hover:text-[var(--accent-red)]" />
+                                        <span className="font-ui font-bold text-[10px] md:text-xs text-white uppercase tracking-wider hidden md:inline">CLEAR ALL</span>
+                                    </button>
+                                </TooltipTrigger>
+                                <TooltipContent
+                                    side="bottom"
+                                    sideOffset={8}
+                                    className="bg-[var(--bg-darker)] text-white border border-[var(--border-color)]"
+                                >
+                                    Clear all season data
+                                </TooltipContent>
+                            </ShadcnTooltip>
                         </div>
                     </div>
 
@@ -479,20 +536,32 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
                                 <span className="font-oxanium text-[10px] text-[var(--text-muted)] uppercase tracking-widest">
                                     {raceMatrix.races.length} RACES • {raceMatrix.drivers.length} DRIVERS
                                 </span>
-                                <button
-                                    onClick={handleDownloadTable}
-                                    disabled={generatingTable}
-                                    className="group flex items-center gap-2 px-4 py-1.5 bg-[var(--bg-panel)] border border-[var(--border-color)] hover:border-white transition-all hover:bg-[var(--bg-panel-hover)] disabled:opacity-50"
-                                >
-                                    {generatingTable ? (
-                                        <div className="w-3 h-3 border-2 border-[var(--accent-red)] border-t-transparent rounded-full animate-spin" />
-                                    ) : (
-                                        <Download size={12} className="text-[var(--text-muted)] group-hover:text-white" />
-                                    )}
-                                    <span className="font-ui font-bold text-[10px] text-white uppercase tracking-wider">
-                                        {generatingTable ? 'GENERATING...' : 'DOWNLOAD PNG'}
-                                    </span>
-                                </button>
+                                <ShadcnTooltip>
+                                    <TooltipTrigger asChild>
+                                        <button
+                                            aria-label="Download the race-by-race breakdown table as a PNG image"
+                                            onClick={handleDownloadTable}
+                                            disabled={generatingTable}
+                                            className="group flex items-center gap-2 px-4 py-1.5 bg-[var(--bg-panel)] border border-[var(--border-color)] hover:border-white transition-all hover:bg-[var(--bg-panel-hover)] disabled:opacity-50"
+                                        >
+                                            {generatingTable ? (
+                                                <div className="w-3 h-3 border-2 border-[var(--accent-red)] border-t-transparent rounded-full animate-spin" />
+                                            ) : (
+                                                <Download size={12} className="text-[var(--text-muted)] group-hover:text-white" />
+                                            )}
+                                            <span className="font-ui font-bold text-[10px] text-white uppercase tracking-wider">
+                                                {generatingTable ? 'GENERATING...' : 'DOWNLOAD PNG'}
+                                            </span>
+                                        </button>
+                                    </TooltipTrigger>
+                                    <TooltipContent
+                                        side="bottom"
+                                        sideOffset={8}
+                                        className="bg-[var(--bg-darker)] text-white border border-[var(--border-color)]"
+                                    >
+                                        Download the full race-by-race breakdown table as a PNG image
+                                    </TooltipContent>
+                                </ShadcnTooltip>
                             </div>
                         </div>
 
@@ -773,62 +842,37 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
                 )}
             </AnimatePresence>
 
-            {/* Confirmation Modal */}
-            <AnimatePresence>
-                {showConfirmModal && (
-                    <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        className="fixed inset-0 z-50 flex items-center justify-center p-4"
-                        onClick={() => setShowConfirmModal(false)}
-                    >
-                        <div className="absolute inset-0 bg-black/90 backdrop-blur-md" />
+            {/* Confirmation Modal (shadcn AlertDialog) */}
+            <AlertDialog open={showConfirmModal} onOpenChange={setShowConfirmModal}>
+                <AlertDialogContent className="bg-[var(--bg-panel)] border border-[var(--border-color)] p-8 max-w-md w-full rounded-none">
+                    {/* Warning Icon */}
+                    <div className="flex justify-center mb-6">
+                        <div className="w-16 h-16 flex items-center justify-center border-2 border-[var(--accent-red)] bg-[var(--accent-red)]/10">
+                            <AlertTriangle size={32} className="text-[var(--accent-red)]" />
+                        </div>
+                    </div>
 
-                        <motion.div
-                            initial={{ opacity: 0, scale: 0.9, y: 20 }}
-                            animate={{ opacity: 1, scale: 1, y: 0 }}
-                            exit={{ opacity: 0, scale: 0.9, y: 20 }}
-                            transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-                            onClick={e => e.stopPropagation()}
-                            className="relative bg-[var(--bg-panel)] border border-[var(--border-color)] p-8 max-w-md w-full"
+                    <AlertDialogTitle className="font-display text-3xl text-white uppercase tracking-wider text-center mb-2">
+                        CLEAR ALL DATA
+                    </AlertDialogTitle>
+
+                    <AlertDialogDescription className="font-oxanium text-sm text-[var(--text-secondary)] text-center mb-8">
+                        Are you sure you want to reset all <span className="text-white font-bold">{season}</span> ratings? This action cannot be undone.
+                    </AlertDialogDescription>
+
+                    <div className="flex gap-4">
+                        <AlertDialogCancel className="flex-1 py-3 bg-[var(--bg-darker)] border border-[var(--border-color)] hover:border-white text-white font-display text-lg uppercase tracking-widest transition-colors rounded-none">
+                            CANCEL
+                        </AlertDialogCancel>
+                        <AlertDialogAction
+                            onClick={confirmReset}
+                            className="flex-1 py-3 bg-[var(--accent-red)] hover:bg-[#ff0000] text-white font-display text-lg uppercase tracking-widest transition-colors rounded-none border-0"
                         >
-                            {/* Warning Icon */}
-                            <div className="flex justify-center mb-6">
-                                <div className="w-16 h-16 flex items-center justify-center border-2 border-[var(--accent-red)] bg-[var(--accent-red)]/10">
-                                    <AlertTriangle size={32} className="text-[var(--accent-red)]" />
-                                </div>
-                            </div>
-
-                            {/* Title */}
-                            <h3 className="font-display text-3xl text-white uppercase tracking-wider text-center mb-2">
-                                CLEAR ALL DATA
-                            </h3>
-
-                            {/* Message */}
-                            <p className="font-oxanium text-sm text-[var(--text-secondary)] text-center mb-8">
-                                Are you sure you want to reset all <span className="text-white font-bold">{season}</span> ratings? This action cannot be undone.
-                            </p>
-
-                            {/* Actions */}
-                            <div className="flex gap-4">
-                                <button
-                                    onClick={() => setShowConfirmModal(false)}
-                                    className="flex-1 py-3 bg-[var(--bg-darker)] border border-[var(--border-color)] hover:border-white text-white font-display text-lg uppercase tracking-widest transition-colors"
-                                >
-                                    CANCEL
-                                </button>
-                                <button
-                                    onClick={confirmReset}
-                                    className="flex-1 py-3 bg-[var(--accent-red)] hover:bg-[#ff0000] text-white font-display text-lg uppercase tracking-widest transition-colors"
-                                >
-                                    CLEAR ALL
-                                </button>
-                            </div>
-                        </motion.div>
-                    </motion.div>
-                )}
-            </AnimatePresence>
+                            CLEAR ALL
+                        </AlertDialogAction>
+                    </div>
+                </AlertDialogContent>
+            </AlertDialog>
         </div>
     );
 }

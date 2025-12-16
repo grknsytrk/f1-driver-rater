@@ -349,7 +349,7 @@ export function getRaceByRaceMatrix(season: string): { races: RaceColumn[]; driv
 }
 
 // Helper to get country code from race name
-function getCountryCode(raceName: string): string {
+export function getCountryCode(raceName: string): string {
     const mapping: Record<string, string> = {
         'Bahrain': 'BH',
         'Saudi Arabian': 'SA',
