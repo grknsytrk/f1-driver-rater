@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence, useAnimation } from 'framer-motion';
-import { Swords, RotateCcw, Flag, Timer, Loader2 } from 'lucide-react';
+import { Swords, RotateCcw, Flag, Timer, Loader2, Download, Share2 } from 'lucide-react';
+import { useExportImage } from '../hooks/useExportImage';
 import { calculateAverages } from '../utils/storage';
 import { getAllSeasonResults, getAllSeasonQualifying, getConstructorStandings, getDriverStandings } from '../api/f1Api';
 import type { SeasonRaceResult, SeasonQualifyingResult, ConstructorStanding } from '../api/f1Api';
@@ -36,6 +37,10 @@ export function TeammateWars({ season }: TeammateWarsProps) {
 
     const [selections, setSelections] = useState<Record<string, [number, number]>>({});
     const [expandedTeamId, setExpandedTeamId] = useState<string | null>(null);
+
+    // Image Export
+    const { exportAsImage, isExporting } = useExportImage();
+    const [exportContainerRef, setExportContainerRef] = useState<HTMLDivElement | null>(null);
 
     // API data
     const [raceResults, setRaceResults] = useState<SeasonRaceResult[]>([]);
@@ -300,8 +305,29 @@ export function TeammateWars({ season }: TeammateWarsProps) {
         );
     }
 
+    // Social Share
+    const handleShare = async () => {
+        const shareData = {
+            title: `F1 ${season} Teammate Wars`,
+            text: `Check out the head-to-head teammate battles for the F1 ${season} season on the F1 Driver Rater!`,
+            url: window.location.href
+        };
+
+        if (navigator.share) {
+            try {
+                await navigator.share(shareData);
+            } catch (err) {
+                console.log('Error sharing:', err);
+            }
+        } else {
+            // Fallback
+            navigator.clipboard.writeText(window.location.href);
+            alert("Link copied to clipboard! Share it with your friends.");
+        }
+    };
+
     return (
-        <div className="max-w-7xl mx-auto px-4 py-8">
+        <div className="max-w-7xl mx-auto px-4 py-8" ref={setExportContainerRef}>
             {/* Header */}
             <div className="mb-12 text-center">
                 <motion.div
@@ -321,6 +347,33 @@ export function TeammateWars({ season }: TeammateWarsProps) {
                         <Loader2 size={14} className="animate-spin" />
                         <span className="font-oxanium text-xs uppercase">Loading H2H data...</span>
                     </div>
+                )}
+                
+                {/* Export & Share Buttons */}
+                {!loading && sortedTeamIds.length > 0 && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        className="mt-6 flex gap-2 justify-center hide-on-export"
+                    >
+                        <button
+                            onClick={handleShare}
+                            className="inline-flex items-center justify-center gap-2 px-6 py-2 bg-zinc-800 hover:bg-zinc-700 border border-[var(--border-color)] text-white transition-colors"
+                        >
+                            <Share2 size={16} />
+                            <span className="font-display text-sm uppercase tracking-wider">SHARE</span>
+                        </button>
+                        <button
+                            onClick={() => exportAsImage(exportContainerRef, { fileName: `f1-${season}-teammate-wars.png` })}
+                            disabled={isExporting}
+                            className="inline-flex items-center justify-center gap-2 px-6 py-2 bg-[var(--accent-red)] hover:bg-red-700 text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            {isExporting ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
+                            <span className="font-display text-sm uppercase tracking-wider">
+                                {isExporting ? 'EXPORTING...' : 'SAVE IMAGE'}
+                            </span>
+                        </button>
+                    </motion.div>
                 )}
             </div>
 

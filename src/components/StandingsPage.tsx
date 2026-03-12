@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Medal, Users, Loader2, AlertTriangle } from 'lucide-react';
+import { Medal, Users, Loader2, AlertTriangle, Download, Share2 } from 'lucide-react';
+import { useExportImage } from '../hooks/useExportImage';
 import { getDriverSeasonStats, getConstructorStandings, getAllSeasonResults, getAllSeasonSprints, getRaces, RateLimitError } from '../api/f1Api';
 import type { DriverSeasonStats, ConstructorStanding, SeasonRaceResult, SeasonSprintResult } from '../api/f1Api';
 import type { Race } from '../types';
@@ -26,6 +27,10 @@ export function StandingsPage({ season }: StandingsPageProps) {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     
+    // Image Export
+    const { exportAsImage, isExporting } = useExportImage();
+    const [exportContainerRef, setExportContainerRef] = useState<HTMLDivElement | null>(null);
+
     // WDC data
     const [driverStats, setDriverStats] = useState<DriverSeasonStats[]>([]);
     
@@ -210,8 +215,29 @@ export function StandingsPage({ season }: StandingsPageProps) {
         );
     }
 
+    // Social Share
+    const handleShare = async () => {
+        const shareData = {
+            title: `F1 ${season} Season Standings`,
+            text: `Check out the F1 ${season} season driver and constructor standings on the F1 Driver Rater!`,
+            url: window.location.href
+        };
+
+        if (navigator.share) {
+            try {
+                await navigator.share(shareData);
+            } catch (err) {
+                console.log('Error sharing:', err);
+            }
+        } else {
+            // Fallback
+            navigator.clipboard.writeText(window.location.href);
+            alert("Link copied to clipboard! Share it with your friends.");
+        }
+    };
+
     return (
-        <div className="max-w-7xl mx-auto px-4 py-8">
+        <div className="max-w-7xl mx-auto px-4 py-8" ref={setExportContainerRef}>
             {/* Header */}
             <div className="mb-8">
                 <motion.div
@@ -226,8 +252,9 @@ export function StandingsPage({ season }: StandingsPageProps) {
                 </motion.div>
             </div>
 
-            {/* Tabs */}
-            <div className="mb-6 grid grid-cols-2 gap-2 w-full">
+            {/* Tabs & Export */}
+            <div className="mb-6 flex flex-col md:flex-row gap-4 justify-between items-start md:items-center">
+                <div className="grid grid-cols-2 gap-2 w-full md:w-auto md:min-w-[300px]">
                 <button
                     onClick={() => setActiveTab('wdc')}
                     className={`w-full flex items-center justify-center gap-2 px-3 md:px-4 py-2 border transition-all ${
@@ -250,6 +277,28 @@ export function StandingsPage({ season }: StandingsPageProps) {
                     <Users size={16} className="hidden md:inline-block" />
                     <span className="font-display text-xs md:text-sm uppercase tracking-wider">CONSTRUCTORS</span>
                 </button>
+                </div>
+                
+                {/* Export & Share Buttons */}
+                <div className="flex gap-2 w-full md:w-auto mt-2 md:mt-0">
+                    <button
+                        onClick={handleShare}
+                        className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 border border-[var(--border-color)] text-white transition-colors hide-on-export"
+                    >
+                        <Share2 size={16} />
+                        <span className="font-display text-xs md:text-sm uppercase tracking-wider">SHARE</span>
+                    </button>
+                    <button
+                        onClick={() => exportAsImage(exportContainerRef, { fileName: `f1-${season}-standings.png` })}
+                        disabled={isExporting}
+                        className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-[var(--accent-red)] hover:bg-red-700 text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed hide-on-export"
+                    >
+                        {isExporting ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
+                        <span className="font-display text-xs md:text-sm uppercase tracking-wider">
+                            {isExporting ? 'EXPORTING...' : 'SAVE IMAGE'}
+                        </span>
+                    </button>
+                </div>
             </div>
 
             {/* Content */}
