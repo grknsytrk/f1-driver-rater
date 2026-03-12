@@ -12,7 +12,7 @@ interface SeasonCardProps {
 // Technical Season Panel
 export function SeasonCard({ season, index, onClick }: SeasonCardProps) {
     const ratedCount = getRatedRacesCount(season.season);
-    const isCurrentSeason = season.season === '2025';
+    const isCurrentSeason = season.season === String(new Date().getFullYear());
 
     return (
         <motion.div

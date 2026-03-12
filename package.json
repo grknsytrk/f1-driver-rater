@@ -5,7 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "tsc -b && vite build && node scripts/generate-sitemap.mjs",
+    "build:prerender": "tsc -b && vite build && node scripts/generate-sitemap.mjs && node scripts/prerender.mjs",
+    "generate-sitemap": "node scripts/generate-sitemap.mjs",
+    "prerender": "node scripts/prerender.mjs",
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest"
@@ -25,6 +28,7 @@
     "lucide-react": "^0.556.0",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
+    "react-helmet-async": "^3.0.0",
     "react-router-dom": "^7.10.1",
     "recharts": "^3.5.1",
     "sonner": "^2.0.7",

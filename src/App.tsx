@@ -10,6 +10,8 @@ import { ResultsDashboard } from './components/ResultsDashboard';
 import { TeammateWars } from './components/TeammateWars';
 import { StandingsPage } from './components/StandingsPage';
 import { DeveloperCredit } from './components/DeveloperCredit';
+import { SEOHead } from './components/SEOHead';
+import { HomeJsonLd } from './components/JsonLd';
 import { getSeasons, getRaces } from './api/f1Api';
 import { getRatedRacesCount, hasQuickRatings } from './utils/storage';
 import { fetchWithMinDelay } from './utils/delay';
@@ -46,6 +48,14 @@ function SeasonPage() {
       exit={{ opacity: 0, y: -20 }}
       transition={{ duration: 0.3 }}
     >
+      <SEOHead
+        title="F1 Driver Rating – Rate F1 Drivers by Season"
+        description="Rate F1 drivers race-by-race, view season standings, and compare teammates head-to-head. Your personal Formula 1 driver rating tracker."
+        path="/"
+        keywords="f1, formula 1, driver rating, rate drivers, season standings, teammate comparison, race by race"
+      />
+      <HomeJsonLd />
+
       {/* Hero Section */}
       <div className="text-center mb-16 relative">
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-2xl h-32 bg-[var(--accent-red)]/5 blur-3xl -z-10" />
@@ -61,14 +71,14 @@ function SeasonPage() {
           </span>
         </motion.div>
 
-        <motion.h2
+        <motion.h1
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.2 }}
           className="font-display text-5xl md:text-6xl text-white mb-6 uppercase tracking-tight leading-none"
         >
-          Select <span className="text-transparent bg-clip-text bg-gradient-to-b from-white to-[#666]">Season</span>
-        </motion.h2>
+          F1 Driver <span className="text-transparent bg-clip-text bg-gradient-to-b from-white to-[#666]">Rating</span>
+        </motion.h1>
 
         <motion.p
           initial={{ opacity: 0 }}
@@ -76,7 +86,7 @@ function SeasonPage() {
           transition={{ delay: 0.3 }}
           className="font-ui text-[var(--text-secondary)] text-lg max-w-xl mx-auto tracking-wide"
         >
-          Rate every driver race-by-race and see who comes out on top.
+          Rate every F1 driver race-by-race, build your personal season standings, and settle teammate debates with head-to-head comparisons. Pick a season to get started.
         </motion.p>
       </div>
 
@@ -123,6 +133,12 @@ function RacesPage() {
       exit={{ opacity: 0, y: -20 }}
       transition={{ duration: 0.3 }}
     >
+      <SEOHead
+        title={`F1 ${season} Driver Ratings – Race‑by‑Race`}
+        description={`Rate every driver from the ${season} Formula 1 season race-by-race. Track performance and build your personal driver rankings.`}
+        path={`/${season}`}
+        keywords={`f1 ${season}, formula 1 ${season}, driver ratings, race by race, ${season} season`}
+      />
       <RaceList
         races={races}
         season={season}
@@ -168,12 +184,20 @@ function RaceRatingPage() {
   if (loading || !selectedRace) return null;
 
   return (
-    <RatingModal
-      race={selectedRace}
-      season={season}
-      onClose={handleClose}
-      onSave={handleSaveRatings}
-    />
+    <>
+      <SEOHead
+        title={`Rate Race ${round} – F1 ${season}`}
+        description={`Rate driver performances for round ${round} of the ${season} F1 season.`}
+        path={`/${season}/race/${round}`}
+        noindex
+      />
+      <RatingModal
+        race={selectedRace}
+        season={season}
+        onClose={handleClose}
+        onSave={handleSaveRatings}
+      />
+    </>
   );
 }
 
@@ -193,11 +217,19 @@ function QuickRatePage() {
   }
 
   return (
-    <QuickRateModal
-      season={season}
-      onClose={handleClose}
-      onSave={handleSave}
-    />
+    <>
+      <SEOHead
+        title={`Quick Rate – F1 ${season}`}
+        description={`Quickly rate all drivers from the ${season} F1 season.`}
+        path={`/${season}/quick-rate`}
+        noindex
+      />
+      <QuickRateModal
+        season={season}
+        onClose={handleClose}
+        onSave={handleSave}
+      />
+    </>
   );
 }
 
@@ -216,6 +248,12 @@ function ResultsPage() {
       exit={{ opacity: 0, y: -20 }}
       transition={{ duration: 0.3 }}
     >
+      <SEOHead
+        title={`My Results – F1 ${season}`}
+        description={`View your personal F1 ${season} driver rating results and standings.`}
+        path={`/${season}/results`}
+        noindex
+      />
       <ResultsDashboard
         season={season}
         onReset={() => navigate(`/${season}`)}
@@ -239,6 +277,12 @@ function TeammateWarsPage() {
       exit={{ opacity: 0, scale: 0.95 }}
       transition={{ duration: 0.3 }}
     >
+      <SEOHead
+        title={`F1 ${season} Teammate Wars – Head‑to‑Head`}
+        description={`Compare F1 ${season} teammates head-to-head. See who won the intra-team battle based on your ratings.`}
+        path={`/${season}/teammate-wars`}
+        keywords={`f1 ${season} teammates, head to head, teammate battle, teammate comparison, formula 1`}
+      />
       <TeammateWars
         season={season}
         onBack={() => navigate(`/${season}`)}
@@ -262,6 +306,12 @@ function StandingsPageWrapper() {
       exit={{ opacity: 0, y: -20 }}
       transition={{ duration: 0.3 }}
     >
+      <SEOHead
+        title={`F1 ${season} Standings – Drivers & Constructors`}
+        description={`View the official F1 ${season} driver and constructor standings. Track championship points throughout the season.`}
+        path={`/${season}/standings`}
+        keywords={`f1 ${season} standings, driver championship, constructor standings, points, formula 1`}
+      />
       <StandingsPage
         season={season}
         onBack={() => navigate(`/${season}`)}
@@ -447,20 +497,102 @@ function App() {
         </AnimatePresence>
       </main>
 
-      {/* Footer - always at bottom thanks to flexbox */}
-      <footer className="border-t border-[var(--border-carbon)] py-6 mt-auto relative z-0">
-        <div className="max-w-6xl mx-auto px-4 text-center">
-          <p className="text-sm text-[var(--text-muted)]">
-            F1 data provided by{' '}
-            <a
-              href="https://api.jolpi.ca/ergast/f1/"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-[var(--f1-red)] hover:underline"
-            >
-              Jolpica API
-            </a>
-          </p>
+      {/* Footer - Premium F1 styled */}
+      <footer className="border-t border-[var(--border-carbon)] mt-auto relative z-0 overflow-hidden">
+        {/* Subtle background pattern */}
+        <div className="absolute inset-0 opacity-[0.03] pointer-events-none"
+          style={{
+            backgroundImage: 'linear-gradient(45deg, var(--border-color) 25%, transparent 25%, transparent 75%, var(--border-color) 75%)',
+            backgroundSize: '4px 4px'
+          }}
+        />
+
+        {/* Red accent line at top */}
+        <div className="h-[2px] bg-gradient-to-r from-transparent via-[var(--accent-red)] to-transparent" />
+
+        <div className="max-w-6xl mx-auto px-4 py-10 relative">
+          {/* Main footer grid */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
+
+            {/* Brand column */}
+            <div className="flex flex-col gap-3">
+              <div className="flex items-center gap-3">
+                <div className="w-7 h-7 bg-[var(--accent-red)] flex items-center justify-center">
+                  <Zap size={14} className="text-white" />
+                </div>
+                <span className="font-display text-lg text-white tracking-tight">F1 RATING</span>
+              </div>
+              <p className="font-ui text-xs text-[var(--text-muted)] leading-relaxed max-w-[240px]">
+                Rate F1 drivers race-by-race, track season standings, and settle teammate debates.
+              </p>
+            </div>
+
+            {/* Quick Links column */}
+            <div>
+              <h3 className="font-oxanium text-[10px] text-[var(--accent-red)] uppercase tracking-[0.2em] mb-4 border-b border-[var(--border-color)] pb-2">
+                Quick Links
+              </h3>
+              <nav className="flex flex-col gap-2" aria-label="Footer navigation">
+                <a href="/" className="font-ui text-xs text-[var(--text-secondary)] hover:text-white hover:translate-x-1 transition-all inline-flex items-center gap-2 group">
+                  <span className="w-1 h-1 bg-[var(--text-muted)] group-hover:bg-[var(--accent-red)] transition-colors" />
+                  All Seasons
+                </a>
+                <a href={`/${new Date().getFullYear()}`} className="font-ui text-xs text-[var(--text-secondary)] hover:text-white hover:translate-x-1 transition-all inline-flex items-center gap-2 group">
+                  <span className="w-1 h-1 bg-[var(--text-muted)] group-hover:bg-[var(--accent-red)] transition-colors" />
+                  {new Date().getFullYear()} Season
+                </a>
+                <a href={`/${new Date().getFullYear()}/standings`} className="font-ui text-xs text-[var(--text-secondary)] hover:text-white hover:translate-x-1 transition-all inline-flex items-center gap-2 group">
+                  <span className="w-1 h-1 bg-[var(--text-muted)] group-hover:bg-[var(--accent-red)] transition-colors" />
+                  Standings
+                </a>
+                <a href={`/${new Date().getFullYear()}/teammate-wars`} className="font-ui text-xs text-[var(--text-secondary)] hover:text-white hover:translate-x-1 transition-all inline-flex items-center gap-2 group">
+                  <span className="w-1 h-1 bg-[var(--text-muted)] group-hover:bg-[var(--accent-red)] transition-colors" />
+                  Teammate Wars
+                </a>
+              </nav>
+            </div>
+
+            {/* Seasons column */}
+            <div>
+              <h3 className="font-oxanium text-[10px] text-[var(--accent-red)] uppercase tracking-[0.2em] mb-4 border-b border-[var(--border-color)] pb-2">
+                Popular Seasons
+              </h3>
+              <nav className="flex flex-wrap gap-2" aria-label="Season links">
+                {[2026, 2025, 2024, 2023, 2022, 2021, 2020].map(year => (
+                  <a
+                    key={year}
+                    href={`/${year}`}
+                    className={`font-oxanium text-xs px-3 py-1.5 border transition-all ${
+                      year === new Date().getFullYear()
+                        ? 'border-[var(--accent-red)]/40 text-[var(--accent-red)] hover:bg-[var(--accent-red)]/10'
+                        : 'border-[var(--border-color)] text-[var(--text-secondary)] hover:border-[var(--text-secondary)] hover:text-white'
+                    }`}
+                  >
+                    {year}
+                  </a>
+                ))}
+              </nav>
+            </div>
+          </div>
+
+          {/* Bottom bar */}
+          <div className="border-t border-[var(--border-color)] pt-5 flex flex-col sm:flex-row items-center justify-between gap-3">
+            <p className="font-ui text-[11px] text-[var(--text-muted)]">
+              F1 Driver Rating © {new Date().getFullYear()} · Data by{' '}
+              <a
+                href="https://api.jolpi.ca/ergast/f1/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[var(--f1-red)] hover:underline"
+              >
+                Jolpica API
+              </a>
+            </p>
+            <div className="flex items-center gap-2">
+              <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              <span className="font-oxanium text-[10px] text-[var(--text-muted)] uppercase tracking-widest">All systems operational</span>
+            </div>
+          </div>
         </div>
       </footer>
       <DeveloperCredit />

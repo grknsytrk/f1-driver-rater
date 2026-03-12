@@ -1,0 +1,22 @@
+# F1 Driver Rating – robots.txt
+User-agent: *
+
+# Allow indexable pages
+Allow: /
+Allow: /2020
+Allow: /2021
+Allow: /2022
+Allow: /2023
+Allow: /2024
+Allow: /2025
+Allow: /2026
+Allow: /*/standings
+Allow: /*/teammate-wars
+
+# Disallow user-specific / noindex pages
+Disallow: /*/race/
+Disallow: /*/quick-rate
+Disallow: /*/results
+
+# Sitemap
+Sitemap: https://f1-driver-rater.vercel.app/sitemap.xml

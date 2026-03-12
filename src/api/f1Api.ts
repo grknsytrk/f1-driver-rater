@@ -90,6 +90,7 @@ export async function getSeasons(): Promise<Season[]> {
         console.error('Error fetching seasons:', error);
         // Return fallback seasons
         return [
+            { season: '2026', url: '' },
             { season: '2025', url: '' },
             { season: '2024', url: '' },
             { season: '2023', url: '' },
