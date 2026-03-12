@@ -13,7 +13,7 @@ export function HomeJsonLd() {
     name: 'F1 Driver Rating',
     url: SITE_URL,
     description:
-      'Rate F1 drivers race-by-race, view season standings, and compare teammates head-to-head.',
+      'The ultimate F1 driver rater. Rate drivers race-by-race, create tier lists, view season standings, and compare teammates head-to-head.',
     potentialAction: {
       '@type': 'SearchAction',
       target: `${SITE_URL}/{season}`,
@@ -27,7 +27,7 @@ export function HomeJsonLd() {
     name: 'F1 Driver Rating',
     url: SITE_URL,
     description:
-      'A web application to rate Formula 1 drivers race-by-race and track season standings.',
+      'Rate Formula 1 drivers race-by-race, create driver tier lists and power rankings, and track season standings.',
     applicationCategory: 'SportsApplication',
     operatingSystem: 'All',
     offers: {
