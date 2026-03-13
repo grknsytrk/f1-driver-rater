@@ -19,4 +19,4 @@ Disallow: /*/quick-rate
 Disallow: /*/results
 
 # Sitemap
-Sitemap: https://f1-driver-rater.vercel.app/sitemap.xml
+Sitemap: https://f1-driver-rater.vercel.app/sitemap-main.xml

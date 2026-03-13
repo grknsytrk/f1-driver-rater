@@ -11,6 +11,12 @@
       "headers": [
         { "key": "Content-Type", "value": "application/xml" }
       ]
+    },
+    {
+      "source": "/sitemap-main.xml",
+      "headers": [
+        { "key": "Content-Type", "value": "application/xml" }
+      ]
     }
   ],
   "rewrites": [
