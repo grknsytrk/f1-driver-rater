@@ -12,9 +12,30 @@ import { fileURLToPath } from 'node:url';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const SITE_URL = 'https://f1-driver-rater.vercel.app';
 const SITEMAP_FILES = ['sitemap.xml', 'sitemap-main.xml'];
+const START_YEAR = 2020;
+const CURRENT_YEAR = new Date().getFullYear();
 
 function generateSitemap() {
+  // Keep the XML minimal because this format already validates in Search Console.
   const urls = [{ loc: `${SITE_URL}/`, priority: '1.0', changefreq: 'weekly' }];
+
+  for (let year = START_YEAR; year <= CURRENT_YEAR; year += 1) {
+    urls.push({
+      loc: `${SITE_URL}/${year}`,
+      priority: year === CURRENT_YEAR ? '0.9' : '0.7',
+      changefreq: year === CURRENT_YEAR ? 'weekly' : 'monthly',
+    });
+    urls.push({
+      loc: `${SITE_URL}/${year}/standings`,
+      priority: '0.6',
+      changefreq: 'monthly',
+    });
+    urls.push({
+      loc: `${SITE_URL}/${year}/teammate-wars`,
+      priority: '0.6',
+      changefreq: 'monthly',
+    });
+  }
 
   const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
