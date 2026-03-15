@@ -284,6 +284,10 @@ export function hasQuickRatings(season: string): boolean {
     return ratings !== null && ratings.length > 0;
 }
 
+function formatRaceDisplayName(raceName: string): string {
+    return raceName.replace(' Grand Prix', '').replace(' GP', '');
+}
+
 // Get race-by-race matrix for GP table view
 export interface RaceColumn {
     round: string;
@@ -300,6 +304,32 @@ export interface DriverRow {
     raceRatings: Record<string, number>; // round -> rating
 }
 
+export interface DriverFormPoint {
+    round: string;
+    roundNumber: number;
+    raceName: string;
+    countryCode: string;
+    date: string;
+    rating: number | null;
+    constructorId: string | null;
+    constructorName: string | null;
+}
+
+export interface DriverFormSeries {
+    driverId: string;
+    driverName: string;
+    latestConstructorId: string;
+    latestConstructorName: string;
+    seasonAverage: number;
+    totalRatedRaces: number;
+    bestRating: number | null;
+    bestRaceName: string | null;
+    worstRating: number | null;
+    worstRaceName: string | null;
+    changedTeams: boolean;
+    points: DriverFormPoint[];
+}
+
 export function getRaceByRaceMatrix(season: string): { races: RaceColumn[]; drivers: DriverRow[] } {
     const seasonRatings = getSeasonRatings(season);
 
@@ -313,7 +343,7 @@ export function getRaceByRaceMatrix(season: string): { races: RaceColumn[]; driv
     // Build race columns
     const races: RaceColumn[] = sortedRaces.map(race => ({
         round: race.round,
-        raceName: race.raceName.replace(' Grand Prix', '').replace(' GP', ''),
+        raceName: formatRaceDisplayName(race.raceName),
         countryCode: getCountryCode(race.raceName),
     }));
 
@@ -346,6 +376,163 @@ export function getRaceByRaceMatrix(season: string): { races: RaceColumn[]; driv
     }).sort((a, b) => b.totalAverage - a.totalAverage);
 
     return { races, drivers };
+}
+
+export function getDriverFormSeries(season: string): DriverFormSeries[] {
+    const seasonRatings = getSeasonRatings(season);
+
+    if (!seasonRatings || seasonRatings.races.length === 0) {
+        return [];
+    }
+
+    const sortedRaces = [...seasonRatings.races]
+        .filter(race => race.completed)
+        .sort((a, b) => parseInt(a.round) - parseInt(b.round));
+
+    if (sortedRaces.length === 0) {
+        return [];
+    }
+
+    const driverMap = new Map<string, {
+        driverId: string;
+        driverName: string;
+        latestConstructorId: string;
+        latestConstructorName: string;
+        teamIds: Set<string>;
+        pointsByRound: Map<string, DriverFormPoint>;
+        ratings: number[];
+    }>();
+
+    for (const race of sortedRaces) {
+        for (const rating of race.ratings) {
+            if (!driverMap.has(rating.driverId)) {
+                driverMap.set(rating.driverId, {
+                    driverId: rating.driverId,
+                    driverName: rating.driverName,
+                    latestConstructorId: rating.constructorId,
+                    latestConstructorName: rating.constructorName,
+                    teamIds: new Set<string>(),
+                    pointsByRound: new Map<string, DriverFormPoint>(),
+                    ratings: [],
+                });
+            }
+
+            const driverEntry = driverMap.get(rating.driverId)!;
+            driverEntry.latestConstructorId = rating.constructorId;
+            driverEntry.latestConstructorName = rating.constructorName;
+            driverEntry.teamIds.add(rating.constructorId);
+            driverEntry.ratings.push(rating.rating);
+            driverEntry.pointsByRound.set(race.round, {
+                round: race.round,
+                roundNumber: parseInt(race.round),
+                raceName: race.raceName,
+                countryCode: getCountryCode(race.raceName),
+                date: race.date,
+                rating: rating.rating,
+                constructorId: rating.constructorId,
+                constructorName: rating.constructorName,
+            });
+        }
+    }
+
+    const driverSeries = Array.from(driverMap.values())
+        .map((driverEntry) => {
+            const points = sortedRaces.map((race) => {
+                return driverEntry.pointsByRound.get(race.round) ?? {
+                    round: race.round,
+                    roundNumber: parseInt(race.round),
+                    raceName: race.raceName,
+                    countryCode: getCountryCode(race.raceName),
+                    date: race.date,
+                    rating: null,
+                    constructorId: null,
+                    constructorName: null,
+                };
+            });
+
+            const ratedPoints = points.filter((point) => point.rating !== null);
+            const seasonAverage = ratedPoints.length > 0
+                ? parseFloat((ratedPoints.reduce((sum, point) => sum + (point.rating ?? 0), 0) / ratedPoints.length).toFixed(2))
+                : 0;
+            const bestPoint = ratedPoints.reduce<DriverFormPoint | null>((best, point) => {
+                if (!best || (point.rating ?? -Infinity) > (best.rating ?? -Infinity)) {
+                    return point;
+                }
+                return best;
+            }, null);
+            const worstPoint = ratedPoints.reduce<DriverFormPoint | null>((worst, point) => {
+                if (!worst || (point.rating ?? Infinity) < (worst.rating ?? Infinity)) {
+                    return point;
+                }
+                return worst;
+            }, null);
+
+            return {
+                driverId: driverEntry.driverId,
+                driverName: driverEntry.driverName,
+                latestConstructorId: driverEntry.latestConstructorId,
+                latestConstructorName: driverEntry.latestConstructorName,
+                seasonAverage,
+                totalRatedRaces: ratedPoints.length,
+                bestRating: bestPoint?.rating ?? null,
+                bestRaceName: bestPoint?.raceName ?? null,
+                worstRating: worstPoint?.rating ?? null,
+                worstRaceName: worstPoint?.raceName ?? null,
+                changedTeams: driverEntry.teamIds.size > 1,
+                points,
+            };
+        });
+
+    const constructorScores = new Map<string, {
+        totalSeasonAverage: number;
+        bestDriverAverage: number;
+        constructorName: string;
+    }>();
+
+    for (const series of driverSeries) {
+        const existing = constructorScores.get(series.latestConstructorId);
+
+        if (existing) {
+            existing.totalSeasonAverage += series.seasonAverage;
+            existing.bestDriverAverage = Math.max(existing.bestDriverAverage, series.seasonAverage);
+            continue;
+        }
+
+        constructorScores.set(series.latestConstructorId, {
+            totalSeasonAverage: series.seasonAverage,
+            bestDriverAverage: series.seasonAverage,
+            constructorName: series.latestConstructorName,
+        });
+    }
+
+    return driverSeries.sort((a, b) => {
+            const aConstructor = constructorScores.get(a.latestConstructorId);
+            const bConstructor = constructorScores.get(b.latestConstructorId);
+
+            if ((bConstructor?.totalSeasonAverage ?? 0) !== (aConstructor?.totalSeasonAverage ?? 0)) {
+                return (bConstructor?.totalSeasonAverage ?? 0) - (aConstructor?.totalSeasonAverage ?? 0);
+            }
+
+            if ((bConstructor?.bestDriverAverage ?? 0) !== (aConstructor?.bestDriverAverage ?? 0)) {
+                return (bConstructor?.bestDriverAverage ?? 0) - (aConstructor?.bestDriverAverage ?? 0);
+            }
+
+            if (a.latestConstructorId !== b.latestConstructorId) {
+                return (aConstructor?.constructorName ?? a.latestConstructorName).localeCompare(
+                    bConstructor?.constructorName ?? b.latestConstructorName
+                );
+            }
+
+            if (b.seasonAverage !== a.seasonAverage) {
+                return b.seasonAverage - a.seasonAverage;
+            }
+
+            if (b.totalRatedRaces !== a.totalRatedRaces) {
+                return b.totalRatedRaces - a.totalRatedRaces;
+            }
+
+            return a.driverName.localeCompare(b.driverName);
+        });
 }
 
 // Helper to get country code from race name

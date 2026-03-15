@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Trophy, BarChart3, RotateCcw, ImageDown, Download, Share2, AlertTriangle, Table, Upload, FileJson, ChevronsUp } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, LineChart, Line, CartesianGrid, ReferenceLine } from 'recharts';
 import { toPng } from 'html-to-image';
 import { toast } from 'sonner';
 import { Tooltip as ShadcnTooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -14,7 +14,7 @@ import {
     AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { TEAM_COLORS } from '../types';
-import { calculateAverages, clearSeasonRatings, getRatedRacesCount, getRaceByRaceMatrix, downloadRatingsAsJson, importRatings } from '../utils/storage';
+import { calculateAverages, clearSeasonRatings, getDriverFormSeries, getRatedRacesCount, getRaceByRaceMatrix, downloadRatingsAsJson, importRatings } from '../utils/storage';
 import { CountryFlag } from '../utils/countryFlags';
 
 interface ResultsDashboardProps {
@@ -22,21 +22,33 @@ interface ResultsDashboardProps {
     onReset: () => void;
 }
 
+function getDriverLabel(driverName: string): string {
+    return driverName.split(' ').pop()?.toUpperCase() || driverName.toUpperCase();
+}
+
+function formatRaceDisplayName(raceName: string | null): string {
+    if (!raceName) return 'N/A';
+    return raceName.replace(' Grand Prix', '').replace(' GP', '');
+}
+
 export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
     const averages = calculateAverages(season);
     const ratedCount = getRatedRacesCount(season);
     const raceMatrix = getRaceByRaceMatrix(season);
+    const formSeries = getDriverFormSeries(season);
     const [showCardSection, setShowCardSection] = useState(false);
     const [showScrollTop, setShowScrollTop] = useState(false);
     const [cardImage, setCardImage] = useState<string | null>(null);
     const [generating, setGenerating] = useState(false);
     const [generatingTable, setGeneratingTable] = useState(false);
     const [showConfirmModal, setShowConfirmModal] = useState(false);
+    const [selectedDriverId, setSelectedDriverId] = useState<string | null>(null);
     const cardRef = useRef<HTMLDivElement>(null);
     const shareSectionRef = useRef<HTMLDivElement>(null);
     const tableRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const isScrollingToTop = useRef(false);
+    const formSeriesKey = formSeries.map(series => `${series.driverId}:${series.latestConstructorId}:${series.totalRatedRaces}`).join('|');
 
     // Track scroll position to show/hide "Top" button
     useEffect(() => {
@@ -60,6 +72,19 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
         window.addEventListener('scroll', handleScroll);
         return () => window.removeEventListener('scroll', handleScroll);
     }, []);
+
+    useEffect(() => {
+        if (formSeries.length === 0) {
+            if (selectedDriverId !== null) {
+                setSelectedDriverId(null);
+            }
+            return;
+        }
+
+        if (!selectedDriverId || !formSeries.some(series => series.driverId === selectedDriverId)) {
+            setSelectedDriverId(formSeries[0].driverId);
+        }
+    }, [season, formSeriesKey, selectedDriverId]);
 
     if (averages.length === 0) {
         return (
@@ -219,7 +244,7 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
 
     // Chart data
     const chartData = averages.slice(0, 10).map(d => ({
-        name: d.driverName.split(' ').pop()?.toUpperCase(),
+        name: getDriverLabel(d.driverName),
         rating: d.averageRating,
         fullName: d.driverName.toUpperCase(),
         color: getTeamColor(d.constructorId),
@@ -229,6 +254,14 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
     // Podium (top 3)
     const podium = averages.slice(0, 3);
     const podiumOrder = [1, 0, 2]; // Silver, Gold, Bronze positions
+    const selectedFormDriver = formSeries.find(series => series.driverId === selectedDriverId) ?? formSeries[0] ?? null;
+    const selectedFormColor = selectedFormDriver ? getTeamColor(selectedFormDriver.latestConstructorId) : 'var(--accent-red)';
+    const formChartData = selectedFormDriver
+        ? selectedFormDriver.points.map(point => ({
+            ...point,
+            roundLabel: point.countryCode !== 'XX' ? point.countryCode : `R${point.roundNumber}`,
+        }))
+        : [];
 
     return (
         <div className="min-h-screen py-4 md:py-8 px-3 md:px-6">
@@ -518,6 +551,224 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
                     </div>
 
                 </div>
+
+                {/* 4. SECTION: FORM TRACKER */}
+                <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.25 }}
+                >
+                    <div className="mb-4 flex items-center justify-between border-b border-[var(--border-color)] pb-2">
+                        <div className="flex items-center gap-3">
+                            <BarChart3 size={16} className="text-[var(--accent-red)]" />
+                            <h3 className="font-display text-2xl text-white uppercase tracking-wider">FORM TRACKER</h3>
+                        </div>
+                        <span className="font-oxanium text-[10px] text-[var(--text-muted)] uppercase tracking-widest">
+                            RAW RACE RATINGS
+                        </span>
+                    </div>
+
+                    {formSeries.length === 0 || !selectedFormDriver ? (
+                        <div className="bg-[var(--bg-panel)] border border-[var(--border-color)] p-6 md:p-8 relative overflow-hidden">
+                            <div
+                                className="absolute inset-0 pointer-events-none opacity-5"
+                                style={{ backgroundImage: 'linear-gradient(var(--border-color) 1px, transparent 1px), linear-gradient(90deg, var(--border-color) 1px, transparent 1px)', backgroundSize: '20px 20px' }}
+                            />
+                            <div className="relative z-10 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                                <div>
+                                    <div className="font-display text-2xl text-white uppercase tracking-wider">FORM TRACKER UNAVAILABLE</div>
+                                    <p className="font-oxanium text-sm text-[var(--text-secondary)] max-w-2xl">
+                                        Form graph requires race-by-race ratings. Quick Rate data only provides a season snapshot.
+                                    </p>
+                                </div>
+                                <div className="font-oxanium text-[10px] text-[var(--text-muted)] uppercase tracking-widest">
+                                    NO TIMELINE DATA
+                                </div>
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="bg-[var(--bg-panel)] border border-[var(--border-color)] p-4 md:p-6 relative scanline overflow-hidden">
+                            <div
+                                className="absolute inset-0 pointer-events-none opacity-5"
+                                style={{ backgroundImage: 'linear-gradient(var(--border-color) 1px, transparent 1px), linear-gradient(90deg, var(--border-color) 1px, transparent 1px)', backgroundSize: '20px 20px' }}
+                            />
+
+                            <div className="relative z-10 space-y-6">
+                                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                                    <div className="space-y-2">
+                                        <div className="flex flex-wrap items-center gap-3">
+                                            <div className="flex items-center gap-3">
+                                                <div className="h-10 w-1.5" style={{ backgroundColor: selectedFormColor }} />
+                                                <div>
+                                                    <div className="font-display text-2xl md:text-4xl text-white uppercase tracking-tight leading-none">
+                                                        {selectedFormDriver.driverName}
+                                                    </div>
+                                                    <div className="font-oxanium text-[11px] text-[var(--text-muted)] uppercase tracking-[0.2em]">
+                                                        {selectedFormDriver.latestConstructorName}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            {selectedFormDriver.changedTeams && (
+                                                <span className="px-3 py-1 border border-[var(--accent-yellow)]/40 bg-[var(--accent-yellow)]/10 font-oxanium text-[10px] text-[var(--accent-yellow)] uppercase tracking-[0.2em]">
+                                                    TEAM CHANGE
+                                                </span>
+                                            )}
+                                        </div>
+                                        <p className="font-ui text-sm text-[var(--text-secondary)] max-w-2xl">
+                                            Track how your race-by-race ratings changed across the season for the selected driver.
+                                        </p>
+                                    </div>
+
+                                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 w-full lg:w-auto lg:min-w-[460px]">
+                                        <div className="border border-[var(--border-color)] bg-[var(--bg-darker)] px-3 py-3">
+                                            <div className="font-oxanium text-[10px] text-[var(--text-muted)] uppercase tracking-widest mb-1">AVG</div>
+                                            <div className="font-display text-2xl text-white leading-none">{selectedFormDriver.seasonAverage.toFixed(2)}</div>
+                                        </div>
+                                        <div className="border border-[var(--border-color)] bg-[var(--bg-darker)] px-3 py-3">
+                                            <div className="font-oxanium text-[10px] text-[var(--text-muted)] uppercase tracking-widest mb-1">RACES</div>
+                                            <div className="font-display text-2xl text-white leading-none">{selectedFormDriver.totalRatedRaces}</div>
+                                        </div>
+                                        <div className="border border-[var(--border-color)] bg-[var(--bg-darker)] px-3 py-3">
+                                            <div className="font-oxanium text-[10px] text-[var(--text-muted)] uppercase tracking-widest mb-1">BEST</div>
+                                            <div className="font-display text-xl text-white leading-none">
+                                                {selectedFormDriver.bestRating !== null ? selectedFormDriver.bestRating.toFixed(1) : 'N/A'}
+                                            </div>
+                                            <div className="font-ui text-[10px] text-[var(--text-muted)] uppercase tracking-wide mt-1 truncate">
+                                                {formatRaceDisplayName(selectedFormDriver.bestRaceName)}
+                                            </div>
+                                        </div>
+                                        <div className="border border-[var(--border-color)] bg-[var(--bg-darker)] px-3 py-3">
+                                            <div className="font-oxanium text-[10px] text-[var(--text-muted)] uppercase tracking-widest mb-1">WORST</div>
+                                            <div className="font-display text-xl text-white leading-none">
+                                                {selectedFormDriver.worstRating !== null ? selectedFormDriver.worstRating.toFixed(1) : 'N/A'}
+                                            </div>
+                                            <div className="font-ui text-[10px] text-[var(--text-muted)] uppercase tracking-wide mt-1 truncate">
+                                                {formatRaceDisplayName(selectedFormDriver.worstRaceName)}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="overflow-x-auto pb-2">
+                                    <div className="flex gap-2 min-w-max">
+                                        {formSeries.map((driver) => {
+                                            const isSelected = driver.driverId === selectedFormDriver.driverId;
+
+                                            return (
+                                                <button
+                                                    key={driver.driverId}
+                                                    type="button"
+                                                    aria-pressed={isSelected}
+                                                    onClick={() => setSelectedDriverId(driver.driverId)}
+                                                    className={`group min-w-[130px] border px-3 py-2 text-left transition-colors ${isSelected
+                                                        ? 'border-white bg-[var(--bg-darker)]'
+                                                        : 'border-[var(--border-color)] bg-[var(--bg-panel-hover)] hover:border-white/40'
+                                                        }`}
+                                                >
+                                                    <div className="flex items-center gap-2">
+                                                        <div className="w-1 h-8 flex-shrink-0" style={{ backgroundColor: getTeamColor(driver.latestConstructorId) }} />
+                                                        <div className="min-w-0">
+                                                            <div className="font-display text-sm text-white uppercase leading-none truncate">
+                                                                {getDriverLabel(driver.driverName)}
+                                                            </div>
+                                                            <div className="font-oxanium text-[9px] text-[var(--text-muted)] uppercase tracking-wider truncate mt-1">
+                                                                {driver.seasonAverage.toFixed(2)} AVG
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+
+                                <div className="h-[320px] md:h-[420px]">
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <LineChart data={formChartData} margin={{ left: 0, right: 16, top: 20, bottom: 10 }}>
+                                            <CartesianGrid stroke="rgba(255,255,255,0.06)" strokeDasharray="3 3" />
+                                            <XAxis
+                                                dataKey="roundLabel"
+                                                axisLine={false}
+                                                tickLine={false}
+                                                tick={{ fill: '#8E9196', fontSize: 11, fontFamily: 'Oxanium, sans-serif' }}
+                                            />
+                                            <YAxis
+                                                type="number"
+                                                domain={[0, 10]}
+                                                ticks={[0, 2, 4, 6, 8, 10]}
+                                                axisLine={false}
+                                                tickLine={false}
+                                                tick={{ fill: '#8E9196', fontSize: 11, fontFamily: 'Oxanium, sans-serif' }}
+                                            />
+                                            <Tooltip
+                                                cursor={{ stroke: 'rgba(255,255,255,0.08)', strokeWidth: 1 }}
+                                                content={({ active, payload }) => {
+                                                    if (!active || !payload || payload.length === 0) {
+                                                        return null;
+                                                    }
+
+                                                    const point = payload[0].payload;
+                                                    if (point.rating === null) {
+                                                        return null;
+                                                    }
+
+                                                    return (
+                                                        <div className="bg-[#050608] border border-[var(--border-color)] p-4 shadow-2xl max-w-[260px]">
+                                                            <div className="flex items-center gap-2 mb-2">
+                                                                <div className="w-1 h-10" style={{ backgroundColor: selectedFormColor }} />
+                                                                <div>
+                                                                    <div className="font-display text-lg text-white uppercase leading-none">
+                                                                        {selectedFormDriver.driverName}
+                                                                    </div>
+                                                                    <div className="font-oxanium text-[10px] text-[var(--text-muted)] uppercase tracking-wider mt-1">
+                                                                        {point.constructorName ?? selectedFormDriver.latestConstructorName}
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                            <div className="space-y-1 font-oxanium text-xs">
+                                                                <div className="flex justify-between gap-4">
+                                                                    <span className="text-[var(--text-muted)]">ROUND</span>
+                                                                    <span className="text-white">{point.roundNumber}</span>
+                                                                </div>
+                                                                <div className="flex justify-between gap-4">
+                                                                    <span className="text-[var(--text-muted)]">RACE</span>
+                                                                    <span className="text-white text-right">{formatRaceDisplayName(point.raceName)}</span>
+                                                                </div>
+                                                                <div className="flex justify-between gap-4">
+                                                                    <span className="text-[var(--text-muted)]">DATE</span>
+                                                                    <span className="text-white">{new Date(point.date).toLocaleDateString('en-GB')}</span>
+                                                                </div>
+                                                                <div className="flex justify-between gap-4 pt-1 border-t border-white/10 mt-2">
+                                                                    <span className="text-[var(--text-muted)]">RATING</span>
+                                                                    <span className="text-[var(--accent-yellow)]">{point.rating.toFixed(1)}</span>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                }}
+                                            />
+                                            <ReferenceLine
+                                                y={selectedFormDriver.seasonAverage}
+                                                stroke={selectedFormColor}
+                                                strokeDasharray="6 4"
+                                                strokeOpacity={0.45}
+                                            />
+                                            <Line
+                                                type="linear"
+                                                dataKey="rating"
+                                                connectNulls={false}
+                                                stroke={selectedFormColor}
+                                                strokeWidth={3}
+                                                dot={{ r: 4, fill: selectedFormColor, stroke: '#0a0a0b', strokeWidth: 2 }}
+                                                activeDot={{ r: 6, fill: selectedFormColor, stroke: '#ffffff', strokeWidth: 2 }}
+                                            />
+                                        </LineChart>
+                                    </ResponsiveContainer>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </motion.div>
 
                 {/* 4. SECTION: RACE-BY-RACE TABLE */}
                 {raceMatrix.races.length > 0 && (
