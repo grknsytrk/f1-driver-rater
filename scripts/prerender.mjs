@@ -18,6 +18,32 @@ const DIST_DIR = resolve(__dirname, '..', 'dist');
 const CURRENT_YEAR = new Date().getFullYear();
 const START_YEAR = 2020;
 const PORT = 4173;
+const SPA_TEMPLATE_PATH = resolve(DIST_DIR, 'index.html');
+const SPA_TEMPLATE_HTML = readFileSync(SPA_TEMPLATE_PATH, 'utf-8');
+const SPA_HEAD_ASSET_TAGS = [
+  ...(SPA_TEMPLATE_HTML.match(/<link rel="stylesheet"[^>]*>/g) ?? []),
+];
+const SPA_BODY_ASSET_TAGS = [
+  ...(SPA_TEMPLATE_HTML.match(/<script type="module"[^>]*><\/script>/g) ?? []),
+];
+
+function restoreAssetTags(html) {
+  let nextHtml = html;
+
+  SPA_HEAD_ASSET_TAGS.forEach((tag) => {
+    if (!nextHtml.includes(tag)) {
+      nextHtml = nextHtml.replace('</head>', `${tag}</head>`);
+    }
+  });
+
+  SPA_BODY_ASSET_TAGS.forEach((tag) => {
+    if (!nextHtml.includes(tag)) {
+      nextHtml = nextHtml.replace('</body>', `${tag}</body>`);
+    }
+  });
+
+  return nextHtml;
+}
 
 /**
  * Build the list of routes to prerender.
@@ -56,7 +82,9 @@ function startServer() {
 
       let filePath = resolve(DIST_DIR, '.' + url);
       if (!existsSync(filePath) || !filePath.includes('.')) {
-        filePath = resolve(DIST_DIR, 'index.html');
+        res2.writeHead(200, { 'Content-Type': 'text/html' });
+        res2.end(SPA_TEMPLATE_HTML);
+        return;
       }
 
       const ext = '.' + filePath.split('.').pop();
@@ -110,16 +138,29 @@ async function prerender() {
     try {
       await page.goto(url, { waitUntil: 'networkidle0', timeout: 30000 });
 
-      // Wait for React to render content (main element has children)
-      await page.waitForSelector('main *', { timeout: 15000 });
+      // Wait for React Router + Helmet to settle on the requested route.
+      await page.waitForFunction(
+        (expectedRoute) => {
+          const root = document.querySelector('#root');
+          if (!root || root.childElementCount === 0) return false;
+
+          const canonical = document.querySelector('link[rel="canonical"]');
+          if (!canonical) return false;
+
+          try {
+            return new URL(canonical.href).pathname === expectedRoute;
+          } catch {
+            return false;
+          }
+        },
+        { timeout: 15000 },
+        route
+      );
 
       // Give animations a moment to settle
       await new Promise((r) => setTimeout(r, 500));
 
-      let html = await page.content();
-
-      // Clean up any Puppeteer/dev artefacts
-      html = html.replace(/<script[^>]*type="module"[^>]*><\/script>/g, '');
+      const html = restoreAssetTags(await page.content());
 
       // Determine output path
       const routePath = route === '/' ? '/index.html' : `${route}/index.html`;

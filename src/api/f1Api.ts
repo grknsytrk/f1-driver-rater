@@ -45,6 +45,7 @@ function getEndpointSeason(endpoint: string): string | null {
 }
 
 type CacheRecord<T> = { expiresAt: number; data: T };
+type RaceLike = Pick<Race, 'round' | 'date'> & Partial<Pick<Race, 'time' | 'raceName' | 'Circuit'>>;
 
 function getCache<T>(key: string): T | null {
     try {
@@ -79,13 +80,35 @@ function setCache<T>(key: string, data: T, ttlMs: number) {
     }
 }
 
-function getRaceStartMs(race: Race): number {
+function getRaceStartMs<T extends RaceLike>(race: T): number {
     const isoDateTime = `${race.date}T${race.time ?? '00:00:00Z'}`;
     const timestamp = new Date(isoDateTime).getTime();
     return Number.isFinite(timestamp) ? timestamp : 0;
 }
 
-function hasBrokenRoundSequence(races: Race[]): boolean {
+function getRaceIdentityKeys<T extends RaceLike>(race: T): string[] {
+    const keys = new Set<string>();
+
+    if (race.date && race.raceName) {
+        keys.add(`date-name:${race.date}::${race.raceName}`);
+    }
+
+    if (race.Circuit?.circuitId) {
+        keys.add(`circuit:${race.Circuit.circuitId}`);
+    }
+
+    if (race.date) {
+        keys.add(`date:${race.date}`);
+    }
+
+    if (race.raceName) {
+        keys.add(`name:${race.raceName}`);
+    }
+
+    return [...keys];
+}
+
+function hasBrokenRoundSequence<T extends RaceLike>(races: T[]): boolean {
     const seen = new Set<string>();
 
     return races.some((race, index) => {
@@ -101,7 +124,7 @@ function hasBrokenRoundSequence(races: Race[]): boolean {
     });
 }
 
-function normalizeRaceCalendar(races: Race[]): Race[] {
+export function normalizeRaceCalendar<T extends RaceLike>(races: T[]): T[] {
     const chronologicallySorted = [...races].sort((a, b) => getRaceStartMs(a) - getRaceStartMs(b));
 
     if (!hasBrokenRoundSequence(chronologicallySorted)) {
@@ -114,6 +137,41 @@ function normalizeRaceCalendar(races: Race[]): Race[] {
         ...race,
         round: String(index + 1),
     }));
+}
+
+function createCanonicalRoundLookup(races: Race[]): Map<string, string> {
+    const lookup = new Map<string, string>();
+
+    normalizeRaceCalendar(races).forEach(race => {
+        getRaceIdentityKeys(race).forEach(key => lookup.set(key, race.round));
+    });
+
+    return lookup;
+}
+
+export function applyCanonicalRounds<T extends RaceLike>(races: T[], calendar: Race[]): T[] {
+    if (races.length === 0 || calendar.length === 0) {
+        return [...races];
+    }
+
+    const canonicalRoundLookup = createCanonicalRoundLookup(calendar);
+
+    return [...races]
+        .map(race => {
+            const canonicalRound = getRaceIdentityKeys(race)
+                .map(key => canonicalRoundLookup.get(key))
+                .find((round): round is string => typeof round === 'string' && round.length > 0);
+
+            if (!canonicalRound || canonicalRound === race.round) {
+                return race;
+            }
+
+            return {
+                ...race,
+                round: canonicalRound,
+            };
+        })
+        .sort((a, b) => getRaceStartMs(a) - getRaceStartMs(b));
 }
 
 // Fetch available seasons (2020-current)
@@ -154,7 +212,7 @@ export async function getRaces(season: string): Promise<Race[]> {
 export async function getRaceResults(season: string, round: string): Promise<RaceResult[]> {
     try {
         const response = await api.get(`/${season}/${round}/results.json`);
-        const races = response.data.MRData.RaceTable.Races as Race[];
+        const races = normalizeRaceCalendar(response.data.MRData.RaceTable.Races as Race[]);
         if (races.length > 0 && races[0].Results) {
             return races[0].Results;
         }
@@ -485,10 +543,14 @@ export interface SeasonRaceResult {
 
 export async function getAllSeasonResults(season: string): Promise<SeasonRaceResult[]> {
     try {
-        const allRaces = await fetchAllPaginated(`/${season}/results.json`);
+        const [allRaces, calendar] = await Promise.all([
+            fetchAllPaginated(`/${season}/results.json`),
+            getRaces(season),
+        ]);
         const results: SeasonRaceResult[] = [];
+        const normalizedRaces = applyCanonicalRounds(allRaces, calendar);
 
-        allRaces.forEach((race: any) => {
+        normalizedRaces.forEach((race: any) => {
             race.Results?.forEach((result: any) => {
                 const positionText = result.positionText;
                 // R = Retired, D = Disqualified, E = Excluded, W = Withdrew, F = Failed to qualify, N = Not classified
@@ -532,10 +594,14 @@ export interface SeasonSprintResult {
 
 export async function getAllSeasonSprints(season: string): Promise<SeasonSprintResult[]> {
     try {
-        const allSprints = await fetchAllPaginated(`/${season}/sprint.json`);
+        const [allSprints, calendar] = await Promise.all([
+            fetchAllPaginated(`/${season}/sprint.json`),
+            getRaces(season),
+        ]);
         const results: SeasonSprintResult[] = [];
+        const normalizedSprints = applyCanonicalRounds(allSprints, calendar);
 
-        allSprints.forEach((race: any) => {
+        normalizedSprints.forEach((race: any) => {
             const sprintResults = race.SprintResults || [];
             sprintResults.forEach((result: any) => {
                 const positionText = result.positionText;
@@ -576,10 +642,14 @@ export interface SeasonQualifyingResult {
 
 export async function getAllSeasonQualifying(season: string): Promise<SeasonQualifyingResult[]> {
     try {
-        const allQualifying = await fetchAllPaginated(`/${season}/qualifying.json`);
+        const [allQualifying, calendar] = await Promise.all([
+            fetchAllPaginated(`/${season}/qualifying.json`),
+            getRaces(season),
+        ]);
         const results: SeasonQualifyingResult[] = [];
+        const normalizedQualifying = applyCanonicalRounds(allQualifying, calendar);
 
-        allQualifying.forEach((race: any) => {
+        normalizedQualifying.forEach((race: any) => {
             race.QualifyingResults?.forEach((result: any) => {
                 results.push({
                     round: race.round,

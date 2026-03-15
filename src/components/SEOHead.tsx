@@ -2,6 +2,8 @@ import { Helmet } from 'react-helmet-async';
 
 const SITE_URL = 'https://f1-driver-rater.vercel.app';
 const SITE_NAME = 'F1 Driver Rating';
+const DEFAULT_OG_IMAGE = `${SITE_URL}/og-image.png`;
+const DEFAULT_OG_IMAGE_ALT = 'F1 Driver Rating share card';
 const DEFAULT_DESCRIPTION =
   'Rate F1 drivers race-by-race, view season standings, and compare teammates head-to-head. Your personal Formula 1 driver rating tracker.';
 
@@ -46,17 +48,20 @@ export function SEOHead({
       <meta property="og:url" content={canonicalUrl} />
       <meta
         property="og:image"
-        content={`${SITE_URL}/og-image.png`}
+        content={DEFAULT_OG_IMAGE}
       />
+      <meta property="og:image:alt" content={DEFAULT_OG_IMAGE_ALT} />
 
       {/* Twitter */}
       <meta name="twitter:card" content="summary_large_image" />
       <meta name="twitter:title" content={fullTitle} />
       <meta name="twitter:description" content={description} />
+      <meta name="twitter:url" content={canonicalUrl} />
       <meta
         name="twitter:image"
-        content={`${SITE_URL}/og-image.png`}
+        content={DEFAULT_OG_IMAGE}
       />
+      <meta name="twitter:image:alt" content={DEFAULT_OG_IMAGE_ALT} />
     </Helmet>
   );
 }
