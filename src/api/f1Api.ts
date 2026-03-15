@@ -79,6 +79,43 @@ function setCache<T>(key: string, data: T, ttlMs: number) {
     }
 }
 
+function getRaceStartMs(race: Race): number {
+    const isoDateTime = `${race.date}T${race.time ?? '00:00:00Z'}`;
+    const timestamp = new Date(isoDateTime).getTime();
+    return Number.isFinite(timestamp) ? timestamp : 0;
+}
+
+function hasBrokenRoundSequence(races: Race[]): boolean {
+    const seen = new Set<string>();
+
+    return races.some((race, index) => {
+        const round = parseInt(race.round, 10);
+        const roundKey = Number.isFinite(round) ? String(round) : '';
+
+        if (!roundKey || seen.has(roundKey) || round !== index + 1) {
+            return true;
+        }
+
+        seen.add(roundKey);
+        return false;
+    });
+}
+
+function normalizeRaceCalendar(races: Race[]): Race[] {
+    const chronologicallySorted = [...races].sort((a, b) => getRaceStartMs(a) - getRaceStartMs(b));
+
+    if (!hasBrokenRoundSequence(chronologicallySorted)) {
+        return chronologicallySorted;
+    }
+
+    console.warn('Detected broken round data in season calendar. Re-numbering races by date order.');
+
+    return chronologicallySorted.map((race, index) => ({
+        ...race,
+        round: String(index + 1),
+    }));
+}
+
 // Fetch available seasons (2020-current)
 export async function getSeasons(): Promise<Season[]> {
     try {
@@ -105,7 +142,8 @@ export async function getSeasons(): Promise<Season[]> {
 export async function getRaces(season: string): Promise<Race[]> {
     try {
         const response = await api.get(`/${season}.json`);
-        return response.data.MRData.RaceTable.Races as Race[];
+        const races = response.data.MRData.RaceTable.Races as Race[];
+        return normalizeRaceCalendar(races);
     } catch (error) {
         console.error(`Error fetching races for ${season}:`, error);
         return [];
