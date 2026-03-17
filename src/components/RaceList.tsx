@@ -12,9 +12,10 @@ interface RaceCardProps {
     season: string;
     index: number;
     onClick: () => void;
+    onPrefetch?: () => void;
 }
 
-function RaceCard({ race, season, index, onClick }: RaceCardProps) {
+function RaceCard({ race, season, index, onClick, onPrefetch }: RaceCardProps) {
     const completed = isRaceCompleted(race.date);
     const rated = isRaceRated(season, race.round);
     const country = race.Circuit.Location.country;
@@ -63,6 +64,16 @@ function RaceCard({ race, season, index, onClick }: RaceCardProps) {
             }}
             whileHover={isClickable ? { x: 4, backgroundColor: 'var(--bg-panel-hover)' } : {}}
             onClick={isClickable ? onClick : undefined}
+            onMouseEnter={isClickable ? onPrefetch : undefined}
+            onFocus={isClickable ? onPrefetch : undefined}
+            onKeyDown={isClickable ? (event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    onClick();
+                }
+            } : undefined}
+            role={isClickable ? 'button' : undefined}
+            tabIndex={isClickable ? 0 : undefined}
             className={`
                 group relative border-b border-[var(--border-color)] p-3 sm:p-4 bg-[var(--bg-panel)]
                 ${isClickable ? 'cursor-pointer hover:bg-[var(--bg-panel-hover)]' : 'opacity-50 cursor-not-allowed bg-[var(--bg-darker)]'}
@@ -192,20 +203,17 @@ interface RaceListProps {
     races: Race[];
     season: string;
     onSelectRace: (race: Race) => void;
+    onRacePrefetch?: () => void;
     loading?: boolean;
 }
 
-export function RaceList({ races, season, onSelectRace, loading }: RaceListProps) {
-    if (loading) {
-        return <RaceListSkeleton count={10} />;
-    }
+export function RaceList({ races, season, onSelectRace, onRacePrefetch, loading }: RaceListProps) {
+    const [showScrollTop, setShowScrollTop] = useState(false);
+    const isScrollingToTop = useRef(false);
 
     // Calculate progress
     const ratedCount = races.filter(r => isRaceRated(season, r.round)).length;
     const completedCount = races.filter(r => isRaceCompleted(r.date)).length;
-
-    const [showScrollTop, setShowScrollTop] = useState(false);
-    const isScrollingToTop = useRef(false);
 
     // Track scroll position to show/hide "Top" button
     useEffect(() => {
@@ -229,6 +237,10 @@ export function RaceList({ races, season, onSelectRace, loading }: RaceListProps
         window.addEventListener('scroll', handleScroll);
         return () => window.removeEventListener('scroll', handleScroll);
     }, []);
+
+    if (loading) {
+        return <RaceListSkeleton count={10} />;
+    }
 
     return (
         <div className="border border-[var(--border-color)] bg-[var(--bg-main)]">
@@ -260,6 +272,7 @@ export function RaceList({ races, season, onSelectRace, loading }: RaceListProps
                         season={season}
                         index={index}
                         onClick={() => onSelectRace(race)}
+                        onPrefetch={onRacePrefetch}
                     />
                 ))}
             </div>

@@ -1,19 +1,34 @@
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { Routes, Route, useNavigate, useParams, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronLeft, Trophy, Zap, Swords, Medal } from 'lucide-react';
 import { SeasonSelector } from './components/SeasonSelector';
 import { RaceList } from './components/RaceList';
-import { RatingModal } from './components/RatingModal';
-import { QuickRateModal } from './components/QuickRateModal';
-import { ResultsDashboard } from './components/ResultsDashboard';
-import { TeammateWars } from './components/TeammateWars';
-import { StandingsPage } from './components/StandingsPage';
 import { DeveloperCredit } from './components/DeveloperCredit';
 import { SEOHead } from './components/SEOHead';
 import { HomeJsonLd } from './components/JsonLd';
+import {
+  QuickRateModalRouteFallback,
+  RatingModalRouteFallback,
+  ResultsRouteFallback,
+  StandingsRouteFallback,
+  TeammateWarsRouteFallback,
+} from './components/RouteFallbacks';
 import { getSeasons, getRaces } from './api/f1Api';
 import { getRatedRacesCount, hasQuickRatings } from './utils/storage';
+import {
+  QuickRateRoute,
+  RaceRatingRoute,
+  ResultsRoute,
+  StandingsRoute,
+  TeammateWarsRoute,
+  preloadQuickRateRoute,
+  preloadRaceRatingRoute,
+  preloadResultsRoute,
+  preloadStandingsRoute,
+  preloadTeammateWarsRoute,
+  scheduleSeasonRoutePrefetch,
+} from './routes/routeChunks';
 import { fetchWithMinDelay } from './utils/delay';
 import type { Season, Race } from './types';
 
@@ -116,8 +131,14 @@ function RacesPage() {
         setLoading(false);
       }
     }
-    loadRaces();
+    void loadRaces();
   }, [season]);
+
+  useEffect(() => {
+    if (!season || loading) return;
+
+    return scheduleSeasonRoutePrefetch();
+  }, [season, loading]);
 
   function handleSelectRace(race: Race) {
     navigate(`/${season}/race/${race.round}`);
@@ -143,178 +164,8 @@ function RacesPage() {
         races={races}
         season={season}
         onSelectRace={handleSelectRace}
+        onRacePrefetch={preloadRaceRatingRoute}
         loading={loading}
-      />
-    </motion.div>
-  );
-}
-
-// Race Rating Page Component
-function RaceRatingPage() {
-  const { season, round } = useParams<{ season: string; round: string }>();
-  const [races, setRaces] = useState<Race[]>([]);
-  const [loading, setLoading] = useState(true);
-  const navigate = useNavigate();
-
-  useEffect(() => {
-    async function loadRaces() {
-      if (season) {
-        setLoading(true);
-        const data = await getRaces(season);
-        setRaces(data);
-        setLoading(false);
-      }
-    }
-    loadRaces();
-  }, [season]);
-
-  const selectedRace = races.find(r => r.round === round);
-
-  function handleSaveRatings() {
-    navigate(`/${season}`);
-  }
-
-  function handleClose() {
-    navigate(`/${season}`);
-  }
-
-  if (!season || !round) return null;
-
-  // Wait for race data
-  if (loading || !selectedRace) return null;
-
-  return (
-    <>
-      <SEOHead
-        title={`Rate Race ${round} – F1 ${season}`}
-        description={`Rate driver performances for round ${round} of the ${season} F1 season.`}
-        path={`/${season}/race/${round}`}
-        noindex
-      />
-      <RatingModal
-        race={selectedRace}
-        season={season}
-        onClose={handleClose}
-        onSave={handleSaveRatings}
-      />
-    </>
-  );
-}
-
-// Quick Rate Page Component
-function QuickRatePage() {
-  const { season } = useParams<{ season: string }>();
-  const navigate = useNavigate();
-
-  if (!season) return null;
-
-  function handleClose() {
-    navigate(`/${season}`);
-  }
-
-  function handleSave() {
-    navigate(`/${season}`);
-  }
-
-  return (
-    <>
-      <SEOHead
-        title={`Quick Rate – F1 ${season}`}
-        description={`Quickly rate all drivers from the ${season} F1 season.`}
-        path={`/${season}/quick-rate`}
-        noindex
-      />
-      <QuickRateModal
-        season={season}
-        onClose={handleClose}
-        onSave={handleSave}
-      />
-    </>
-  );
-}
-
-// Results Page Component
-function ResultsPage() {
-  const { season } = useParams<{ season: string }>();
-  const navigate = useNavigate();
-
-  if (!season) return null;
-
-  return (
-    <motion.div
-      key="results"
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -20 }}
-      transition={{ duration: 0.3 }}
-    >
-      <SEOHead
-        title={`My Results – F1 ${season}`}
-        description={`View your personal F1 ${season} driver rating results and standings.`}
-        path={`/${season}/results`}
-        noindex
-      />
-      <ResultsDashboard
-        season={season}
-        onReset={() => navigate(`/${season}`)}
-      />
-    </motion.div>
-  );
-}
-
-// Teammate Wars Page Component
-function TeammateWarsPage() {
-  const { season } = useParams<{ season: string }>();
-  const navigate = useNavigate();
-
-  if (!season) return null;
-
-  return (
-    <motion.div
-      key="teammate-wars"
-      initial={{ opacity: 0, scale: 0.95 }}
-      animate={{ opacity: 1, scale: 1 }}
-      exit={{ opacity: 0, scale: 0.95 }}
-      transition={{ duration: 0.3 }}
-    >
-      <SEOHead
-        title={`F1 ${season} Teammate Wars – Head‑to‑Head Comparison`}
-        description={`F1 ${season} teammate head-to-head battle. Compare qualifying pace, race results, and overall ratings between teammates. Who won the intra-team war?`}
-        path={`/${season}/teammate-wars`}
-        keywords={`f1 ${season} teammates, f1 teammate comparison, head to head f1 ${season}, teammate battle, f1 intra-team rivalry, who is better f1 ${season}, f1 ${season} driver ratings`}
-      />
-      <TeammateWars
-        season={season}
-        onBack={() => navigate(`/${season}`)}
-      />
-    </motion.div>
-  );
-}
-
-// Standings Page Component
-function StandingsPageWrapper() {
-  const { season } = useParams<{ season: string }>();
-  const navigate = useNavigate();
-
-  if (!season) return null;
-
-  return (
-    <motion.div
-      key="standings"
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -20 }}
-      transition={{ duration: 0.3 }}
-    >
-      <SEOHead
-        title={`F1 ${season} Standings – Driver & Constructor Rankings`}
-        description={`F1 ${season} driver and constructor championship standings. Track points, wins, and positions throughout the Formula 1 ${season} season.`}
-        path={`/${season}/standings`}
-        keywords={`f1 ${season} standings, f1 ${season} championship, driver standings ${season}, constructor standings ${season}, f1 points ${season}, formula 1 ${season} rankings, f1 ${season} driver rating`}
-      />
-      <StandingsPage
-        season={season}
-        onBack={() => navigate(`/${season}`)}
       />
     </motion.div>
   );
@@ -337,6 +188,14 @@ function App() {
   const isHomePage = pathname === '/' || pathname === '';
 
   const ratedCount = currentSeason ? getRatedRacesCount(currentSeason) : 0;
+  const showResultsButton = currentSeason ? (ratedCount > 0 || hasQuickRatings(currentSeason)) : false;
+
+  function primeRoute(preload: () => void) {
+    return {
+      onMouseEnter: preload,
+      onFocus: preload,
+    };
+  }
 
   function handleBack() {
     if (isResultsPage && currentSeason) {
@@ -437,6 +296,7 @@ function App() {
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 onClick={() => navigate(`/${currentSeason}/standings`)}
+                {...primeRoute(preloadStandingsRoute)}
                 className="group flex items-center justify-center gap-2 px-2 md:px-4 py-2 md:py-1.5 bg-[var(--bg-panel)] border border-[var(--border-color)] hover:border-[var(--accent-yellow)] transition-all min-w-[44px] min-h-[44px] md:min-w-0 md:min-h-0"
                 title="Standings"
               >
@@ -448,6 +308,7 @@ function App() {
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 onClick={() => navigate(`/${currentSeason}/teammate-wars`)}
+                {...primeRoute(preloadTeammateWarsRoute)}
                 className="group flex items-center justify-center gap-2 px-2 md:px-4 py-2 md:py-1.5 bg-[var(--bg-panel)] border border-[var(--border-color)] hover:border-[var(--accent-red)] transition-all min-w-[44px] min-h-[44px] md:min-w-0 md:min-h-0"
                 title="Teammate Wars"
               >
@@ -459,6 +320,7 @@ function App() {
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 onClick={() => navigate(`/${currentSeason}/quick-rate`)}
+                {...primeRoute(preloadQuickRateRoute)}
                 className="group flex items-center justify-center gap-2 px-2 md:px-4 py-2 md:py-1.5 bg-[var(--accent-yellow)]/10 border border-[var(--accent-yellow)]/30 hover:border-[var(--accent-yellow)] transition-all min-w-[44px] min-h-[44px] md:min-w-0 md:min-h-0"
               >
                 <Zap size={16} className="text-[var(--accent-yellow)]" />
@@ -466,11 +328,12 @@ function App() {
               </motion.button>
 
               {/* View Results Button */}
-              {(ratedCount > 0 || hasQuickRatings(currentSeason)) && (
+              {showResultsButton && (
                 <motion.button
                   initial={{ opacity: 0, scale: 0.95 }}
                   animate={{ opacity: 1, scale: 1 }}
                   onClick={() => navigate(`/${currentSeason}/results`)}
+                  {...primeRoute(preloadResultsRoute)}
                   className="group flex items-center justify-center gap-2 px-2 md:px-4 py-2 md:py-1.5 bg-[var(--bg-panel)] border border-[var(--border-color)] hover:border-[var(--accent-red)] transition-all min-w-[44px] min-h-[44px] md:min-w-0 md:min-h-0"
                 >
                   <Trophy size={16} className="text-[var(--text-secondary)] group-hover:text-[var(--accent-yellow)]" />
@@ -488,11 +351,46 @@ function App() {
           <Routes location={location} key={location.pathname}>
             <Route path="/" element={<SeasonPage />} />
             <Route path="/:season" element={<RacesPage />} />
-            <Route path="/:season/race/:round" element={<RaceRatingPage />} />
-            <Route path="/:season/quick-rate" element={<QuickRatePage />} />
-            <Route path="/:season/results" element={<ResultsPage />} />
-            <Route path="/:season/teammate-wars" element={<TeammateWarsPage />} />
-            <Route path="/:season/standings" element={<StandingsPageWrapper />} />
+            <Route
+              path="/:season/race/:round"
+              element={(
+                <Suspense fallback={<RatingModalRouteFallback />}>
+                  <RaceRatingRoute />
+                </Suspense>
+              )}
+            />
+            <Route
+              path="/:season/quick-rate"
+              element={(
+                <Suspense fallback={<QuickRateModalRouteFallback />}>
+                  <QuickRateRoute />
+                </Suspense>
+              )}
+            />
+            <Route
+              path="/:season/results"
+              element={(
+                <Suspense fallback={<ResultsRouteFallback />}>
+                  <ResultsRoute />
+                </Suspense>
+              )}
+            />
+            <Route
+              path="/:season/teammate-wars"
+              element={(
+                <Suspense fallback={<TeammateWarsRouteFallback />}>
+                  <TeammateWarsRoute />
+                </Suspense>
+              )}
+            />
+            <Route
+              path="/:season/standings"
+              element={(
+                <Suspense fallback={<StandingsRouteFallback />}>
+                  <StandingsRoute />
+                </Suspense>
+              )}
+            />
           </Routes>
         </AnimatePresence>
       </main>
