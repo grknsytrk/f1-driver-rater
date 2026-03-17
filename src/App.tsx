@@ -49,10 +49,10 @@ function SeasonPage() {
       transition={{ duration: 0.3 }}
     >
       <SEOHead
-        title="F1 Driver Rating – Rate & Rank F1 Drivers by Season"
-        description="The ultimate F1 driver rater and tier list maker. Rate Formula 1 drivers race-by-race, create your own power rankings, view season standings, and compare teammates head-to-head."
+        title="F1 Driver Rating – Rate, Rank & Track F1 Drivers by Season"
+        description="The ultimate F1 driver rater and rating tracker. Rate Formula 1 drivers race-by-race, build season ratings and power rankings, view standings, and compare teammates head-to-head."
         path="/"
-        keywords="f1 driver rater, f1 tier list, formula 1 driver ranking, rate f1 drivers, f1 power rankings, f1 driver tier list, best f1 drivers, f1 season standings, f1 teammate comparison, race by race rating, formula one driver rater"
+        keywords="f1 driver rating, f1 driver ratings, f1 driver rater, formula 1 driver rating, formula 1 driver ratings, formula 1 driver ranking, rate f1 drivers, f1 power rankings, f1 driver tier list, best f1 drivers, f1 season standings, f1 teammate comparison, race by race rating"
       />
       <HomeJsonLd />
 
@@ -67,7 +67,7 @@ function SeasonPage() {
           className="inline-flex items-center gap-3 px-4 py-1 border-x border-[var(--accent-red)] mb-6"
         >
           <span className="font-oxanium text-xs font-bold text-[var(--accent-red)] tracking-[0.25em] uppercase">
-            Rate Your Drivers
+            F1 Driver Rater
           </span>
         </motion.div>
 
@@ -86,7 +86,7 @@ function SeasonPage() {
           transition={{ delay: 0.3 }}
           className="font-ui text-[var(--text-secondary)] text-lg max-w-xl mx-auto tracking-wide"
         >
-          Rate every F1 driver race-by-race and create your personal driver tier list. Build season power rankings, compare teammates head-to-head, and see who really is the best on the grid.
+          Rate every F1 driver race-by-race with your own F1 driver rater and rating tracker. Build season rankings, compare teammates head-to-head, and see who really is the best on the grid.
         </motion.p>
       </div>
 
@@ -135,9 +135,9 @@ function RacesPage() {
     >
       <SEOHead
         title={`F1 ${season} Driver Ratings – Race‑by‑Race Tier List`}
-        description={`Rate and rank every driver from the ${season} Formula 1 season race-by-race. Create your personal F1 ${season} driver tier list and power rankings.`}
+        description={`Rate and rank every driver from the ${season} Formula 1 season race-by-race. Use this F1 ${season} driver rater to create personal driver ratings, tier lists, and power rankings.`}
         path={`/${season}`}
-        keywords={`f1 ${season}, formula 1 ${season} driver ratings, f1 ${season} tier list, rate f1 drivers ${season}, f1 ${season} power rankings, best f1 driver ${season}, f1 driver rater`}
+        keywords={`f1 ${season}, f1 ${season} driver rating, f1 ${season} driver ratings, formula 1 ${season} driver ratings, f1 ${season} tier list, rate f1 drivers ${season}, f1 ${season} power rankings, best f1 driver ${season}, f1 driver rater`}
       />
       <RaceList
         races={races}
@@ -281,7 +281,7 @@ function TeammateWarsPage() {
         title={`F1 ${season} Teammate Wars – Head‑to‑Head Comparison`}
         description={`F1 ${season} teammate head-to-head battle. Compare qualifying pace, race results, and overall ratings between teammates. Who won the intra-team war?`}
         path={`/${season}/teammate-wars`}
-        keywords={`f1 ${season} teammates, f1 teammate comparison, head to head f1 ${season}, teammate battle, f1 intra-team rivalry, who is better f1 ${season}`}
+        keywords={`f1 ${season} teammates, f1 teammate comparison, head to head f1 ${season}, teammate battle, f1 intra-team rivalry, who is better f1 ${season}, f1 ${season} driver ratings`}
       />
       <TeammateWars
         season={season}
@@ -310,7 +310,7 @@ function StandingsPageWrapper() {
         title={`F1 ${season} Standings – Driver & Constructor Rankings`}
         description={`F1 ${season} driver and constructor championship standings. Track points, wins, and positions throughout the Formula 1 ${season} season.`}
         path={`/${season}/standings`}
-        keywords={`f1 ${season} standings, f1 ${season} championship, driver standings ${season}, constructor standings ${season}, f1 points ${season}, formula 1 ${season} rankings`}
+        keywords={`f1 ${season} standings, f1 ${season} championship, driver standings ${season}, constructor standings ${season}, f1 points ${season}, formula 1 ${season} rankings, f1 ${season} driver rating`}
       />
       <StandingsPage
         season={season}

@@ -1,11 +1,12 @@
 import { Helmet } from 'react-helmet-async';
 
-const SITE_URL = 'https://f1-driver-rater.vercel.app';
-const SITE_NAME = 'F1 Driver Rating';
-const DEFAULT_OG_IMAGE = `${SITE_URL}/og-image.png`;
-const DEFAULT_OG_IMAGE_ALT = 'F1 Driver Rating share card';
-const DEFAULT_DESCRIPTION =
-  'Rate F1 drivers race-by-race, view season standings, and compare teammates head-to-head. Your personal Formula 1 driver rating tracker.';
+export const SITE_URL = 'https://f1-driver-rater.vercel.app';
+export const SITE_NAME = 'F1 Driver Rating';
+export const SITE_ALTERNATE_NAME = 'F1 Driver Rater';
+export const DEFAULT_OG_IMAGE = `${SITE_URL}/og-image.png`;
+export const DEFAULT_OG_IMAGE_ALT = 'F1 Driver Rating share card';
+export const DEFAULT_DESCRIPTION =
+  'Rate F1 drivers race-by-race with the F1 Driver Rating tracker. Use this F1 driver rater to build season ratings, power rankings, standings, and teammate comparisons.';
 
 interface SEOHeadProps {
   title: string;
@@ -32,6 +33,8 @@ export function SEOHead({
       <meta name="description" content={description} />
       <link rel="canonical" href={canonicalUrl} />
       {keywords && <meta name="keywords" content={keywords} />}
+      <meta name="application-name" content={SITE_NAME} />
+      <meta name="apple-mobile-web-app-title" content={SITE_NAME} />
 
       {/* Robots */}
       {noindex ? (

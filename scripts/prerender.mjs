@@ -15,6 +15,7 @@ const CURRENT_YEAR = new Date().getFullYear();
 const START_YEAR = 2020;
 const SITE_URL = 'https://f1-driver-rater.vercel.app';
 const SITE_NAME = 'F1 Driver Rating';
+const SITE_ALTERNATE_NAME = 'F1 Driver Rater';
 const DEFAULT_OG_IMAGE = `${SITE_URL}/og-image.png`;
 const DEFAULT_OG_IMAGE_ALT = 'F1 Driver Rating share card';
 const SPA_TEMPLATE_PATH = resolve(DIST_DIR, 'index.html');
@@ -46,9 +47,10 @@ function getHomeJsonLd() {
     '@context': 'https://schema.org',
     '@type': 'WebSite',
     name: SITE_NAME,
+    alternateName: SITE_ALTERNATE_NAME,
     url: SITE_URL,
     description:
-      'The ultimate F1 driver rater. Rate drivers race-by-race, create tier lists, view season standings, and compare teammates head-to-head.',
+      'The ultimate F1 driver rater and rating tracker. Rate drivers race-by-race, create tier lists, view season standings, and compare teammates head-to-head.',
     potentialAction: {
       '@type': 'SearchAction',
       target: `${SITE_URL}/{season}`,
@@ -60,9 +62,10 @@ function getHomeJsonLd() {
     '@context': 'https://schema.org',
     '@type': 'SoftwareApplication',
     name: SITE_NAME,
+    alternateName: SITE_ALTERNATE_NAME,
     url: SITE_URL,
     description:
-      'Rate Formula 1 drivers race-by-race, create driver tier lists and power rankings, and track season standings.',
+      'Rate Formula 1 drivers race-by-race, create driver ratings and tier lists, build power rankings, and track season standings.',
     applicationCategory: 'SportsApplication',
     operatingSystem: 'All',
     offers: {
@@ -72,25 +75,35 @@ function getHomeJsonLd() {
     },
     author: {
       '@type': 'Person',
-      name: 'F1 Driver Rating Team',
+      name: `${SITE_NAME} Team`,
     },
+  };
+
+  const organizationSchema = {
+    '@context': 'https://schema.org',
+    '@type': 'Organization',
+    name: SITE_NAME,
+    alternateName: SITE_ALTERNATE_NAME,
+    url: SITE_URL,
+    logo: DEFAULT_OG_IMAGE,
   };
 
   return [
     `<script type="application/ld+json">${JSON.stringify(websiteSchema)}</script>`,
     `<script type="application/ld+json">${JSON.stringify(appSchema)}</script>`,
+    `<script type="application/ld+json">${JSON.stringify(organizationSchema)}</script>`,
   ].join('\n');
 }
 
 function getSeoConfig(route) {
   if (route === '/') {
     return {
-      title: 'F1 Driver Rating – Rate & Rank F1 Drivers by Season',
+      title: 'F1 Driver Rating – Rate, Rank & Track F1 Drivers by Season',
       description:
-        'The ultimate F1 driver rater and tier list maker. Rate Formula 1 drivers race-by-race, create your own power rankings, view season standings, and compare teammates head-to-head.',
+        'The ultimate F1 driver rater and rating tracker. Rate Formula 1 drivers race-by-race, build season ratings and power rankings, view standings, and compare teammates head-to-head.',
       path: '/',
       keywords:
-        'f1 driver rater, f1 tier list, formula 1 driver ranking, rate f1 drivers, f1 power rankings, f1 driver tier list, best f1 drivers, f1 season standings, f1 teammate comparison, race by race rating, formula one driver rater',
+        'f1 driver rating, f1 driver ratings, f1 driver rater, formula 1 driver rating, formula 1 driver ratings, formula 1 driver ranking, rate f1 drivers, f1 power rankings, f1 driver tier list, best f1 drivers, f1 season standings, f1 teammate comparison, race by race rating',
       extraHead: getHomeJsonLd(),
     };
   }
@@ -105,9 +118,9 @@ function getSeoConfig(route) {
   if (!page) {
     return {
       title: `F1 ${season} Driver Ratings – Race-by-Race Tier List`,
-      description: `Rate and rank every driver from the ${season} Formula 1 season race-by-race. Create your personal F1 ${season} driver tier list and power rankings.`,
+      description: `Rate and rank every driver from the ${season} Formula 1 season race-by-race. Use this F1 ${season} driver rater to create personal driver ratings, tier lists, and power rankings.`,
       path: route,
-      keywords: `f1 ${season}, formula 1 ${season} driver ratings, f1 ${season} tier list, rate f1 drivers ${season}, f1 ${season} power rankings, best f1 driver ${season}, f1 driver rater`,
+      keywords: `f1 ${season}, f1 ${season} driver rating, f1 ${season} driver ratings, formula 1 ${season} driver ratings, f1 ${season} tier list, rate f1 drivers ${season}, f1 ${season} power rankings, best f1 driver ${season}, f1 driver rater`,
     };
   }
 
@@ -116,7 +129,7 @@ function getSeoConfig(route) {
       title: `F1 ${season} Standings – Driver & Constructor Rankings`,
       description: `F1 ${season} driver and constructor championship standings. Track points, wins, and positions throughout the Formula 1 ${season} season.`,
       path: route,
-      keywords: `f1 ${season} standings, f1 ${season} championship, driver standings ${season}, constructor standings ${season}, f1 points ${season}, formula 1 ${season} rankings`,
+      keywords: `f1 ${season} standings, f1 ${season} championship, driver standings ${season}, constructor standings ${season}, f1 points ${season}, formula 1 ${season} rankings, f1 ${season} driver rating`,
     };
   }
 
@@ -124,7 +137,7 @@ function getSeoConfig(route) {
     title: `F1 ${season} Teammate Wars – Head-to-Head Comparison`,
     description: `F1 ${season} teammate head-to-head battle. Compare qualifying pace, race results, and overall ratings between teammates. Who won the intra-team war?`,
     path: route,
-    keywords: `f1 ${season} teammates, f1 teammate comparison, head to head f1 ${season}, teammate battle, f1 intra-team rivalry, who is better f1 ${season}`,
+    keywords: `f1 ${season} teammates, f1 teammate comparison, head to head f1 ${season}, teammate battle, f1 intra-team rivalry, who is better f1 ${season}, f1 ${season} driver ratings`,
   };
 }
 
