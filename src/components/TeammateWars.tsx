@@ -32,6 +32,16 @@ interface TeamDriver {
     totalRaces: number;
 }
 
+function getDriverFamilyName(driverName: string): string {
+    const parts = driverName.trim().split(/\s+/);
+    return parts[parts.length - 1]?.toUpperCase() || driverName.toUpperCase();
+}
+
+function getDriverGivenName(driverName: string): string {
+    const parts = driverName.trim().split(/\s+/);
+    return parts[0]?.toUpperCase() || driverName.toUpperCase();
+}
+
 export function TeammateWars({ season }: TeammateWarsProps) {
     const averages = calculateAverages(season);
 
@@ -392,6 +402,10 @@ export function TeammateWars({ season }: TeammateWarsProps) {
                     const [indexA, indexB] = selections[teamId] || [0, 1];
                     const driverA = allTeamDrivers[indexA];
                     const driverB = allTeamDrivers[indexB];
+                    const driverAFamilyName = getDriverFamilyName(driverA.driverName);
+                    const driverAGivenName = getDriverGivenName(driverA.driverName);
+                    const driverBFamilyName = getDriverFamilyName(driverB.driverName);
+                    const driverBGivenName = getDriverGivenName(driverB.driverName);
 
                     const teamColor = TEAM_COLORS[teamId] || '#666';
                     const teamName = driverA.constructorName;
@@ -516,18 +530,18 @@ export function TeammateWars({ season }: TeammateWarsProps) {
                             </div>
 
                             {/* Battle Arena */}
-                            <div className="p-6 flex items-center justify-between gap-4 relative">
-                                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-[100px] font-display text-white/[0.02] pointer-events-none select-none">VS</div>
+                            <div className="relative flex items-center justify-between gap-2 p-4 md:gap-4 md:p-6">
+                                <div className="pointer-events-none absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 select-none font-display text-[72px] text-white/[0.02] md:text-[100px]">VS</div>
 
                                 {/* Driver A */}
-                                <div className="flex-1 flex flex-col items-center text-center relative">
+                                <div className="relative flex min-w-0 flex-1 flex-col items-center px-1 text-center">
                                     {hasMoreDrivers && (
                                         <SwapButton
                                             onClick={(e) => { e.stopPropagation(); cycleDriver(teamId, 0, allTeamDrivers.length); }}
                                             className="absolute -top-3 -left-3 p-2 rounded-full bg-[var(--bg-darker)] border border-[var(--border-color)] hover:border-[var(--accent-yellow)] hover:bg-[var(--accent-yellow)]/10 text-[var(--text-muted)] hover:text-[var(--accent-yellow)] transition-colors z-20 shadow-lg"
                                         />
                                     )}
-                                    <div className="mb-2 min-h-[40px] flex items-end justify-center">
+                                    <div className="mb-2 flex min-h-[40px] items-end justify-center">
                                         <AnimatePresence mode="wait">
                                             <motion.span
                                                 key={driverA.driverId}
@@ -543,14 +557,16 @@ export function TeammateWars({ season }: TeammateWarsProps) {
                                             </motion.span>
                                         </AnimatePresence>
                                     </div>
-                                    <div className={`font-display text-xl leading-none uppercase mb-1 ${
+                                    <div className={`mb-1 w-full max-w-full truncate px-1 font-display text-base leading-[0.95] uppercase tracking-tight sm:text-xl ${
                                         standingsByDriverId[driverA.driverId]?.position === "1"
                                             ? 'text-[var(--accent-yellow)] opacity-75'
                                             : ''
                                     }`}>
-                                        {driverA.driverName.split(' ')[1]}
+                                        {driverAFamilyName}
                                     </div>
-                                    <div className="font-oxanium text-[10px] text-[var(--text-muted)] uppercase">{driverA.driverName.split(' ')[0]}</div>
+                                    <div className="w-full max-w-full truncate px-1 font-oxanium text-[9px] uppercase text-[var(--text-muted)] sm:text-[10px]">
+                                        {driverAGivenName}
+                                    </div>
                                 </div>
 
                                 {/* Progress Bar */}
@@ -567,14 +583,14 @@ export function TeammateWars({ season }: TeammateWarsProps) {
                                 </div>
 
                                 {/* Driver B */}
-                                <div className="flex-1 flex flex-col items-center text-center relative">
+                                <div className="relative flex min-w-0 flex-1 flex-col items-center px-1 text-center">
                                     {hasMoreDrivers && (
                                         <SwapButton
                                             onClick={(e) => { e.stopPropagation(); cycleDriver(teamId, 1, allTeamDrivers.length); }}
                                             className="absolute -top-3 -right-3 p-2 rounded-full bg-[var(--bg-darker)] border border-[var(--border-color)] hover:border-[var(--accent-yellow)] hover:bg-[var(--accent-yellow)]/10 text-[var(--text-muted)] hover:text-[var(--accent-yellow)] transition-colors z-20 shadow-lg"
                                         />
                                     )}
-                                    <div className="mb-2 min-h-[40px] flex items-end justify-center">
+                                    <div className="mb-2 flex min-h-[40px] items-end justify-center">
                                         <AnimatePresence mode="wait">
                                             <motion.span
                                                 key={driverB.driverId}
@@ -590,14 +606,16 @@ export function TeammateWars({ season }: TeammateWarsProps) {
                                             </motion.span>
                                         </AnimatePresence>
                                     </div>
-                                    <div className={`font-display text-xl leading-none uppercase mb-1 ${
+                                    <div className={`mb-1 w-full max-w-full truncate px-1 font-display text-base leading-[0.95] uppercase tracking-tight sm:text-xl ${
                                         standingsByDriverId[driverB.driverId]?.position === "1"
                                             ? 'text-[var(--accent-yellow)] opacity-75'
                                             : ''
                                     }`}>
-                                        {driverB.driverName.split(' ')[1]}
+                                        {driverBFamilyName}
                                     </div>
-                                    <div className="font-oxanium text-[10px] text-[var(--text-muted)] uppercase">{driverB.driverName.split(' ')[0]}</div>
+                                    <div className="w-full max-w-full truncate px-1 font-oxanium text-[9px] uppercase text-[var(--text-muted)] sm:text-[10px]">
+                                        {driverBGivenName}
+                                    </div>
                                 </div>
                             </div>
 

@@ -1,18 +1,10 @@
-import type { ReactNode } from 'react';
 import { motion } from 'framer-motion';
-import { Loader2, Timer, Zap, type LucideIcon } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { PageLoadingSkeleton, QuickRateDriverSkeleton, RatingDriverSkeleton } from './Skeleton';
 
 interface FullPageRouteFallbackProps {
     title: string;
     eyebrow: string;
-}
-
-interface ModalRouteFrameProps {
-    title: string;
-    eyebrow: string;
-    Icon: LucideIcon;
-    children: ReactNode;
 }
 
 export function FullPageRouteFallback({ title, eyebrow }: FullPageRouteFallbackProps) {
@@ -46,75 +38,19 @@ export function FullPageRouteFallback({ title, eyebrow }: FullPageRouteFallbackP
     );
 }
 
-function ModalRouteFrame({ title, eyebrow, Icon, children }: ModalRouteFrameProps) {
+export function RatingModalContentFallback() {
     return (
-        <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="fixed inset-0 z-50 flex items-center justify-center p-0 md:p-4"
-        >
-            <div className="absolute inset-0 bg-[#000]/95" />
-
-            <motion.div
-                initial={{ opacity: 0, scale: 0.95, y: 20 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-                className="relative w-full max-w-5xl h-[100dvh] md:h-auto md:max-h-[90vh] bg-[var(--bg-main)] border-0 md:border border-[var(--border-color)] rounded-none overflow-hidden flex flex-col shadow-2xl"
-                style={{ boxShadow: '0 0 100px rgba(0,0,0,0.8)' }}
-            >
-                <div className="relative p-4 md:p-6 border-b border-[var(--border-color)] bg-[var(--bg-panel)]">
-                    <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none">
-                        <div className="w-32 h-32 border-2 border-white rounded-full flex items-center justify-center">
-                            <div className="w-24 h-24 border border-white" />
-                        </div>
-                    </div>
-
-                    <div className="relative flex items-center justify-between z-10">
-                        <div>
-                            <div className="flex items-center gap-2 mb-2">
-                                <Icon size={14} className="text-[var(--accent-red)]" />
-                                <span className="text-[var(--text-muted)] text-[10px] font-oxanium uppercase tracking-[0.2em]">
-                                    {eyebrow}
-                                </span>
-                            </div>
-                            <h2 className="font-display-condensed font-bold text-2xl md:text-5xl text-white uppercase tracking-tight leading-tight mb-1">
-                                {title}
-                            </h2>
-                        </div>
-
-                        <div className="w-12 h-12 border border-[var(--border-color)] bg-[var(--bg-darker)]" />
-                    </div>
-                </div>
-
-                <div className="flex-1 overflow-y-auto overflow-x-hidden p-2 md:p-6 custom-scrollbar">
-                    {children}
-                </div>
-            </motion.div>
-        </motion.div>
-    );
-}
-
-export function RatingModalRouteFallback() {
-    return (
-        <ModalRouteFrame
-            title="Loading Race Rating"
-            eyebrow="Race telemetry"
-            Icon={Timer}
-        >
+        <div className="flex-1 overflow-y-auto overflow-x-hidden p-2 md:p-6 custom-scrollbar">
             <RatingDriverSkeleton count={20} />
-        </ModalRouteFrame>
+        </div>
     );
 }
 
-export function QuickRateModalRouteFallback() {
+export function QuickRateModalContentFallback() {
     return (
-        <ModalRouteFrame
-            title="Loading Quick Rate"
-            eyebrow="Season input"
-            Icon={Zap}
-        >
+        <div className="flex-1 overflow-y-auto overflow-x-hidden p-2 md:p-6 custom-scrollbar">
             <QuickRateDriverSkeleton count={10} />
-        </ModalRouteFrame>
+        </div>
     );
 }
 

@@ -475,12 +475,6 @@ h6 {
   header .border-l {
     display: none !important;
   }
-
-  /* Stack action buttons */
-  .header-actions {
-    flex-wrap: wrap;
-    gap: 0.5rem !important;
-  }
 }
 
 /* Very small phones */

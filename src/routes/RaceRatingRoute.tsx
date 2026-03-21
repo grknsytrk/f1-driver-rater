@@ -1,36 +1,87 @@
-import { useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useEffect, useMemo, useState } from 'react';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { getRaces } from '../api/f1Api';
 import { RatingModal } from '../components/RatingModal';
-import { RatingModalRouteFallback } from '../components/RouteFallbacks';
 import { SEOHead } from '../components/SEOHead';
-import { fetchWithMinDelay } from '../utils/delay';
 import type { Race } from '../types';
+import type { RaceRouteLocationState, RaceRouteSnapshot } from './modalRouteState';
 
-const MIN_LOADING_TIME = 800;
+function createPlaceholderRace(season: string, round: string): RaceRouteSnapshot {
+    return {
+        season,
+        round,
+        raceName: `Race ${round}`,
+        date: '',
+    };
+}
+
+function createSnapshot(race: Race): RaceRouteSnapshot {
+    return {
+        season: race.season,
+        round: race.round,
+        raceName: race.raceName,
+        date: race.date,
+    };
+}
 
 export default function RaceRatingRoute() {
     const { season, round } = useParams<{ season: string; round: string }>();
-    const [races, setRaces] = useState<Race[]>([]);
-    const [loading, setLoading] = useState(true);
     const navigate = useNavigate();
+    const location = useLocation();
+
+    const routeSnapshot = useMemo(() => {
+        if (!season || !round) return null;
+
+        const routeState = location.state as RaceRouteLocationState | null;
+        const snapshot = routeState?.raceSnapshot;
+        if (!snapshot) return null;
+
+        return snapshot.season === season && snapshot.round === round ? snapshot : null;
+    }, [location.state, round, season]);
+
+    const [raceSnapshot, setRaceSnapshot] = useState<RaceRouteSnapshot | null>(() => (
+        season && round ? routeSnapshot ?? createPlaceholderRace(season, round) : null
+    ));
+    const [metadataResolved, setMetadataResolved] = useState(Boolean(routeSnapshot));
 
     useEffect(() => {
-        async function loadRaces() {
-            if (!season) return;
+        if (!season || !round) return;
+        const resolvedSeason = season;
+        const resolvedRound = round;
 
-            setLoading(true);
-            const data = await fetchWithMinDelay(() => getRaces(season), MIN_LOADING_TIME);
-            setRaces(data);
-            setLoading(false);
+        if (routeSnapshot) {
+            setRaceSnapshot(routeSnapshot);
+            setMetadataResolved(true);
+            return;
         }
 
-        void loadRaces();
-    }, [season]);
+        let isActive = true;
+        setRaceSnapshot(createPlaceholderRace(resolvedSeason, resolvedRound));
+        setMetadataResolved(false);
 
-    if (!season || !round) return null;
+        async function loadRaceMetadata() {
+            try {
+                const races = await getRaces(resolvedSeason);
+                if (!isActive) return;
 
-    const selectedRace = races.find((race) => race.round === round);
+                const selectedRace = races.find((race) => race.round === resolvedRound);
+                if (selectedRace) {
+                    setRaceSnapshot(createSnapshot(selectedRace));
+                    setMetadataResolved(true);
+                }
+            } catch (error) {
+                console.error('Error loading race metadata:', error);
+            }
+        }
+
+        void loadRaceMetadata();
+
+        return () => {
+            isActive = false;
+        };
+    }, [round, routeSnapshot, season]);
+
+    if (!season || !round || !raceSnapshot) return null;
 
     return (
         <>
@@ -40,16 +91,13 @@ export default function RaceRatingRoute() {
                 path={`/${season}/race/${round}`}
                 noindex
             />
-            {loading || !selectedRace ? (
-                <RatingModalRouteFallback />
-            ) : (
-                <RatingModal
-                    race={selectedRace}
-                    season={season}
-                    onClose={() => navigate(`/${season}`)}
-                    onSave={() => navigate(`/${season}`)}
-                />
-            )}
+            <RatingModal
+                race={raceSnapshot}
+                season={season}
+                metadataResolved={metadataResolved}
+                onClose={() => navigate(`/${season}`)}
+                onSave={() => navigate(`/${season}`)}
+            />
         </>
     );
 }

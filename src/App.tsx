@@ -8,8 +8,6 @@ import { DeveloperCredit } from './components/DeveloperCredit';
 import { SEOHead } from './components/SEOHead';
 import { HomeJsonLd } from './components/JsonLd';
 import {
-  QuickRateModalRouteFallback,
-  RatingModalRouteFallback,
   ResultsRouteFallback,
   StandingsRouteFallback,
   TeammateWarsRouteFallback,
@@ -17,8 +15,6 @@ import {
 import { getSeasons, getRaces } from './api/f1Api';
 import { getRatedRacesCount, hasQuickRatings } from './utils/storage';
 import {
-  QuickRateRoute,
-  RaceRatingRoute,
   ResultsRoute,
   StandingsRoute,
   TeammateWarsRoute,
@@ -29,6 +25,8 @@ import {
   preloadTeammateWarsRoute,
   scheduleSeasonRoutePrefetch,
 } from './routes/routeChunks';
+import QuickRateRoute from './routes/QuickRateRoute';
+import RaceRatingRoute from './routes/RaceRatingRoute';
 import { fetchWithMinDelay } from './utils/delay';
 import type { Season, Race } from './types';
 
@@ -141,7 +139,16 @@ function RacesPage() {
   }, [season, loading]);
 
   function handleSelectRace(race: Race) {
-    navigate(`/${season}/race/${race.round}`);
+    navigate(`/${season}/race/${race.round}`, {
+      state: {
+        raceSnapshot: {
+          season,
+          round: race.round,
+          raceName: race.raceName,
+          date: race.date,
+        },
+      },
+    });
   }
 
   if (!season) return null;
@@ -189,6 +196,10 @@ function App() {
 
   const ratedCount = currentSeason ? getRatedRacesCount(currentSeason) : 0;
   const showResultsButton = currentSeason ? (ratedCount > 0 || hasQuickRatings(currentSeason)) : false;
+  const showSeasonActions = Boolean(
+    currentSeason && !isResultsPage && !isQuickRatePage && !isRacePage && !isTeammateWarsPage && !isStandingsPage
+  );
+  const mobileActionGridClass = showResultsButton ? 'grid-cols-4' : 'grid-cols-3';
 
   function primeRoute(preload: () => void) {
     return {
@@ -217,87 +228,94 @@ function App() {
     <div className="min-h-screen flex flex-col">
       {/* Header - Frosted Glass */}
       <header className="sticky top-0 z-40 border-b border-white/5 bg-gradient-to-b from-[var(--bg-main)]/80 to-[var(--bg-main)]/60 backdrop-blur-xl backdrop-saturate-150 shadow-[0_4px_30px_rgba(0,0,0,0.3)]">
-        <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
-          {/* Logo / Back */}
-          <div className="flex items-center gap-6">
-            {!isHomePage && (
-              <motion.button
-                initial={{ opacity: 0, x: -10 }}
-                animate={{ opacity: 1, x: 0 }}
-                onClick={handleBack}
-                className="h-8 w-8 flex items-center justify-center border border-[var(--border-color)] hover:border-[var(--accent-red)] hover:bg-[var(--accent-red)]/10 transition-colors"
-              >
-                <ChevronLeft size={20} className="text-white" />
-              </motion.button>
-            )}
+        <div
+          className={`max-w-7xl mx-auto px-3 md:px-6 ${
+            showSeasonActions
+              ? 'py-3 md:h-16 flex flex-col gap-3 md:flex-row md:items-center md:justify-between md:gap-0'
+              : 'h-16 flex items-center justify-between'
+          }`}
+        >
+          <div className="flex items-center justify-between gap-3 min-w-0 w-full md:w-auto md:flex-1">
+            <div className="flex items-center gap-3 md:gap-6 min-w-0">
+              {!isHomePage && (
+                <motion.button
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  onClick={handleBack}
+                  className="h-8 w-8 flex items-center justify-center border border-[var(--border-color)] hover:border-[var(--accent-red)] hover:bg-[var(--accent-red)]/10 transition-colors flex-shrink-0"
+                >
+                  <ChevronLeft size={20} className="text-white" />
+                </motion.button>
+              )}
 
-            <div
-              className="flex items-center gap-4 select-none cursor-pointer"
-              onClick={() => navigate('/')}
-            >
-              <div className="w-8 h-8 bg-[var(--accent-red)] flex items-center justify-center">
-                <Zap size={16} className="text-white" />
-              </div>
-              <div className="flex flex-col justify-center h-8">
-                <h1 className="font-display text-2xl leading-none text-white tracking-tight">
-                  F1 RATING
-                </h1>
-                <div className="flex items-center gap-2">
-                  <div className="w-1.5 h-1.5 rounded-full bg-[var(--accent-red)] animate-pulse" />
-                  <span className="font-oxanium text-[10px] text-[var(--accent-red)] tracking-widest uppercase">Live</span>
+              <div
+                className="flex items-center gap-3 md:gap-4 select-none cursor-pointer min-w-0"
+                onClick={() => navigate('/')}
+              >
+                <div className="w-8 h-8 bg-[var(--accent-red)] flex items-center justify-center flex-shrink-0">
+                  <Zap size={16} className="text-white" />
+                </div>
+                <div className="flex flex-col justify-center h-8 min-w-0">
+                  <h1 className="font-display text-2xl leading-none text-white tracking-tight truncate">
+                    F1 RATING
+                  </h1>
+                  <div className="flex items-center gap-2">
+                    <div className="w-1.5 h-1.5 rounded-full bg-[var(--accent-red)] animate-pulse flex-shrink-0" />
+                    <span className="font-oxanium text-[10px] text-[var(--accent-red)] tracking-widest uppercase truncate">Live</span>
+                  </div>
                 </div>
               </div>
-            </div>
 
-            {/* Breadcrumb / Context */}
-            {currentSeason && (
-              <div className="hidden md:flex items-center gap-2 pl-6 border-l border-[var(--border-color)]">
-                <span className="font-oxanium text-xs text-[var(--text-muted)]">Season:</span>
-                <span className="font-display text-xl text-white">{currentSeason}</span>
-                {isResultsPage && (
-                  <>
-                    <span className="text-[var(--text-muted)]">/</span>
-                    <span className="font-oxanium text-xs text-[var(--accent-yellow)] uppercase">Results</span>
-                  </>
-                )}
-                {isQuickRatePage && (
-                  <>
-                    <span className="text-[var(--text-muted)]">/</span>
-                    <span className="font-oxanium text-xs text-[var(--accent-yellow)] uppercase">Quick Rate</span>
-                  </>
-                )}
-                {isRacePage && pathParts[2] && (
-                  <>
-                    <span className="text-[var(--text-muted)]">/</span>
-                    <span className="font-oxanium text-xs text-[var(--accent-yellow)] uppercase">Race {pathParts[2]}</span>
-                  </>
-                )}
-                {isTeammateWarsPage && (
-                  <>
-                    <span className="text-[var(--text-muted)]">/</span>
-                    <span className="font-oxanium text-xs text-[var(--accent-yellow)] uppercase">Teammate Wars</span>
-                  </>
-                )}
-                {isStandingsPage && (
-                  <>
-                    <span className="text-[var(--text-muted)]">/</span>
-                    <span className="font-oxanium text-xs text-[var(--accent-yellow)] uppercase">Standings</span>
-                  </>
-                )}
-              </div>
-            )}
+              {/* Breadcrumb / Context */}
+              {currentSeason && (
+                <div className="hidden md:flex items-center gap-2 pl-6 border-l border-[var(--border-color)]">
+                  <span className="font-oxanium text-xs text-[var(--text-muted)]">Season:</span>
+                  <span className="font-display text-xl text-white">{currentSeason}</span>
+                  {isResultsPage && (
+                    <>
+                      <span className="text-[var(--text-muted)]">/</span>
+                      <span className="font-oxanium text-xs text-[var(--accent-yellow)] uppercase">Results</span>
+                    </>
+                  )}
+                  {isQuickRatePage && (
+                    <>
+                      <span className="text-[var(--text-muted)]">/</span>
+                      <span className="font-oxanium text-xs text-[var(--accent-yellow)] uppercase">Quick Rate</span>
+                    </>
+                  )}
+                  {isRacePage && pathParts[2] && (
+                    <>
+                      <span className="text-[var(--text-muted)]">/</span>
+                      <span className="font-oxanium text-xs text-[var(--accent-yellow)] uppercase">Race {pathParts[2]}</span>
+                    </>
+                  )}
+                  {isTeammateWarsPage && (
+                    <>
+                      <span className="text-[var(--text-muted)]">/</span>
+                      <span className="font-oxanium text-xs text-[var(--accent-yellow)] uppercase">Teammate Wars</span>
+                    </>
+                  )}
+                  {isStandingsPage && (
+                    <>
+                      <span className="text-[var(--text-muted)]">/</span>
+                      <span className="font-oxanium text-xs text-[var(--accent-yellow)] uppercase">Standings</span>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Actions - only show on races list page */}
-          {currentSeason && !isResultsPage && !isQuickRatePage && !isRacePage && !isTeammateWarsPage && !isStandingsPage && (
-            <div className="flex items-center gap-2 md:gap-3">
+          {showSeasonActions && (
+            <div className={`grid ${mobileActionGridClass} w-full gap-2 md:flex md:w-auto md:items-center md:gap-3 md:justify-end`}>
               {/* Standings Button */}
               <motion.button
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 onClick={() => navigate(`/${currentSeason}/standings`)}
                 {...primeRoute(preloadStandingsRoute)}
-                className="group flex items-center justify-center gap-2 px-2 md:px-4 py-2 md:py-1.5 bg-[var(--bg-panel)] border border-[var(--border-color)] hover:border-[var(--accent-yellow)] transition-all min-w-[44px] min-h-[44px] md:min-w-0 md:min-h-0"
+                className="group flex w-full items-center justify-center gap-2 px-2 md:px-4 py-2 md:py-1.5 bg-[var(--bg-panel)] border border-[var(--border-color)] hover:border-[var(--accent-yellow)] transition-all min-h-[44px] md:min-w-0 md:w-auto md:min-h-0"
                 title="Standings"
               >
                 <Medal size={16} className="text-[var(--text-secondary)] group-hover:text-[var(--accent-yellow)]" />
@@ -309,7 +327,7 @@ function App() {
                 animate={{ opacity: 1, scale: 1 }}
                 onClick={() => navigate(`/${currentSeason}/teammate-wars`)}
                 {...primeRoute(preloadTeammateWarsRoute)}
-                className="group flex items-center justify-center gap-2 px-2 md:px-4 py-2 md:py-1.5 bg-[var(--bg-panel)] border border-[var(--border-color)] hover:border-[var(--accent-red)] transition-all min-w-[44px] min-h-[44px] md:min-w-0 md:min-h-0"
+                className="group flex w-full items-center justify-center gap-2 px-2 md:px-4 py-2 md:py-1.5 bg-[var(--bg-panel)] border border-[var(--border-color)] hover:border-[var(--accent-red)] transition-all min-h-[44px] md:min-w-0 md:w-auto md:min-h-0"
                 title="Teammate Wars"
               >
                 <Swords size={16} className="text-[var(--text-secondary)] group-hover:text-[var(--accent-red)]" />
@@ -321,7 +339,7 @@ function App() {
                 animate={{ opacity: 1, scale: 1 }}
                 onClick={() => navigate(`/${currentSeason}/quick-rate`)}
                 {...primeRoute(preloadQuickRateRoute)}
-                className="group flex items-center justify-center gap-2 px-2 md:px-4 py-2 md:py-1.5 bg-[var(--accent-yellow)]/10 border border-[var(--accent-yellow)]/30 hover:border-[var(--accent-yellow)] transition-all min-w-[44px] min-h-[44px] md:min-w-0 md:min-h-0"
+                className="group flex w-full items-center justify-center gap-2 px-2 md:px-4 py-2 md:py-1.5 bg-[var(--accent-yellow)]/10 border border-[var(--accent-yellow)]/30 hover:border-[var(--accent-yellow)] transition-all min-h-[44px] md:min-w-0 md:w-auto md:min-h-0"
               >
                 <Zap size={16} className="text-[var(--accent-yellow)]" />
                 <span className="hidden md:inline font-ui font-bold text-xs text-[var(--accent-yellow)] uppercase tracking-wider">Quick Rate</span>
@@ -334,7 +352,7 @@ function App() {
                   animate={{ opacity: 1, scale: 1 }}
                   onClick={() => navigate(`/${currentSeason}/results`)}
                   {...primeRoute(preloadResultsRoute)}
-                  className="group flex items-center justify-center gap-2 px-2 md:px-4 py-2 md:py-1.5 bg-[var(--bg-panel)] border border-[var(--border-color)] hover:border-[var(--accent-red)] transition-all min-w-[44px] min-h-[44px] md:min-w-0 md:min-h-0"
+                  className="group flex w-full items-center justify-center gap-2 px-2 md:px-4 py-2 md:py-1.5 bg-[var(--bg-panel)] border border-[var(--border-color)] hover:border-[var(--accent-red)] transition-all min-h-[44px] md:min-w-0 md:w-auto md:min-h-0"
                 >
                   <Trophy size={16} className="text-[var(--text-secondary)] group-hover:text-[var(--accent-yellow)]" />
                   <span className="hidden md:inline font-ui font-bold text-xs text-white uppercase tracking-wider">View Results</span>
@@ -351,22 +369,8 @@ function App() {
           <Routes location={location} key={location.pathname}>
             <Route path="/" element={<SeasonPage />} />
             <Route path="/:season" element={<RacesPage />} />
-            <Route
-              path="/:season/race/:round"
-              element={(
-                <Suspense fallback={<RatingModalRouteFallback />}>
-                  <RaceRatingRoute />
-                </Suspense>
-              )}
-            />
-            <Route
-              path="/:season/quick-rate"
-              element={(
-                <Suspense fallback={<QuickRateModalRouteFallback />}>
-                  <QuickRateRoute />
-                </Suspense>
-              )}
-            />
+            <Route path="/:season/race/:round" element={<RaceRatingRoute />} />
+            <Route path="/:season/quick-rate" element={<QuickRateRoute />} />
             <Route
               path="/:season/results"
               element={(

@@ -24,20 +24,17 @@ function createLazyRoute<TProps = object>(loader: () => Promise<RouteModule<TPro
 const resultsRoute = createLazyRoute(() => import('./ResultsRoute'));
 const teammateWarsRoute = createLazyRoute(() => import('./TeammateWarsRoute'));
 const standingsRoute = createLazyRoute(() => import('./StandingsRoute'));
-const quickRateRoute = createLazyRoute(() => import('./QuickRateRoute'));
-const raceRatingRoute = createLazyRoute(() => import('./RaceRatingRoute'));
 
 export const ResultsRoute = resultsRoute.Route;
 export const TeammateWarsRoute = teammateWarsRoute.Route;
 export const StandingsRoute = standingsRoute.Route;
-export const QuickRateRoute = quickRateRoute.Route;
-export const RaceRatingRoute = raceRatingRoute.Route;
 
 export const preloadResultsRoute = resultsRoute.preload;
 export const preloadTeammateWarsRoute = teammateWarsRoute.preload;
 export const preloadStandingsRoute = standingsRoute.preload;
-export const preloadQuickRateRoute = quickRateRoute.preload;
-export const preloadRaceRatingRoute = raceRatingRoute.preload;
+// Modal routes now use eager wrappers so the shell never remounts during load.
+export const preloadQuickRateRoute = () => undefined;
+export const preloadRaceRatingRoute = () => undefined;
 
 export function preloadSeasonRouteChunks() {
     preloadResultsRoute();
