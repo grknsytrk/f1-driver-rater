@@ -255,8 +255,8 @@ function App() {
                 <div className="w-8 h-8 bg-[var(--accent-red)] flex items-center justify-center flex-shrink-0">
                   <Zap size={16} className="text-white" />
                 </div>
-                <div className="flex flex-col justify-center h-8 min-w-0">
-                  <h1 className="font-display text-2xl leading-none text-white tracking-tight truncate">
+                <div className="flex min-w-0 flex-col justify-center py-0.5">
+                  <h1 className="font-display text-2xl leading-[0.9] text-white tracking-tight truncate">
                     F1 RATING
                   </h1>
                   <div className="flex items-center gap-2">
