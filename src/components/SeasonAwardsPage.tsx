@@ -207,9 +207,9 @@ function AwardSection({ award, index }: { award: SeasonAward; index: number }) {
                         <div className="absolute inset-x-0 top-0 h-1" style={{ backgroundColor: config.accentColor }} />
 
                         {winner ? (
-                            <div className="relative grid gap-6 p-6 md:p-8 2xl:grid-cols-[minmax(0,1.65fr)_minmax(220px,0.35fr)]">
+                            <div className="relative grid gap-6 p-6 md:p-8 2xl:grid-cols-[minmax(0,1.9fr)_minmax(200px,0.28fr)]">
                                 <div className="min-w-0">
-                                    <div className="relative min-w-0 pr-16 md:pr-24">
+                                    <div className="relative min-w-0">
                                         <div className="min-w-0">
                                             <div className="font-oxanium text-[10px] uppercase tracking-[0.22em]" style={{ color: config.accentColor }}>
                                                 Winner Locked
@@ -217,7 +217,7 @@ function AwardSection({ award, index }: { award: SeasonAward; index: number }) {
                                             <div className="mt-3 flex min-w-0 items-center gap-3">
                                                 <div className="h-12 w-1.5 flex-shrink-0" style={{ backgroundColor: getTeamColor(winner.constructorId) }} />
                                                 <div className="min-w-0">
-                                                    <div className="font-display text-[1.95rem] leading-[0.86] text-white uppercase tracking-tight md:text-[3.1rem] 2xl:text-[3.8rem]">
+                                                    <div className="font-display text-[1.8rem] leading-[0.86] text-white uppercase tracking-tight md:text-[2.6rem] xl:text-[3rem] 2xl:text-[3.35rem]">
                                                         <div>{winnerName?.firstLine}</div>
                                                         {winnerName?.secondLine && <div>{winnerName.secondLine}</div>}
                                                     </div>
@@ -226,13 +226,6 @@ function AwardSection({ award, index }: { award: SeasonAward; index: number }) {
                                                     </div>
                                                 </div>
                                             </div>
-                                        </div>
-
-                                        <div
-                                            className="pointer-events-none absolute right-0 top-0 hidden select-none font-display text-7xl leading-none md:block"
-                                            style={{ color: config.accentColor, opacity: 0.15 }}
-                                        >
-                                            {String(index + 1).padStart(2, '0')}
                                         </div>
                                     </div>
 
@@ -256,7 +249,7 @@ function AwardSection({ award, index }: { award: SeasonAward; index: number }) {
                                     </div>
                                 </div>
 
-                                <div className="flex flex-col justify-between gap-4 border border-[var(--border-color)] bg-[var(--bg-darker)] p-5 2xl:max-w-[260px] 2xl:justify-self-end">
+                                <div className="flex flex-col justify-between gap-4 border border-[var(--border-color)] bg-[var(--bg-darker)] p-5 2xl:max-w-[220px] 2xl:justify-self-end">
                                     <div>
                                         <div className="font-oxanium text-[10px] uppercase tracking-[0.2em] text-[var(--text-muted)]">
                                             Telemetry Note
