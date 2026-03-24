@@ -391,6 +391,86 @@ describe('getSeasonAwards', () => {
         expect(awardMap.get('toughest_slide')?.status).toBe('insufficient-data');
         expect(awardMap.get('hot_start')?.status).toBe('insufficient-data');
         expect(awardMap.get('strong_finish')?.status).toBe('insufficient-data');
+        expect(awardMap.get('garage_boss')?.status).toBe('insufficient-data');
+        expect(awardMap.get('best_team_pairing')?.status).toBe('insufficient-data');
+        expect(awardMap.get('most_balanced_lineup')?.status).toBe('insufficient-data');
+        expect(awardMap.get('late_season_charge')?.status).toBe('insufficient-data');
         expect(awardMap.get('peak_performance')?.winner?.driverId).toBe('leclerc');
+    });
+
+    it('calculates teammate dominance and team-based awards', () => {
+        const mockData: Record<string, SeasonRatings> = {
+            '2024': {
+                season: '2024',
+                races: [
+                    {
+                        round: '1',
+                        raceName: 'Bahrain GP',
+                        date: '2024-03-02',
+                        completed: true,
+                        ratings: [
+                            { driverId: 'russell', driverName: 'George Russell', constructorId: 'mercedes', constructorName: 'Mercedes', rating: 9 },
+                            { driverId: 'antonelli', driverName: 'Kimi Antonelli', constructorId: 'mercedes', constructorName: 'Mercedes', rating: 7.5 },
+                            { driverId: 'norris', driverName: 'Lando Norris', constructorId: 'mclaren', constructorName: 'McLaren', rating: 8 },
+                            { driverId: 'piastri', driverName: 'Oscar Piastri', constructorId: 'mclaren', constructorName: 'McLaren', rating: 7.9 },
+                            { driverId: 'leclerc', driverName: 'Charles Leclerc', constructorId: 'ferrari', constructorName: 'Ferrari', rating: 6 },
+                            { driverId: 'hamilton', driverName: 'Lewis Hamilton', constructorId: 'ferrari', constructorName: 'Ferrari', rating: 6.5 },
+                        ],
+                    },
+                    {
+                        round: '2',
+                        raceName: 'Saudi Arabian GP',
+                        date: '2024-03-09',
+                        completed: true,
+                        ratings: [
+                            { driverId: 'russell', driverName: 'George Russell', constructorId: 'mercedes', constructorName: 'Mercedes', rating: 9 },
+                            { driverId: 'antonelli', driverName: 'Kimi Antonelli', constructorId: 'mercedes', constructorName: 'Mercedes', rating: 7.5 },
+                            { driverId: 'norris', driverName: 'Lando Norris', constructorId: 'mclaren', constructorName: 'McLaren', rating: 8 },
+                            { driverId: 'piastri', driverName: 'Oscar Piastri', constructorId: 'mclaren', constructorName: 'McLaren', rating: 8.1 },
+                            { driverId: 'leclerc', driverName: 'Charles Leclerc', constructorId: 'ferrari', constructorName: 'Ferrari', rating: 8 },
+                            { driverId: 'hamilton', driverName: 'Lewis Hamilton', constructorId: 'ferrari', constructorName: 'Ferrari', rating: 7 },
+                        ],
+                    },
+                    {
+                        round: '3',
+                        raceName: 'Australian GP',
+                        date: '2024-03-16',
+                        completed: true,
+                        ratings: [
+                            { driverId: 'russell', driverName: 'George Russell', constructorId: 'mercedes', constructorName: 'Mercedes', rating: 8.5 },
+                            { driverId: 'antonelli', driverName: 'Kimi Antonelli', constructorId: 'mercedes', constructorName: 'Mercedes', rating: 7 },
+                            { driverId: 'norris', driverName: 'Lando Norris', constructorId: 'mclaren', constructorName: 'McLaren', rating: 8 },
+                            { driverId: 'piastri', driverName: 'Oscar Piastri', constructorId: 'mclaren', constructorName: 'McLaren', rating: 7.9 },
+                            { driverId: 'leclerc', driverName: 'Charles Leclerc', constructorId: 'ferrari', constructorName: 'Ferrari', rating: 9.5 },
+                            { driverId: 'hamilton', driverName: 'Lewis Hamilton', constructorId: 'ferrari', constructorName: 'Ferrari', rating: 8.5 },
+                        ],
+                    },
+                    {
+                        round: '4',
+                        raceName: 'Japanese GP',
+                        date: '2024-04-07',
+                        completed: true,
+                        ratings: [
+                            { driverId: 'russell', driverName: 'George Russell', constructorId: 'mercedes', constructorName: 'Mercedes', rating: 9.5 },
+                            { driverId: 'antonelli', driverName: 'Kimi Antonelli', constructorId: 'mercedes', constructorName: 'Mercedes', rating: 8 },
+                            { driverId: 'norris', driverName: 'Lando Norris', constructorId: 'mclaren', constructorName: 'McLaren', rating: 8 },
+                            { driverId: 'piastri', driverName: 'Oscar Piastri', constructorId: 'mclaren', constructorName: 'McLaren', rating: 8.1 },
+                            { driverId: 'leclerc', driverName: 'Charles Leclerc', constructorId: 'ferrari', constructorName: 'Ferrari', rating: 9.5 },
+                            { driverId: 'hamilton', driverName: 'Lewis Hamilton', constructorId: 'ferrari', constructorName: 'Ferrari', rating: 8.5 },
+                        ],
+                    },
+                ],
+            },
+        };
+
+        localStorage.setItem('f1_pilot_ratings', JSON.stringify(mockData));
+
+        const awards = getSeasonAwards('2024');
+        const awardMap = new Map(awards.awards.map((award) => [award.id, award]));
+
+        expect(awardMap.get('garage_boss')?.winner?.driverId).toBe('russell');
+        expect(awardMap.get('best_team_pairing')?.winner?.constructorId).toBe('mercedes');
+        expect(awardMap.get('most_balanced_lineup')?.winner?.constructorId).toBe('mclaren');
+        expect(awardMap.get('late_season_charge')?.winner?.constructorId).toBe('ferrari');
     });
 });

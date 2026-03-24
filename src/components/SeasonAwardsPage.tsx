@@ -24,6 +24,7 @@ interface AwardConfig {
     label: string;
     eyebrow: string;
     description: string;
+    telemetryNote: string;
     accentColor: string;
     Icon: typeof Award;
 }
@@ -33,6 +34,7 @@ const AWARD_CONFIG: Record<SeasonAwardId, AwardConfig> = {
         label: 'Season MVP',
         eyebrow: 'Top overall average',
         description: 'Highest season average across drivers with at least three rated races.',
+        telemetryNote: 'Built from the strongest season-long average in your completed race log.',
         accentColor: '#F4C542',
         Icon: Crown,
     },
@@ -40,6 +42,7 @@ const AWARD_CONFIG: Record<SeasonAwardId, AwardConfig> = {
         label: 'Consistency King',
         eyebrow: 'Lowest variance',
         description: 'Most stable race-by-race output across at least four rated races.',
+        telemetryNote: 'Rewards the smoothest rating curve once enough races are on the board.',
         accentColor: '#C6CCD5',
         Icon: Radar,
     },
@@ -47,6 +50,7 @@ const AWARD_CONFIG: Record<SeasonAwardId, AwardConfig> = {
         label: 'Peak Performance',
         eyebrow: 'Best single race',
         description: 'Highest one-race score you handed out all season.',
+        telemetryNote: 'Captures the single most explosive rating spike in your season data.',
         accentColor: '#FF7A00',
         Icon: Flame,
     },
@@ -54,6 +58,7 @@ const AWARD_CONFIG: Record<SeasonAwardId, AwardConfig> = {
         label: 'Form Surge',
         eyebrow: 'Strongest climb',
         description: 'Biggest improvement from first rated race to latest rated race.',
+        telemetryNote: 'Compares each driver’s latest form against where their season started.',
         accentColor: '#00D084',
         Icon: TrendingUp,
     },
@@ -61,6 +66,7 @@ const AWARD_CONFIG: Record<SeasonAwardId, AwardConfig> = {
         label: 'Toughest Slide',
         eyebrow: 'Sharpest drop',
         description: 'Biggest regression from first rated race to latest rated race.',
+        telemetryNote: 'Tracks the steepest drop-off between the opening and latest rated runs.',
         accentColor: '#FF4D4F',
         Icon: TrendingDown,
     },
@@ -68,6 +74,7 @@ const AWARD_CONFIG: Record<SeasonAwardId, AwardConfig> = {
         label: 'Hot Start',
         eyebrow: 'Opening three',
         description: 'Best average across the first three races you rated for that driver.',
+        telemetryNote: 'Looks only at the opening three rated appearances for each driver.',
         accentColor: '#FF6B35',
         Icon: Rocket,
     },
@@ -75,10 +82,56 @@ const AWARD_CONFIG: Record<SeasonAwardId, AwardConfig> = {
         label: 'Strong Finish',
         eyebrow: 'Closing three',
         description: 'Best average across the latest three races you rated for that driver.',
+        telemetryNote: 'Looks only at the latest three rated appearances for each driver.',
         accentColor: '#38BDF8',
         Icon: Activity,
     },
+    garage_boss: {
+        label: 'Garage Boss',
+        eyebrow: 'Teammate domination',
+        description: 'Largest sustained average gap over a teammate across shared rated races.',
+        telemetryNote: 'Built from direct same-team duels in your own race log.',
+        accentColor: '#A855F7',
+        Icon: Award,
+    },
+    best_team_pairing: {
+        label: 'Best Team Pairing',
+        eyebrow: 'Strongest duo',
+        description: 'Highest combined two-driver level for a team’s main pairing.',
+        telemetryNote: 'Uses each team’s primary two-driver pairing from your rated season data.',
+        accentColor: '#00D084',
+        Icon: Crown,
+    },
+    most_balanced_lineup: {
+        label: 'Most Balanced Lineup',
+        eyebrow: 'Closest duo',
+        description: 'Smallest gap between a team’s top two rated drivers.',
+        telemetryNote: 'Rewards garages where both sides of the lineup stayed nearly level.',
+        accentColor: '#F97316',
+        Icon: Radar,
+    },
+    late_season_charge: {
+        label: 'Late Season Charge',
+        eyebrow: 'Closing team run',
+        description: 'Best team average across the latest three completed races.',
+        telemetryNote: 'Measures which garage peaked hardest in the closing stretch.',
+        accentColor: '#22D3EE',
+        Icon: TrendingUp,
+    },
 };
+
+function splitDriverName(driverName: string) {
+    const parts = driverName.trim().split(/\s+/);
+
+    if (parts.length <= 1) {
+        return { firstLine: driverName, secondLine: '' };
+    }
+
+    return {
+        firstLine: parts[0],
+        secondLine: parts.slice(1).join(' '),
+    };
+}
 
 function getTeamColor(constructorId: string) {
     return TEAM_COLORS[constructorId] || '#888888';
@@ -110,6 +163,7 @@ function AwardSection({ award, index }: { award: SeasonAward; index: number }) {
     const config = AWARD_CONFIG[award.id];
     const reverseLayout = index % 2 === 1;
     const winner = award.winner;
+    const winnerName = winner ? splitDriverName(winner.subjectName) : null;
 
     return (
         <motion.section
@@ -119,8 +173,8 @@ function AwardSection({ award, index }: { award: SeasonAward; index: number }) {
             transition={{ duration: 0.45, ease: 'easeOut', delay: index * 0.04 }}
             className="py-8 md:py-16"
         >
-            <div className="grid gap-6 lg:grid-cols-12 lg:items-end lg:gap-10">
-                <div className={`space-y-4 lg:col-span-4 ${reverseLayout ? 'lg:order-2' : ''}`}>
+            <div className="grid gap-6 2xl:grid-cols-12 2xl:items-end 2xl:gap-10">
+                <div className={`space-y-4 2xl:col-span-4 ${reverseLayout ? '2xl:order-2' : ''}`}>
                     <div className="flex items-center gap-3">
                         <div className="flex h-11 w-11 items-center justify-center border border-[var(--border-color)] bg-[var(--bg-panel)]" style={{ color: config.accentColor }}>
                             <config.Icon size={18} />
@@ -129,7 +183,7 @@ function AwardSection({ award, index }: { award: SeasonAward; index: number }) {
                             <div className="font-oxanium text-[10px] uppercase tracking-[0.24em]" style={{ color: config.accentColor }}>
                                 {config.eyebrow}
                             </div>
-                            <div className="font-display text-2xl text-white uppercase tracking-tight md:text-4xl">
+                            <div className="font-display text-2xl leading-[0.92] text-white uppercase tracking-tight md:text-4xl">
                                 {config.label}
                             </div>
                         </div>
@@ -144,7 +198,7 @@ function AwardSection({ award, index }: { award: SeasonAward; index: number }) {
                     </div>
                 </div>
 
-                <div className={`lg:col-span-8 ${reverseLayout ? 'lg:order-1' : ''}`}>
+                <div className={`2xl:col-span-8 ${reverseLayout ? '2xl:order-1' : ''}`}>
                     <div className="relative overflow-hidden border border-[var(--border-color)] bg-[var(--bg-panel)]">
                         <div
                             className="absolute inset-0 opacity-[0.06] pointer-events-none"
@@ -153,7 +207,7 @@ function AwardSection({ award, index }: { award: SeasonAward; index: number }) {
                         <div className="absolute inset-x-0 top-0 h-1" style={{ backgroundColor: config.accentColor }} />
 
                         {winner ? (
-                            <div className="relative grid gap-6 p-6 md:grid-cols-[1.3fr_0.7fr] md:p-8">
+                            <div className="relative grid gap-6 p-6 md:p-8 2xl:grid-cols-[1.4fr_0.6fr]">
                                 <div className="min-w-0">
                                     <div className="flex items-start justify-between gap-4">
                                         <div className="min-w-0">
@@ -163,11 +217,12 @@ function AwardSection({ award, index }: { award: SeasonAward; index: number }) {
                                             <div className="mt-3 flex min-w-0 items-center gap-3">
                                                 <div className="h-12 w-1.5 flex-shrink-0" style={{ backgroundColor: getTeamColor(winner.constructorId) }} />
                                                 <div className="min-w-0">
-                                                    <div className="truncate font-display text-3xl leading-none text-white uppercase tracking-tight md:text-5xl">
-                                                        {winner.driverName}
+                                                    <div className="font-display text-[2.1rem] leading-[0.88] text-white uppercase tracking-tight md:text-[3.5rem] 2xl:text-[4.25rem]">
+                                                        <div>{winnerName?.firstLine}</div>
+                                                        {winnerName?.secondLine && <div>{winnerName.secondLine}</div>}
                                                     </div>
-                                                    <div className="mt-2 truncate font-oxanium text-xs uppercase tracking-[0.2em] text-[var(--text-secondary)]">
-                                                        {winner.constructorName}
+                                                    <div className="mt-2 font-oxanium text-xs uppercase tracking-[0.2em] text-[var(--text-secondary)]">
+                                                        {winner.secondaryLabel}
                                                     </div>
                                                 </div>
                                             </div>
@@ -186,7 +241,7 @@ function AwardSection({ award, index }: { award: SeasonAward; index: number }) {
                                             <div className="font-oxanium text-[10px] uppercase tracking-[0.2em] text-[var(--text-muted)]">
                                                 Metric
                                             </div>
-                                            <div className="mt-3 font-display text-2xl text-white uppercase md:text-3xl">
+                                            <div className="mt-3 font-display text-xl leading-[0.92] text-white uppercase md:text-3xl">
                                                 {winner.metricDisplay}
                                             </div>
                                         </div>
@@ -194,7 +249,7 @@ function AwardSection({ award, index }: { award: SeasonAward; index: number }) {
                                             <div className="font-oxanium text-[10px] uppercase tracking-[0.2em] text-[var(--text-muted)]">
                                                 Context
                                             </div>
-                                            <div className="mt-3 font-display text-xl text-white uppercase md:text-2xl">
+                                            <div className="mt-3 font-display text-lg leading-[0.92] text-white uppercase md:text-2xl">
                                                 {winner.detail}
                                             </div>
                                         </div>
@@ -206,8 +261,8 @@ function AwardSection({ award, index }: { award: SeasonAward; index: number }) {
                                         <div className="font-oxanium text-[10px] uppercase tracking-[0.2em] text-[var(--text-muted)]">
                                             Telemetry Note
                                         </div>
-                                        <div className="mt-3 font-display text-xl text-white uppercase leading-tight md:text-2xl">
-                                            {config.label} goes to the driver who best matched this signal in your own race-by-race ratings.
+                                        <div className="mt-3 font-display text-lg text-white uppercase leading-[1.02] md:text-2xl">
+                                            {config.telemetryNote}
                                         </div>
                                     </div>
 
