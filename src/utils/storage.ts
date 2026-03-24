@@ -330,6 +330,121 @@ export interface DriverFormSeries {
     points: DriverFormPoint[];
 }
 
+export type SeasonAwardId =
+    | 'season_mvp'
+    | 'consistency_king'
+    | 'peak_performance'
+    | 'form_surge'
+    | 'toughest_slide'
+    | 'hot_start'
+    | 'strong_finish';
+
+export interface SeasonAwardWinner {
+    driverId: string;
+    driverName: string;
+    constructorId: string;
+    constructorName: string;
+    metricValue: number;
+    metricDisplay: string;
+    detail: string;
+}
+
+export interface SeasonAward {
+    id: SeasonAwardId;
+    status: 'ready' | 'insufficient-data';
+    winner: SeasonAwardWinner | null;
+}
+
+export interface SeasonAwardsSummary {
+    season: string;
+    ratedRaceCount: number;
+    driverCount: number;
+    awards: SeasonAward[];
+}
+
+interface AwardCandidate extends SeasonAwardWinner {
+    seasonAverage: number;
+}
+
+function formatAverage(value: number): string {
+    return value.toFixed(2);
+}
+
+function formatRating(value: number): string {
+    return value % 1 === 0 ? value.toFixed(0) : value.toFixed(1);
+}
+
+function formatRaceLabel(raceName: string): string {
+    return raceName.replace(' Grand Prix', ' GP');
+}
+
+function buildAwardWinner(
+    series: DriverFormSeries,
+    metricValue: number,
+    metricDisplay: string,
+    detail: string
+): AwardCandidate {
+    return {
+        driverId: series.driverId,
+        driverName: series.driverName,
+        constructorId: series.latestConstructorId,
+        constructorName: series.latestConstructorName,
+        metricValue,
+        metricDisplay,
+        detail,
+        seasonAverage: series.seasonAverage,
+    };
+}
+
+function pickAwardWinner(candidates: AwardCandidate[], direction: 'desc' | 'asc' = 'desc'): SeasonAwardWinner | null {
+    if (candidates.length === 0) {
+        return null;
+    }
+
+    const sorted = [...candidates].sort((a, b) => {
+        if (a.metricValue !== b.metricValue) {
+            return direction === 'desc'
+                ? b.metricValue - a.metricValue
+                : a.metricValue - b.metricValue;
+        }
+
+        if (a.seasonAverage !== b.seasonAverage) {
+            return b.seasonAverage - a.seasonAverage;
+        }
+
+        return a.driverName.localeCompare(b.driverName);
+    });
+
+    const [winner] = sorted;
+    return {
+        driverId: winner.driverId,
+        driverName: winner.driverName,
+        constructorId: winner.constructorId,
+        constructorName: winner.constructorName,
+        metricValue: winner.metricValue,
+        metricDisplay: winner.metricDisplay,
+        detail: winner.detail,
+    };
+}
+
+function createAward(id: SeasonAwardId, winner: SeasonAwardWinner | null): SeasonAward {
+    return {
+        id,
+        status: winner ? 'ready' : 'insufficient-data',
+        winner,
+    };
+}
+
+function calculateStandardDeviation(values: number[]): number {
+    if (values.length === 0) {
+        return Number.POSITIVE_INFINITY;
+    }
+
+    const mean = values.reduce((sum, value) => sum + value, 0) / values.length;
+    const variance = values.reduce((sum, value) => sum + ((value - mean) ** 2), 0) / values.length;
+    return Math.sqrt(variance);
+}
+
 export function getRaceByRaceMatrix(season: string): { races: RaceColumn[]; drivers: DriverRow[] } {
     const seasonRatings = getSeasonRatings(season);
 
@@ -533,6 +648,172 @@ export function getDriverFormSeries(season: string): DriverFormSeries[] {
 
             return a.driverName.localeCompare(b.driverName);
         });
+}
+
+export function getSeasonAwards(season: string): SeasonAwardsSummary {
+    const seasonRatings = getSeasonRatings(season);
+    const formSeries = getDriverFormSeries(season);
+    const sortedRaces = seasonRatings?.races
+        ? [...seasonRatings.races]
+            .filter(race => race.completed)
+            .sort((a, b) => parseInt(a.round) - parseInt(b.round))
+        : [];
+
+    const mvpWinner = pickAwardWinner(
+        formSeries
+            .filter(series => series.totalRatedRaces >= 3)
+            .map(series => buildAwardWinner(
+                series,
+                series.seasonAverage,
+                `${formatAverage(series.seasonAverage)} AVG`,
+                `${series.totalRatedRaces} rated races`
+            ))
+    );
+
+    const consistencyWinner = pickAwardWinner(
+        formSeries
+            .filter(series => series.totalRatedRaces >= 4)
+            .map((series) => {
+                const ratings = series.points
+                    .map(point => point.rating)
+                    .filter((rating): rating is number => rating !== null);
+                const deviation = calculateStandardDeviation(ratings);
+
+                return buildAwardWinner(
+                    series,
+                    deviation,
+                    `σ ${deviation.toFixed(2)}`,
+                    `${formatAverage(series.seasonAverage)} season avg`
+                );
+            }),
+        'asc'
+    );
+
+    const peakPerformanceCandidates: AwardCandidate[] = [];
+    for (const race of sortedRaces) {
+        for (const rating of race.ratings) {
+            const series = formSeries.find(driver => driver.driverId === rating.driverId);
+            if (!series) {
+                continue;
+            }
+
+            peakPerformanceCandidates.push({
+                driverId: rating.driverId,
+                driverName: rating.driverName,
+                constructorId: rating.constructorId,
+                constructorName: rating.constructorName,
+                metricValue: rating.rating,
+                metricDisplay: `${formatRating(rating.rating)} RATING`,
+                detail: formatRaceLabel(race.raceName),
+                seasonAverage: series.seasonAverage,
+            });
+        }
+    }
+
+    const peakPerformanceWinner = pickAwardWinner(peakPerformanceCandidates);
+
+    const formSurgeWinner = pickAwardWinner(
+        formSeries
+            .filter(series => series.totalRatedRaces >= 3)
+            .flatMap((series) => {
+                const ratedPoints = series.points.filter((point) => point.rating !== null);
+                const firstPoint = ratedPoints[0];
+                const lastPoint = ratedPoints[ratedPoints.length - 1];
+
+                if (!firstPoint || !lastPoint) {
+                    return [];
+                }
+
+                const surge = (lastPoint.rating ?? 0) - (firstPoint.rating ?? 0);
+                if (surge <= 0) {
+                    return [];
+                }
+
+                return [buildAwardWinner(
+                    series,
+                    surge,
+                    `+${formatRating(surge)}`,
+                    `${formatRaceLabel(firstPoint.raceName)} -> ${formatRaceLabel(lastPoint.raceName)}`
+                )];
+            })
+    );
+
+    const toughestSlideWinner = pickAwardWinner(
+        formSeries
+            .filter(series => series.totalRatedRaces >= 3)
+            .flatMap((series) => {
+                const ratedPoints = series.points.filter((point) => point.rating !== null);
+                const firstPoint = ratedPoints[0];
+                const lastPoint = ratedPoints[ratedPoints.length - 1];
+
+                if (!firstPoint || !lastPoint) {
+                    return [];
+                }
+
+                const slide = (firstPoint.rating ?? 0) - (lastPoint.rating ?? 0);
+                if (slide <= 0) {
+                    return [];
+                }
+
+                return [buildAwardWinner(
+                    series,
+                    slide,
+                    `-${formatRating(slide)}`,
+                    `${formatRaceLabel(firstPoint.raceName)} -> ${formatRaceLabel(lastPoint.raceName)}`
+                )];
+            })
+    );
+
+    const hotStartWinner = pickAwardWinner(
+        formSeries
+            .filter(series => series.totalRatedRaces >= 3)
+            .map((series) => {
+                const openingThree = series.points
+                    .filter((point) => point.rating !== null)
+                    .slice(0, 3);
+                const openingAverage = openingThree.reduce((sum, point) => sum + (point.rating ?? 0), 0) / openingThree.length;
+
+                return buildAwardWinner(
+                    series,
+                    openingAverage,
+                    `${formatAverage(openingAverage)} AVG`,
+                    'First 3 rated races'
+                );
+            })
+    );
+
+    const strongFinishWinner = pickAwardWinner(
+        formSeries
+            .filter(series => series.totalRatedRaces >= 3)
+            .map((series) => {
+                const closingThree = series.points
+                    .filter((point) => point.rating !== null)
+                    .slice(-3);
+                const closingAverage = closingThree.reduce((sum, point) => sum + (point.rating ?? 0), 0) / closingThree.length;
+
+                return buildAwardWinner(
+                    series,
+                    closingAverage,
+                    `${formatAverage(closingAverage)} AVG`,
+                    'Last 3 rated races'
+                );
+            })
+    );
+
+    return {
+        season,
+        ratedRaceCount: sortedRaces.length,
+        driverCount: formSeries.length,
+        awards: [
+            createAward('season_mvp', mvpWinner),
+            createAward('consistency_king', consistencyWinner),
+            createAward('peak_performance', peakPerformanceWinner),
+            createAward('form_surge', formSurgeWinner),
+            createAward('toughest_slide', toughestSlideWinner),
+            createAward('hot_start', hotStartWinner),
+            createAward('strong_finish', strongFinishWinner),
+        ],
+    };
 }
 
 // Helper to get country code from race name

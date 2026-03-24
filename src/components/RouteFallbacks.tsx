@@ -80,3 +80,12 @@ export function TeammateWarsRouteFallback() {
         />
     );
 }
+
+export function AwardsRouteFallback() {
+    return (
+        <FullPageRouteFallback
+            title="Loading Awards"
+            eyebrow="Season wrapped"
+        />
+    );
+}

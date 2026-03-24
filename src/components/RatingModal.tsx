@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
-import { Loader2, Save } from 'lucide-react';
+import { Loader2, Save, Timer } from 'lucide-react';
 import { toast } from 'sonner';
 import type { DriverRating } from '../types';
 import { TEAM_COLORS } from '../types';
-import { getRaceDrivers } from '../api/f1Api';
+import { getRaceRatingContext, type RaceRecap } from '../api/f1Api';
 import { saveRaceRatings, getRaceRatings } from '../utils/storage';
 import { fetchWithMinDelay } from '../utils/delay';
 import { ModalShell } from './ModalShell';
@@ -33,8 +33,30 @@ interface DriverWithRating {
     grid?: string;
 }
 
+const EMPTY_RECAP: RaceRecap = {
+    winner: null,
+    podium: [],
+    pole: null,
+    fastestLap: null,
+    dnfCount: 0,
+};
+
+function getFinishNameClass(position: string): string {
+    switch (position) {
+        case '1':
+            return 'text-[#F4C542]';
+        case '2':
+            return 'text-[#C6CCD5]';
+        case '3':
+            return 'text-[#C67A45]';
+        default:
+            return 'text-white';
+    }
+}
+
 export function RatingModal({ race, season, metadataResolved = true, onClose, onSave }: RatingModalProps) {
     const [drivers, setDrivers] = useState<DriverWithRating[]>([]);
+    const [recap, setRecap] = useState<RaceRecap>(EMPTY_RECAP);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [hoveredRating, setHoveredRating] = useState<{ id: string, val: number } | null>(null);
@@ -45,14 +67,17 @@ export function RatingModal({ race, season, metadataResolved = true, onClose, on
 
     async function loadDrivers() {
         setLoading(true);
+        setDrivers([]);
+        setRecap(EMPTY_RECAP);
+
         try {
-            const raceDrivers = await fetchWithMinDelay(
-                () => getRaceDrivers(season, race.round),
+            const raceContext = await fetchWithMinDelay(
+                () => getRaceRatingContext(season, race.round),
                 MIN_LOADING_TIME
             );
             const existingRatings = getRaceRatings(season, race.round);
 
-            const driversWithRatings: DriverWithRating[] = raceDrivers.map((driver) => {
+            const driversWithRatings: DriverWithRating[] = raceContext.drivers.map((driver) => {
                 const existing = existingRatings?.ratings.find((rating) => rating.driverId === driver.driver.driverId);
                 return {
                     driverId: driver.driver.driverId,
@@ -69,8 +94,9 @@ export function RatingModal({ race, season, metadataResolved = true, onClose, on
             });
 
             setDrivers(driversWithRatings);
+            setRecap(raceContext.recap);
         } catch (error) {
-            console.error('Error loading drivers:', error);
+            console.error('Error loading race context:', error);
         } finally {
             setLoading(false);
         }
@@ -138,7 +164,7 @@ export function RatingModal({ race, season, metadataResolved = true, onClose, on
                         </button>
                         <button
                             onClick={handleSave}
-                            disabled={saving || loading || !metadataResolved}
+                            disabled={saving || loading || !metadataResolved || drivers.length === 0}
                             className="flex items-center justify-center bg-[var(--accent-red)] px-8 py-3 font-display text-lg tracking-widest text-white uppercase transition-colors hover:bg-[#ff0000] disabled:opacity-50 md:py-2"
                         >
                             {saving ? (
@@ -162,6 +188,7 @@ export function RatingModal({ race, season, metadataResolved = true, onClose, on
                             const currentRating = driver.rating;
                             const isHovered = hoveredRating?.id === driver.driverId;
                             const displayRating = isHovered ? hoveredRating.val : currentRating;
+                            const isFastestLapDriver = recap.fastestLap?.driverId === driver.driverId;
 
                             return (
                                 <div
@@ -184,9 +211,14 @@ export function RatingModal({ race, season, metadataResolved = true, onClose, on
                                         <div className="flex h-10 min-w-0 flex-1 items-center md:h-12">
                                             <div className="h-full w-1 flex-shrink-0" style={{ backgroundColor: teamColor }} />
                                             <div className="min-w-0 flex-1 pl-2 md:pl-3">
-                                                <h3 className="truncate font-display text-sm leading-none text-white uppercase md:text-lg">
-                                                    {driver.driverName}
-                                                </h3>
+                                                <div className="flex min-w-0 items-center gap-2">
+                                                    <h3 className={`truncate font-display text-sm leading-none uppercase md:text-lg ${getFinishNameClass(driver.position)}`}>
+                                                        {driver.driverName}
+                                                    </h3>
+                                                    {isFastestLapDriver && (
+                                                        <Timer size={15} className="shrink-0 text-[#FF00FF]" />
+                                                    )}
+                                                </div>
                                                 <p className="mt-0.5 truncate font-oxanium text-[9px] uppercase tracking-wide text-[var(--text-muted)] md:mt-1 md:text-[10px]">
                                                     {driver.constructorName}
                                                 </p>
@@ -195,11 +227,11 @@ export function RatingModal({ race, season, metadataResolved = true, onClose, on
 
                                         <div className="ml-auto hidden h-12 min-w-[100px] flex-shrink-0 flex-col items-end justify-center pr-4 md:flex">
                                             <span className="mb-0.5 font-oxanium text-[8px] leading-none text-[var(--text-muted)]">
-                                                {parseInt(driver.position) === 1 ? 'TIME' : 'GAP'}
+                                                {parseInt(driver.position, 10) === 1 ? 'TIME' : 'GAP'}
                                             </span>
                                             <span
                                                 className={`font-oxanium text-sm leading-none ${
-                                                    parseInt(driver.position) === 1
+                                                    parseInt(driver.position, 10) === 1
                                                         ? 'text-[#00FF88]'
                                                         : driver.gap?.includes('Lap')
                                                             ? 'text-[var(--accent-orange)]'

@@ -223,6 +223,133 @@ export async function getRaceResults(season: string, round: string): Promise<Rac
     }
 }
 
+export interface RaceQualifyingResult {
+    position: string;
+    Driver: Driver;
+    Constructor: Constructor;
+    Q1?: string;
+    Q2?: string;
+    Q3?: string;
+}
+
+export interface RaceDriverCard {
+    driver: Driver;
+    constructor: Constructor;
+    position: string;
+    time?: string;
+    gap?: string;
+    laps: string;
+    status: string;
+    grid: string;
+}
+
+export interface RaceRecapEntry {
+    driverId: string;
+    driverName: string;
+    constructorId: string;
+    constructorName: string;
+}
+
+export interface RaceRecap {
+    winner: RaceRecapEntry | null;
+    podium: RaceRecapEntry[];
+    pole: RaceRecapEntry | null;
+    fastestLap: (RaceRecapEntry & { lapTime: string | null }) | null;
+    dnfCount: number;
+}
+
+export interface RaceRatingContext {
+    drivers: RaceDriverCard[];
+    recap: RaceRecap;
+}
+
+const UNCLASSIFIED_POSITION_TEXT = new Set(['R', 'D', 'E', 'W', 'F', 'N']);
+
+function createRaceRecapEntry(driver: Driver, constructor: Constructor): RaceRecapEntry {
+    return {
+        driverId: driver.driverId,
+        driverName: `${driver.givenName} ${driver.familyName}`,
+        constructorId: constructor.constructorId,
+        constructorName: constructor.name,
+    };
+}
+
+function isClassifiedRaceResult(result: RaceResult): boolean {
+    return !UNCLASSIFIED_POSITION_TEXT.has(result.positionText);
+}
+
+function mapRaceResultToDriverCard(result: RaceResult, index: number): RaceDriverCard {
+    let gap: string | undefined;
+
+    if (result.status && result.status.includes('Lap')) {
+        gap = result.status;
+    } else if (result.status && result.status !== 'Finished' && !result.Time?.time) {
+        gap = result.status;
+    } else if (index === 0) {
+        gap = result.Time?.time;
+    } else if (result.Time?.time) {
+        gap = result.Time.time;
+    }
+
+    return {
+        driver: result.Driver,
+        constructor: result.Constructor,
+        position: result.position,
+        time: result.Time?.time,
+        gap,
+        laps: result.laps,
+        status: result.status,
+        grid: result.grid,
+    };
+}
+
+export async function getRaceQualifyingResults(season: string, round: string): Promise<RaceQualifyingResult[]> {
+    try {
+        const response = await api.get(`/${season}/${round}/qualifying.json`);
+        const races = response.data.MRData.RaceTable.Races as Array<{ QualifyingResults?: RaceQualifyingResult[] }>;
+        return races[0]?.QualifyingResults || [];
+    } catch (error) {
+        console.error(`Error fetching qualifying for ${season} round ${round}:`, error);
+        return [];
+    }
+}
+
+export function buildRaceRecap(results: RaceResult[], qualifyingResults: RaceQualifyingResult[]): RaceRecap {
+    const winnerResult = results.find(result => result.position === '1') || null;
+    const podiumResults = [...results]
+        .filter(result => {
+            const position = parseInt(result.position, 10);
+            return Number.isFinite(position) && position >= 1 && position <= 3;
+        })
+        .sort((a, b) => parseInt(a.position, 10) - parseInt(b.position, 10))
+        .slice(0, 3);
+    const poleResult = qualifyingResults.find(result => result.position === '1') || null;
+    const fastestLapResult = results.find(result => result.FastestLap?.rank === '1') || null;
+
+    return {
+        winner: winnerResult ? createRaceRecapEntry(winnerResult.Driver, winnerResult.Constructor) : null,
+        podium: podiumResults.map(result => createRaceRecapEntry(result.Driver, result.Constructor)),
+        pole: poleResult ? createRaceRecapEntry(poleResult.Driver, poleResult.Constructor) : null,
+        fastestLap: fastestLapResult ? {
+            ...createRaceRecapEntry(fastestLapResult.Driver, fastestLapResult.Constructor),
+            lapTime: fastestLapResult.FastestLap?.Time?.time || null,
+        } : null,
+        dnfCount: results.filter(result => !isClassifiedRaceResult(result)).length,
+    };
+}
+
+export async function getRaceRatingContext(season: string, round: string): Promise<RaceRatingContext> {
+    const [results, qualifyingResults] = await Promise.all([
+        getRaceResults(season, round),
+        getRaceQualifyingResults(season, round),
+    ]);
+
+    return {
+        drivers: results.map((result, index) => mapRaceResultToDriverCard(result, index)),
+        recap: buildRaceRecap(results, qualifyingResults),
+    };
+}
+
 // Fetch all drivers for a season
 export async function getDrivers(season: string): Promise<Driver[]> {
     try {
@@ -264,50 +391,9 @@ export function isRaceCompleted(raceDate: string): boolean {
 }
 
 // Get drivers who participated in a specific race
-export async function getRaceDrivers(season: string, round: string): Promise<Array<{
-    driver: Driver;
-    constructor: Constructor;
-    position: string;
-    time?: string;
-    gap?: string;
-    laps: string;
-    status: string;
-    grid: string;
-}>> {
+export async function getRaceDrivers(season: string, round: string): Promise<RaceDriverCard[]> {
     const results = await getRaceResults(season, round);
-
-    return results.map((result, index) => {
-        let gap: string | undefined;
-
-        // Check if driver was lapped (status contains "Lap" like "+1 Lap", "+2 Laps")
-        if (result.status && result.status.includes('Lap')) {
-            gap = result.status; // Shows "+1 Lap", "+2 Laps", etc.
-        }
-        // Check for DNF situations
-        else if (result.status && result.status !== 'Finished' && !result.Time?.time) {
-            gap = result.status; // Shows "Collision", "Engine", "Retired", etc.
-        }
-        // Winner - show their finish time
-        else if (index === 0) {
-            gap = result.Time?.time;
-        }
-        // Normal finishers - show gap to leader
-        else if (result.Time?.time) {
-            // API returns gap to leader as "+X.XXX" or "+1:XX.XXX"
-            gap = result.Time.time;
-        }
-
-        return {
-            driver: result.Driver,
-            constructor: result.Constructor,
-            position: result.position,
-            time: result.Time?.time,
-            gap,
-            laps: result.laps,
-            status: result.status,
-            grid: result.grid,
-        };
-    });
+    return results.map((result, index) => mapRaceResultToDriverCard(result, index));
 }
 
 // Get all drivers for a season with their constructor (for Quick Rate)
@@ -552,9 +638,7 @@ export async function getAllSeasonResults(season: string): Promise<SeasonRaceRes
 
         normalizedRaces.forEach((race: any) => {
             race.Results?.forEach((result: any) => {
-                const positionText = result.positionText;
-                // R = Retired, D = Disqualified, E = Excluded, W = Withdrew, F = Failed to qualify, N = Not classified
-                const isClassified = !['R', 'D', 'E', 'W', 'F', 'N'].includes(positionText);
+                const isClassified = isClassifiedRaceResult(result as RaceResult);
 
                 results.push({
                     round: race.round,

@@ -1,13 +1,14 @@
 import { Suspense, useEffect, useState } from 'react';
 import { Routes, Route, useNavigate, useParams, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronLeft, Trophy, Zap, Swords, Medal } from 'lucide-react';
+import { ChevronLeft, Trophy, Zap, Swords, Medal, Award } from 'lucide-react';
 import { SeasonSelector } from './components/SeasonSelector';
 import { RaceList } from './components/RaceList';
 import { DeveloperCredit } from './components/DeveloperCredit';
 import { SEOHead } from './components/SEOHead';
 import { HomeJsonLd } from './components/JsonLd';
 import {
+  AwardsRouteFallback,
   ResultsRouteFallback,
   StandingsRouteFallback,
   TeammateWarsRouteFallback,
@@ -15,9 +16,11 @@ import {
 import { getSeasons, getRaces } from './api/f1Api';
 import { getRatedRacesCount, hasQuickRatings } from './utils/storage';
 import {
+  AwardsRoute,
   ResultsRoute,
   StandingsRoute,
   TeammateWarsRoute,
+  preloadAwardsRoute,
   preloadQuickRateRoute,
   preloadRaceRatingRoute,
   preloadResultsRoute,
@@ -28,6 +31,7 @@ import {
 import QuickRateRoute from './routes/QuickRateRoute';
 import RaceRatingRoute from './routes/RaceRatingRoute';
 import { fetchWithMinDelay } from './utils/delay';
+import { useSeasonProgress } from './hooks/useSeasonProgress';
 import type { Season, Race } from './types';
 
 // Minimum loading time in ms for better UX
@@ -192,14 +196,16 @@ function App() {
   const isRacePage = pathParts[1] === 'race';
   const isTeammateWarsPage = pathParts[1] === 'teammate-wars';
   const isStandingsPage = pathParts[1] === 'standings';
+  const isAwardsPage = pathParts[1] === 'awards';
   const isHomePage = pathname === '/' || pathname === '';
 
   const ratedCount = currentSeason ? getRatedRacesCount(currentSeason) : 0;
   const showResultsButton = currentSeason ? (ratedCount > 0 || hasQuickRatings(currentSeason)) : false;
   const showSeasonActions = Boolean(
-    currentSeason && !isResultsPage && !isQuickRatePage && !isRacePage && !isTeammateWarsPage && !isStandingsPage
+    currentSeason && !isResultsPage && !isQuickRatePage && !isRacePage && !isTeammateWarsPage && !isStandingsPage && !isAwardsPage
   );
-  const mobileActionGridClass = showResultsButton ? 'grid-cols-4' : 'grid-cols-3';
+  const { progress: awardsProgress, loading: awardsProgressLoading } = useSeasonProgress(currentSeason ?? undefined, showSeasonActions);
+  const mobileActionGridClass = showResultsButton ? 'grid-cols-5' : 'grid-cols-4';
 
   function primeRoute(preload: () => void) {
     return {
@@ -218,6 +224,8 @@ function App() {
     } else if (isTeammateWarsPage && currentSeason) {
       navigate(`/${currentSeason}`);
     } else if (isStandingsPage && currentSeason) {
+      navigate(`/${currentSeason}`);
+    } else if (isAwardsPage && currentSeason) {
       navigate(`/${currentSeason}`);
     } else if (currentSeason) {
       navigate('/');
@@ -301,6 +309,12 @@ function App() {
                       <span className="font-oxanium text-xs text-[var(--accent-yellow)] uppercase">Standings</span>
                     </>
                   )}
+                  {isAwardsPage && (
+                    <>
+                      <span className="text-[var(--text-muted)]">/</span>
+                      <span className="font-oxanium text-xs text-[var(--accent-yellow)] uppercase">Awards</span>
+                    </>
+                  )}
                 </div>
               )}
             </div>
@@ -321,6 +335,34 @@ function App() {
                 <Medal size={16} className="text-[var(--text-secondary)] group-hover:text-[var(--accent-yellow)]" />
                 <span className="hidden md:inline font-ui font-bold text-xs text-white uppercase tracking-wider">Standings</span>
               </motion.button>
+
+              <motion.button
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                onClick={() => navigate(`/${currentSeason}/awards`)}
+                {...primeRoute(preloadAwardsRoute)}
+                className={`group relative flex w-full items-center justify-center gap-2 px-2 md:px-4 py-2 md:py-1.5 border transition-all min-h-[44px] md:min-w-0 md:w-auto md:min-h-0 ${
+                  awardsProgress?.unlocked
+                    ? 'bg-[var(--accent-red)]/10 border-[var(--accent-red)]/40 hover:border-[var(--accent-red)]'
+                    : 'bg-[var(--bg-panel)] border-[var(--border-color)] hover:border-[var(--accent-yellow)]'
+                }`}
+                title="Season Awards"
+              >
+                <Award size={16} className={awardsProgress?.unlocked ? 'text-[var(--accent-red)]' : 'text-[var(--text-secondary)] group-hover:text-[var(--accent-yellow)]'} />
+                <span className="hidden md:inline font-ui font-bold text-xs text-white uppercase tracking-wider">
+                  {awardsProgress?.unlocked ? 'Season Awards' : 'Awards'}
+                </span>
+                {!awardsProgressLoading && awardsProgress && (
+                  <span className={`absolute -top-1 -right-1 rounded-full px-1.5 py-0.5 font-oxanium text-[8px] leading-none uppercase tracking-wide md:static md:rounded-none md:px-0 md:py-0 md:text-[10px] ${
+                    awardsProgress.unlocked
+                      ? 'bg-[var(--accent-red)] text-white md:bg-transparent md:text-[var(--accent-red)]'
+                      : 'bg-[var(--bg-darker)] text-[var(--text-muted)] md:bg-transparent'
+                  }`}>
+                    {awardsProgress.unlocked ? 'DONE' : `${awardsProgress.ratedCount}/${awardsProgress.completedCount}`}
+                  </span>
+                )}
+              </motion.button>
+
               {/* Teammate Wars Button */}
               <motion.button
                 initial={{ opacity: 0, scale: 0.95 }}
@@ -392,6 +434,14 @@ function App() {
               element={(
                 <Suspense fallback={<StandingsRouteFallback />}>
                   <StandingsRoute />
+                </Suspense>
+              )}
+            />
+            <Route
+              path="/:season/awards"
+              element={(
+                <Suspense fallback={<AwardsRouteFallback />}>
+                  <AwardsRoute />
                 </Suspense>
               )}
             />
@@ -478,8 +528,8 @@ function App() {
           </div>
 
           {/* Bottom bar */}
-          <div className="border-t border-[var(--border-color)] pt-5 flex flex-col sm:flex-row items-center justify-between gap-3">
-            <p className="font-ui text-[11px] text-[var(--text-muted)]">
+          <div className="border-t border-[var(--border-color)] pt-5 flex items-center justify-center">
+            <p className="font-ui text-[11px] text-[var(--text-muted)] text-center">
               F1 Driver Rating © {new Date().getFullYear()} · Data by{' '}
               <a
                 href="https://api.jolpi.ca/ergast/f1/"
@@ -490,10 +540,6 @@ function App() {
                 Jolpica API
               </a>
             </p>
-            <div className="flex items-center gap-2">
-              <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              <span className="font-oxanium text-[10px] text-[var(--text-muted)] uppercase tracking-widest">All systems operational</span>
-            </div>
           </div>
         </div>
       </footer>
