@@ -8,6 +8,7 @@ import type { Race } from '../types';
 import { TEAM_COLORS } from '../types';
 import { getCountryCode } from '../utils/storage';
 import { CountryFlag } from '../utils/countryFlags';
+import { buildWdcRaceMap, getWdcCellDisplay } from '../utils/standings';
 
 interface StandingsPageProps {
     season: string;
@@ -104,32 +105,8 @@ export function StandingsPage({ season }: StandingsPageProps) {
         return TEAM_COLORS[constructorId] || '#888888';
     }
 
-    // Build WDC race-by-race map: driverId -> { round -> { position, points } }
-    const wdcRaceMap = new Map<string, Map<string, { position: number | null | undefined; points: number }>>();
-    raceResults.forEach(result => {
-        if (!wdcRaceMap.has(result.driverId)) {
-            wdcRaceMap.set(result.driverId, new Map());
-        }
-        wdcRaceMap.get(result.driverId)!.set(result.round, {
-            position: result.position,
-            points: result.points,
-        });
-    });
-
-    // Merge sprint points into WDC map (weekend points = GP + Sprint)
-    sprintResults.forEach(result => {
-        if (!wdcRaceMap.has(result.driverId)) {
-            wdcRaceMap.set(result.driverId, new Map());
-        }
-        const driverRounds = wdcRaceMap.get(result.driverId)!;
-        const prev = driverRounds.get(result.round);
-        if (prev) {
-            driverRounds.set(result.round, { ...prev, points: prev.points + result.points });
-        } else {
-            // If we have sprint but no GP result, keep position undefined (not DNF)
-            driverRounds.set(result.round, { position: undefined, points: result.points });
-        }
-    });
+    // Build WDC race-by-race map with weekend points plus main-race status
+    const wdcRaceMap = buildWdcRaceMap(raceResults, sprintResults);
 
     // Build WCC race-by-race map: constructorId -> { round -> totalPoints }
     const wccRaceMap = new Map<string, Map<string, number>>();
@@ -448,28 +425,35 @@ function WDCTable({ drivers, races, raceMap, latestTeamMap, getTeamColor }: WDCT
                                     {/* Race Results - pts/pos format (e.g., 25/1) */}
                                     {races.map(race => {
                                         const raceData = driverRaces?.get(race.round);
-                                        const hasData = raceData !== undefined;
-                                        const position = raceData?.position;
-                                        const points = raceData?.points || 0;
+                                        const cell = getWdcCellDisplay(raceData);
 
                                         return (
                                             <td key={race.round} className="px-1 md:px-2 py-1.5 md:py-2 text-center">
-                                                {hasData ? (
+                                                {cell.kind !== 'empty' ? (
                                                     <span className="font-oxanium text-xs md:text-sm font-medium whitespace-nowrap">
-                                                        {position === null ? (
-                                                            <span className="text-[var(--text-muted)]">DNF</span>
+                                                        {cell.kind === 'status-only' ? (
+                                                            <span className="text-[var(--text-muted)]">{cell.statusLabel}</span>
+                                                        ) : cell.kind === 'points-status' ? (
+                                                            <>
+                                                                <span className="text-white">
+                                                                    {cell.points}
+                                                                </span>
+                                                                <span className="text-[9px] md:text-[10px] text-[var(--text-muted)]">
+                                                                    /{cell.statusLabel}
+                                                                </span>
+                                                            </>
                                                         ) : (
                                                             <>
                                                                 <span className={`${
-                                                                    position === 1 ? 'text-[var(--accent-yellow)]' :
-                                                                    position && position <= 3 ? 'text-white' :
-                                                                    points > 0 ? 'text-white' : 'text-[var(--text-muted)]'
+                                                                    cell.kind === 'classified' && cell.position === 1 ? 'text-[var(--accent-yellow)]' :
+                                                                    cell.kind === 'classified' && cell.position && cell.position <= 3 ? 'text-white' :
+                                                                    (cell.points ?? 0) > 0 ? 'text-white' : 'text-[var(--text-muted)]'
                                                                 }`}>
-                                                                    {points}
+                                                                    {cell.points}
                                                                 </span>
-                                                                {position !== undefined && (
+                                                                {cell.kind === 'classified' && (
                                                                     <span className="text-[9px] md:text-[10px] text-[var(--text-muted)]">
-                                                                        /{position}
+                                                                        /{cell.position}
                                                                     </span>
                                                                 )}
                                                             </>
@@ -628,4 +612,3 @@ function WCCTable({ constructors, races, raceMap, polesMap, podiumsMap, getTeamC
         </motion.div>
     );
 }
-
