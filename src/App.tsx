@@ -352,13 +352,11 @@ function App() {
                 <span className="hidden md:inline font-ui font-bold text-xs text-white uppercase tracking-wider">
                   {awardsProgress?.unlocked ? 'Season Awards' : 'Awards'}
                 </span>
-                {!awardsProgressLoading && awardsProgress && (
+                {!awardsProgressLoading && awardsProgress && !awardsProgress.unlocked && (
                   <span className={`absolute -top-1 -right-1 rounded-full px-1.5 py-0.5 font-oxanium text-[8px] leading-none uppercase tracking-wide md:static md:rounded-none md:px-0 md:py-0 md:text-[10px] ${
-                    awardsProgress.unlocked
-                      ? 'bg-[var(--accent-red)] text-white md:bg-transparent md:text-[var(--accent-red)]'
-                      : 'bg-[var(--bg-darker)] text-[var(--text-muted)] md:bg-transparent'
+                    'bg-[var(--bg-darker)] text-[var(--text-muted)] md:bg-transparent'
                   }`}>
-                    {awardsProgress.unlocked ? 'DONE' : `${awardsProgress.ratedCount}/${awardsProgress.completedCount}`}
+                    {`${awardsProgress.ratedCount}/${awardsProgress.completedCount}`}
                   </span>
                 )}
               </motion.button>
