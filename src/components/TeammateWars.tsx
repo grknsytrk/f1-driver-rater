@@ -770,7 +770,7 @@ export function TeammateWars({ season }: TeammateWarsProps) {
                     className="w-[600px] p-8"
                     style={{
                         background: 'linear-gradient(135deg, #0a0a0b 0%, #1a1a1c 50%, #0a0a0b 100%)',
-                        fontFamily: 'system-ui, sans-serif',
+                        fontFamily: 'Formula1, sans-serif',
                     }}
                 >
                     {/* Card Header */}
