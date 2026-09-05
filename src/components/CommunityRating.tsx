@@ -19,12 +19,12 @@ export function CommunityValue({ rating, status, label = 'COMMUNITY AVG', showVo
     if (status === 'disabled' || status === 'unavailable') return null;
     return (
         <div className="min-w-0 text-right font-oxanium" aria-label={label}>
-            <div className="text-[8px] leading-tight tracking-wide text-[var(--text-muted)] md:text-[9px]">{label}</div>
+            <div className="whitespace-nowrap text-[8px] leading-tight tracking-wide text-[var(--text-muted)] md:text-[9px]">{label}</div>
             {status === 'loading' && !rating ? (
-                <span role="status" className="inline-block animate-pulse text-sm text-[var(--text-muted)]">LOADING…</span>
+                <span role="status" className="mt-1 inline-block animate-pulse text-sm text-[var(--text-muted)]">LOADING…</span>
             ) : rating ? (
                 <>
-                    <div className="text-sm font-normal leading-none tabular-nums md:text-lg" style={{ color: getRatingColor(rating.averageRating) }}>{rating.averageRating.toFixed(2)}</div>
+                    <div className="mt-1 text-sm font-normal leading-none tabular-nums md:text-lg" style={{ color: getRatingColor(rating.averageRating) }}>{rating.averageRating.toFixed(2)}</div>
                     <div className="text-[8px] leading-tight text-[var(--text-muted)] md:text-[9px]">
                         {rating.voteCount < 5 && <span>EARLY DATA{showVotes ? ' · ' : ''}</span>}
                         {showVotes && <span>{rating.voteCount} VOTES</span>}
@@ -38,10 +38,10 @@ export function CommunityValue({ rating, status, label = 'COMMUNITY AVG', showVo
 export function PersonalRatingValue({ value, season = false }: { value: number; season?: boolean }) {
     return (
         <div className="min-w-0 font-oxanium">
-            <div className="text-[8px] leading-tight tracking-wide text-[var(--text-muted)] md:text-[9px]">
+            <div className="whitespace-nowrap text-[8px] leading-tight tracking-wide text-[var(--text-muted)] md:text-[9px]">
                 {season ? 'YOUR SEASON RATING' : 'YOUR RATING'}
             </div>
-            <div className="text-sm font-normal leading-none tabular-nums md:text-lg" style={{ color: getRatingColor(value) }}>
+            <div className="mt-1 text-sm font-normal leading-none tabular-nums md:text-lg" style={{ color: getRatingColor(value) }}>
                 {value > 0 ? value.toFixed(2) : '—'}
             </div>
         </div>
