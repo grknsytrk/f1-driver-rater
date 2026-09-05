@@ -215,8 +215,8 @@ export function QuickRateModal({ season, onClose }: QuickRateModalProps) {
                                         </div>
                                     </div>
 
-                                    <div className="flex w-full items-center gap-3 overflow-hidden md:gap-4">
-                                        <div className="w-20 flex-shrink-0 md:w-24">
+                                    <div className="flex w-full items-center gap-2 overflow-hidden md:gap-3">
+                                        <div className="w-12 flex-shrink-0 md:w-14">
                                             <PersonalRatingValue value={displayRating} season />
                                         </div>
                                         <div className="min-w-0 flex-1 overflow-x-auto scrollbar-hide md:overflow-visible">
