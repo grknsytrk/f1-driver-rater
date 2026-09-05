@@ -207,11 +207,11 @@ export function RatingModal({ race, season, metadataResolved = true, onClose }: 
                                         </div>
 
                                         <div className="ml-auto hidden h-12 w-32 flex-shrink-0 flex-col items-end justify-center pr-4 md:flex">
-                                            <span className="mb-0.5 w-full text-right font-oxanium text-[8px] leading-none text-[var(--text-muted)]">
+                                            <span className="mb-1 w-full text-right font-oxanium text-[10px] leading-none tracking-wide text-[var(--text-muted)]">
                                                 {parseInt(driver.position, 10) === 1 ? 'TIME' : 'GAP'}
                                             </span>
                                             <span
-                                                className={`w-full whitespace-nowrap text-right font-oxanium text-sm leading-none ${
+                                                className={`w-full whitespace-nowrap text-right font-oxanium text-sm leading-none tabular-nums ${
                                                     parseInt(driver.position, 10) === 1
                                                         ? 'text-[#00FF88]'
                                                         : driver.gap?.includes('Lap')
