@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Loader2, RotateCcw, Save, Zap } from 'lucide-react';
+import { RotateCcw, Zap } from 'lucide-react';
 import { toast } from 'sonner';
 import { TEAM_COLORS } from '../types';
 import { getDriverSeasonStats } from '../api/f1Api';
@@ -9,8 +9,7 @@ import { ModalShell } from './ModalShell';
 import { QuickRateModalContentFallback } from './RouteFallbacks';
 
 import { useCommunityRatings, useRatingStorage } from '../hooks/useCommunityRatings';
-import { syncGuestRatings } from '../utils/guestSync';
-import { CommunityNotice, CommunityValue, PersonalRatingValue } from './CommunityRating';
+import { CommunityNotice, RatingComparison } from './CommunityRating';
 
 const MIN_LOADING_TIME = 1500;
 
@@ -38,7 +37,6 @@ export function QuickRateModal({ season, onClose }: QuickRateModalProps) {
     const savedRatings = getQuickRatings(season) ?? [];
     const [drivers, setDrivers] = useState<DriverWithRating[]>([]);
     const [loading, setLoading] = useState(true);
-    const [syncing, setSyncing] = useState(false);
     const [hoveredRating, setHoveredRating] = useState<{ id: string, val: number } | null>(null);
 
     const loadDrivers = useCallback(async () => {
@@ -87,25 +85,6 @@ export function QuickRateModal({ season, onClose }: QuickRateModalProps) {
             constructorId: driver.constructorId, constructorName: driver.constructorName,
             rating,
         });
-        setDrivers((previousDrivers) => previousDrivers.map((current) =>
-            current.driverId === driverId ? { ...current, rating } : current
-        ));
-    }
-
-    function handleClose() {
-        void syncGuestRatings();
-        onClose();
-    }
-
-    async function handleSave() {
-        if (loading || syncing) return;
-        setSyncing(true);
-        try {
-            await syncGuestRatings();
-            toast.success('Ratings saved', { description: 'Community data is refreshing' });
-        } finally {
-            setSyncing(false);
-        }
     }
 
     function handleClearAll() {
@@ -125,7 +104,7 @@ export function QuickRateModal({ season, onClose }: QuickRateModalProps) {
             eyebrowTextClassName="text-[var(--accent-yellow)]"
             title={`${season} SEASON RATINGS`}
             subtitle="Rate all drivers based on season performance"
-            onClose={handleClose}
+            onClose={onClose}
             footer={(
                 <div className="z-20 flex flex-col gap-3 border-t border-[var(--border-color)] bg-[var(--bg-panel)] p-4 md:flex-row md:items-center md:justify-between md:gap-0">
                     <button
@@ -142,18 +121,10 @@ export function QuickRateModal({ season, onClose }: QuickRateModalProps) {
                             Auto-saved locally · cloud sync in background
                         </span>
                         <button
-                            onClick={handleClose}
+                            onClick={onClose}
                             className="border border-[var(--border-color)] px-6 py-3 font-oxanium text-xs font-bold tracking-widest text-[var(--text-secondary)] uppercase transition-colors hover:border-[var(--accent-yellow)] hover:text-white md:py-2"
                         >
                             CLOSE
-                        </button>
-                        <button
-                            onClick={() => void handleSave()}
-                            disabled={syncing || loading || drivers.length === 0}
-                            className="flex items-center justify-center bg-[var(--accent-yellow)] px-8 py-3 font-display text-lg tracking-widest text-black uppercase transition-colors hover:bg-[#FFD700] disabled:opacity-50 md:py-2"
-                        >
-                            {syncing ? <Loader2 size={16} className="mr-2 animate-spin" /> : <Save size={16} className="mr-2" />}
-                            SAVE RATINGS
                         </button>
                     </div>
                 </div>
@@ -235,10 +206,13 @@ export function QuickRateModal({ season, onClose }: QuickRateModalProps) {
                                         </div>
                                     </div>
 
-                                    <div className="flex w-full items-center gap-2 overflow-hidden md:gap-3">
-                                        <div className="w-12 flex-shrink-0 md:w-14">
-                                            <PersonalRatingValue value={displayRating} season />
-                                        </div>
+                                    <RatingComparison
+                                        value={displayRating}
+                                        community={community.ratings.find(rating => rating.driverId === driver.driverId)}
+                                        status={community.status}
+                                        season
+                                    />
+                                    <div className="flex w-full items-center gap-1 overflow-hidden md:gap-2">
                                         <div className="min-w-0 flex-1 overflow-x-auto scrollbar-hide md:overflow-visible">
                                             <div className="flex gap-[2px] py-1" onMouseLeave={() => setHoveredRating(null)}>
                                                 {[...Array(20)].map((_, index) => {
@@ -290,11 +264,6 @@ export function QuickRateModal({ season, onClose }: QuickRateModalProps) {
                                                 })}
                                             </div>
                                         </div>
-                                        <CommunityValue
-                                            rating={community.ratings.find(rating => rating.driverId === driver.driverId)}
-                                            status={community.status}
-                                            label="COMMUNITY SEASON AVG"
-                                        />
                                     </div>
                                 </div>
                             );

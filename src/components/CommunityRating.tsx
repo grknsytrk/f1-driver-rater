@@ -34,19 +34,6 @@ export function CommunityValue({ rating, status, label = 'COMMUNITY AVG', showVo
     );
 }
 
-export function PersonalRatingValue({ value, season = false }: { value: number; season?: boolean }) {
-    return (
-        <div className="min-w-0 font-oxanium">
-            <div className="text-[8px] leading-tight tracking-wide text-[var(--text-muted)] md:text-[9px]">
-                {season ? 'YOUR SEASON RATING' : 'YOUR RATING'}
-            </div>
-            <div className={`text-base font-bold leading-tight tabular-nums md:text-2xl ${value > 0 ? 'text-[var(--accent-red)]' : 'text-[var(--text-muted)]'}`}>
-                {value > 0 ? value.toFixed(2) : '—'}
-            </div>
-        </div>
-    );
-}
-
 export function RatingComparison({ value, community, status, season = false }: {
     value: number; community?: CommunityRating; status: CommunityStatus; season?: boolean;
 }) {

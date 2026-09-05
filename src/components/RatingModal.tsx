@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Loader2, Save, Timer } from 'lucide-react';
-import { toast } from 'sonner';
+import { Timer } from 'lucide-react';
 import { TEAM_COLORS } from '../types';
 import { getRaceRatingContext, type RaceRecap } from '../api/f1Api';
 import { saveRaceDriverRating, getRaceRatings } from '../utils/storage';
@@ -10,8 +9,7 @@ import { RatingModalContentFallback } from './RouteFallbacks';
 import type { RaceRouteSnapshot } from '../routes/modalRouteState';
 
 import { useCommunityRatings, useRatingStorage } from '../hooks/useCommunityRatings';
-import { syncGuestRatings } from '../utils/guestSync';
-import { CommunityNotice, CommunityValue, PersonalRatingValue } from './CommunityRating';
+import { CommunityNotice, RatingComparison } from './CommunityRating';
 
 const MIN_LOADING_TIME = 800;
 
@@ -63,7 +61,6 @@ export function RatingModal({ race, season, metadataResolved = true, onClose }: 
     const [drivers, setDrivers] = useState<DriverWithRating[]>([]);
     const [recap, setRecap] = useState<RaceRecap>(EMPTY_RECAP);
     const [loading, setLoading] = useState(true);
-    const [syncing, setSyncing] = useState(false);
     const [hoveredRating, setHoveredRating] = useState<{ id: string, val: number } | null>(null);
 
     const loadDrivers = useCallback(async () => {
@@ -116,28 +113,6 @@ export function RatingModal({ race, season, metadataResolved = true, onClose }: 
             constructorId: driver.constructorId, constructorName: driver.constructorName,
             rating,
         });
-        setDrivers((previousDrivers) => previousDrivers.map((current) =>
-            current.driverId === driverId ? { ...current, rating } : current
-        ));
-    }
-
-    function handleClose() {
-        // Keep closing instant while forcing the pending local edit through the
-        // outbox. The Results page will receive the invalidation event after the
-        // cloud write completes.
-        void syncGuestRatings();
-        onClose();
-    }
-
-    async function handleSave() {
-        if (loading || !metadataResolved || syncing) return;
-        setSyncing(true);
-        try {
-            await syncGuestRatings();
-            toast.success('Ratings saved', { description: `${race.raceName} · community data is refreshing` });
-        } finally {
-            setSyncing(false);
-        }
     }
 
     function getTeamColor(constructorId: string): string {
@@ -158,28 +133,18 @@ export function RatingModal({ race, season, metadataResolved = true, onClose }: 
             eyebrowIcon={<div className="h-2 w-2 bg-[var(--accent-red)] animate-pulse" />}
             title={(race.raceName || `Race ${race.round}`).toUpperCase()}
             subtitle={formattedDate}
-            onClose={handleClose}
+            onClose={onClose}
             footer={(
                 <div className="z-20 flex flex-col gap-2 border-t border-[var(--border-color)] bg-[var(--bg-panel)] p-4 md:flex-row md:items-center md:justify-between md:gap-0">
                     <span className="font-oxanium text-[10px] tracking-widest text-[var(--text-muted)] uppercase">
                         Auto-saved locally · cloud sync in background
                     </span>
-                    <div className="flex flex-col-reverse items-stretch gap-2 md:flex-row md:items-center md:gap-4">
-                        <button
-                            onClick={handleClose}
-                            className="border border-[var(--border-color)] px-6 py-3 font-oxanium text-xs font-bold tracking-widest text-[var(--text-secondary)] uppercase transition-colors hover:border-[var(--accent-red)] hover:text-white md:border-0 md:py-2"
-                        >
-                            CLOSE
-                        </button>
-                        <button
-                            onClick={() => void handleSave()}
-                            disabled={syncing || loading || !metadataResolved || drivers.length === 0}
-                            className="flex items-center justify-center bg-[var(--accent-red)] px-8 py-3 font-display text-lg tracking-widest text-white uppercase transition-colors hover:bg-[#ff0000] disabled:opacity-50 md:py-2"
-                        >
-                            {syncing ? <Loader2 size={16} className="mr-2 animate-spin" /> : <Save size={16} className="mr-2" />}
-                            SAVE DATA
-                        </button>
-                    </div>
+                    <button
+                        onClick={onClose}
+                        className="border border-[var(--border-color)] px-6 py-3 font-oxanium text-xs font-bold tracking-widest text-[var(--text-secondary)] uppercase transition-colors hover:border-[var(--accent-red)] hover:text-white md:py-2"
+                    >
+                        CLOSE
+                    </button>
                 </div>
             )}
         >
@@ -251,10 +216,12 @@ export function RatingModal({ race, season, metadataResolved = true, onClose }: 
                                         </div>
                                     </div>
 
-                                    <div className="flex w-full items-center gap-2 overflow-hidden md:gap-3">
-                                        <div className="w-12 flex-shrink-0 md:w-14">
-                                            <PersonalRatingValue value={displayRating} />
-                                        </div>
+                                    <RatingComparison
+                                        value={displayRating}
+                                        community={community.ratings.find(rating => rating.driverId === driver.driverId)}
+                                        status={community.status}
+                                    />
+                                    <div className="flex w-full items-center gap-1 overflow-hidden md:gap-2">
                                         <div className="min-w-0 flex-1 overflow-x-auto scrollbar-hide md:overflow-visible">
                                             <div className="flex gap-[2px] py-1" onMouseLeave={() => setHoveredRating(null)}>
                                                 {[...Array(20)].map((_, index) => {
@@ -306,11 +273,6 @@ export function RatingModal({ race, season, metadataResolved = true, onClose }: 
                                                 })}
                                             </div>
                                         </div>
-                                        <CommunityValue
-                                            rating={community.ratings.find(rating => rating.driverId === driver.driverId)}
-                                            status={community.status}
-                                            label="COMMUNITY AVG"
-                                        />
                                     </div>
                                 </div>
                             );
