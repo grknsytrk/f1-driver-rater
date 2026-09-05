@@ -3,10 +3,13 @@ import { RotateCcw, Zap } from 'lucide-react';
 import { toast } from 'sonner';
 import { TEAM_COLORS } from '../types';
 import { getDriverSeasonStats } from '../api/f1Api';
-import { clearQuickRatings, saveQuickRatings, getQuickRatings } from '../utils/storage';
+import { clearQuickRatings, saveQuickDriverRating, getQuickRatings } from '../utils/storage';
 import { fetchWithMinDelay } from '../utils/delay';
 import { ModalShell } from './ModalShell';
 import { QuickRateModalContentFallback } from './RouteFallbacks';
+
+import { useCommunityRatings, useRatingStorage } from '../hooks/useCommunityRatings';
+import { CommunityNotice, RatingComparison } from './CommunityRating';
 
 const MIN_LOADING_TIME = 1500;
 
@@ -29,6 +32,9 @@ interface DriverWithRating {
 }
 
 export function QuickRateModal({ season, onClose }: QuickRateModalProps) {
+    useRatingStorage();
+    const community = useCommunityRatings('quick', season);
+    const savedRatings = getQuickRatings(season) ?? [];
     const [drivers, setDrivers] = useState<DriverWithRating[]>([]);
     const [loading, setLoading] = useState(true);
     const [hoveredRating, setHoveredRating] = useState<{ id: string, val: number } | null>(null);
@@ -71,20 +77,14 @@ export function QuickRateModal({ season, onClose }: QuickRateModalProps) {
     }, [loadDrivers]);
 
     function handleRatingChange(driverId: string, rating: number) {
-        const nextDrivers = drivers.map((driver) =>
-            driver.driverId === driverId ? { ...driver, rating } : driver
-        );
-        setDrivers(nextDrivers);
-        saveQuickRatings(
-            season,
-            nextDrivers.map((driver) => ({
-                driverId: driver.driverId,
-                driverName: driver.driverName,
-                constructorId: driver.constructorId,
-                constructorName: driver.constructorName,
-                rating: driver.rating || 5,
-            }))
-        );
+        if (loading) return;
+        const driver = drivers.find(driver => driver.driverId === driverId);
+        if (!driver) return;
+        saveQuickDriverRating(season, {
+            driverId, driverName: driver.driverName,
+            constructorId: driver.constructorId, constructorName: driver.constructorName,
+            rating,
+        });
     }
 
     function handleClearAll() {
@@ -134,10 +134,11 @@ export function QuickRateModal({ season, onClose }: QuickRateModalProps) {
                 <QuickRateModalContentFallback />
             ) : (
                 <div className="flex-1 overflow-y-auto overflow-x-hidden p-2 md:p-6 custom-scrollbar">
+                    <CommunityNotice status={community.status} legacy={savedRatings.some(rating => !rating.communityEligible)} />
                     <div className="grid grid-cols-1 gap-px border border-[var(--border-color)] bg-[var(--border-color)]">
                         {drivers.map((driver) => {
                             const teamColor = getTeamColor(driver.constructorId);
-                            const currentRating = driver.rating;
+                            const currentRating = savedRatings.find(rating => rating.driverId === driver.driverId)?.rating ?? 0;
                             const isHovered = hoveredRating?.id === driver.driverId;
                             const displayRating = isHovered ? hoveredRating.val : currentRating;
 
@@ -205,33 +206,15 @@ export function QuickRateModal({ season, onClose }: QuickRateModalProps) {
                                         </div>
                                     </div>
 
+                                    <RatingComparison
+                                        value={displayRating}
+                                        community={community.ratings.find(rating => rating.driverId === driver.driverId)}
+                                        status={community.status}
+                                        season
+                                    />
                                     <div className="flex w-full items-center gap-1 overflow-hidden md:gap-2">
-                                        <div className="flex w-8 flex-shrink-0 items-center justify-center md:w-14">
-                                            <div
-                                                className="font-oxanium text-base font-bold leading-none tabular-nums md:text-2xl"
-                                                style={{
-                                                    color: (() => {
-                                                        if (displayRating === 0) return 'var(--text-muted)';
-                                                        const t = (displayRating - 0.5) / 9.5;
-                                                        if (t < 0.4) {
-                                                            const localT = t / 0.4;
-                                                            return `rgb(225, ${Math.round(6 + localT * 101)}, 0)`;
-                                                        }
-                                                        if (t < 0.7) {
-                                                            const localT = (t - 0.4) / 0.3;
-                                                            return `rgb(${Math.round(225 + localT * 17)}, ${Math.round(107 + localT * 102)}, ${Math.round(localT * 61)})`;
-                                                        }
-                                                        const localT = (t - 0.7) / 0.3;
-                                                        return `rgb(${Math.round(242 - localT * 242)}, ${Math.round(209 + localT * 46)}, ${Math.round(61 + localT * 75)})`;
-                                                    })(),
-                                                }}
-                                            >
-                                                {displayRating % 1 === 0 ? displayRating : displayRating.toFixed(1)}
-                                            </div>
-                                        </div>
-
-                                        <div className="flex-1 overflow-x-auto scrollbar-hide md:overflow-visible">
-                                            <div className="flex gap-[2px]" style={{ minWidth: 'max-content' }} onMouseLeave={() => setHoveredRating(null)}>
+                                        <div className="min-w-0 flex-1 overflow-x-auto scrollbar-hide md:overflow-visible">
+                                            <div className="flex gap-[2px] py-1" onMouseLeave={() => setHoveredRating(null)}>
                                                 {[...Array(20)].map((_, index) => {
                                                     const val = (index + 1) * 0.5;
                                                     const isFilled = val <= displayRating;
@@ -260,9 +243,13 @@ export function QuickRateModal({ season, onClose }: QuickRateModalProps) {
                                                     return (
                                                         <button
                                                             key={index}
+                                                            aria-label={`${driver.driverName}: ${val.toFixed(1)} out of 10`}
+                                                            aria-pressed={currentRating === val}
+                                                            onFocus={() => setHoveredRating({ id: driver.driverId, val })}
+                                                            onBlur={() => setHoveredRating(null)}
                                                             onMouseEnter={() => setHoveredRating({ id: driver.driverId, val })}
                                                             onClick={() => handleRatingChange(driver.driverId, val)}
-                                                            className="relative h-7 w-4 flex-shrink-0 cursor-pointer touch-manipulation focus:outline-none md:h-10 md:w-5"
+                                                            className="relative h-8 min-w-0 flex-1 cursor-pointer touch-manipulation focus-visible:outline-2 focus-visible:outline-white focus-visible:outline-offset-2 md:h-10 md:w-5"
                                                         >
                                                             <div
                                                                 className="h-full w-full rounded-sm"

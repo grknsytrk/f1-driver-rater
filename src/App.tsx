@@ -33,6 +33,7 @@ import RaceRatingRoute from './routes/RaceRatingRoute';
 import { fetchWithMinDelay } from './utils/delay';
 import { useSeasonProgress } from './hooks/useSeasonProgress';
 import { initializeGuestSync } from './utils/guestSync';
+import { LOCAL_RATINGS_EVENT } from './utils/ratingData';
 import type { Season, Race } from './types';
 
 // Minimum loading time in ms for better UX
@@ -197,7 +198,11 @@ function App() {
     };
 
     window.addEventListener('f1:guest-sync', handleStorageSync);
-    return () => window.removeEventListener('f1:guest-sync', handleStorageSync);
+    window.addEventListener(LOCAL_RATINGS_EVENT, handleStorageSync);
+    return () => {
+      window.removeEventListener('f1:guest-sync', handleStorageSync);
+      window.removeEventListener(LOCAL_RATINGS_EVENT, handleStorageSync);
+    };
   }, []);
 
   // Get current path info from React Router

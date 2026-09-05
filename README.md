@@ -71,6 +71,20 @@ The app works with local storage by default. To persist guest ratings in Supabas
 
 Existing local ratings are merged automatically when the guest session starts. If Supabase is not configured or unavailable, ratings continue to work locally.
 
+### Community Rating Layer
+
+Apply all migrations in `supabase/migrations` in order, including the community migration, before deploying the updated frontend. Existing personal scores are preserved and start with `community_eligible = false`. Selecting a score again (including the same score) includes that driver's vote. Untouched drivers no longer receive an automatic 5. New selections use 0.5–10 in half-point steps; historical personal scores remain readable.
+
+- Race Rating compares votes for that season, round, and driver. Quick Rate uses only season-wide Quick Rate votes.
+- Results keeps personal season order, podiums, and charts. `SAME RACES` compares both averages over shared races and shows coverage (for example `2/3 RACES`). `FULL SEASON` averages all community race averages equally, regardless of each race's vote count. When there are no race ratings, Results uses Quick Rate instead.
+- One vote is enough to display an average. `EARLY DATA` labels 1–4 votes without hiding the score. `VOTES` counts submissions, not unique people; in Results it sums votes over the included races.
+- JSON imports restore personal scores and require reselecting scores before they count toward community. Exports use version 2; version 1 imports remain supported.
+- Local edits and deletes are saved in a persistent outbox and retried on reconnect/reload. Successful cloud changes invalidate only the relevant community cache. Community reads have a 60-second in-memory cache and an 8-second timeout; failures do not block personal rating.
+
+The two public RPCs, `get_race_community_ratings(p_season, p_round default null)` and `get_quick_community_ratings(p_season)`, return only aggregates. They require the existing authenticated guest session. Raw tables retain ownership RLS, and privileged aggregate helpers live in `community_private`; **never add this schema to the API's exposed schemas**. The browser uses only the publishable key. An aggregate with one vote necessarily equals that vote's score; the API does not expose its author's identity.
+
+Community behavior is covered by the Vitest suite. Database assertions are in `supabase/tests/community_rating_layer.sql`: run them inside `BEGIN` / `ROLLBACK` against a migrated database so the temporary guest identities and fixture votes are never retained.
+
 ## Tech Stack
 
 | Technology | Purpose |

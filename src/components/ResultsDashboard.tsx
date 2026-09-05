@@ -15,6 +15,11 @@ import {
 } from '@/components/ui/alert-dialog';
 import { TEAM_COLORS } from '../types';
 import { calculateAverages, clearSeasonRatings, getDriverFormSeries, getRatedRacesCount, getRaceByRaceMatrix, downloadRatingsAsJson, importRatings } from '../utils/storage';
+import { useCommunityRatings, useRatingStorage } from '../hooks/useCommunityRatings';
+import { CommunityNotice, CommunityValue } from './CommunityRating';
+import { compareCommunity } from '../utils/communityRatings';
+import { getSeasonRatings, getQuickRatings } from '../utils/storage';
+import { validRatings } from '../utils/ratingData';
 import { CountryFlag } from '../utils/countryFlags';
 
 interface ResultsDashboardProps {
@@ -32,7 +37,17 @@ function formatRaceDisplayName(raceName: string | null): string {
 }
 
 export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
+    useRatingStorage();
     const averages = calculateAverages(season);
+    const personalRaces = getSeasonRatings(season);
+    const source = personalRaces?.races.some(race => race.completed && validRatings(race.ratings).length) ? 'race' : 'quick';
+    const community = useCommunityRatings(source, season);
+    const [communityScope, setCommunityScope] = useState<'same' | 'season'>('same');
+    const communityVisible = community.status !== 'disabled' && community.status !== 'unavailable';
+    const hasLegacy = (source === 'race'
+        ? personalRaces?.races.flatMap(race => validRatings(race.ratings)) ?? []
+        : getQuickRatings(season) ?? []).some(rating => !rating.communityEligible);
+
     const ratedCount = getRatedRacesCount(season);
     const raceMatrix = getRaceByRaceMatrix(season);
     const formSeries = getDriverFormSeries(season);
@@ -500,56 +515,77 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
                         </div>
                     </div>
 
-                    {/* STANDINGS TABLE (Span 6) */}
-                    <div className="lg:col-span-6">
-                        <div className="mb-4 flex items-center justify-between border-b border-[var(--border-color)] pb-2">
-                            <h3 className="font-display text-lg md:text-2xl text-white uppercase tracking-wider">DRIVER STANDINGS</h3>
-                            <div className="hidden md:flex gap-2 text-[10px] font-oxanium text-[var(--text-muted)]">
-                                <span>POS</span>
-                                <span>//</span>
-                                <span>DRIVER</span>
-                                <span>//</span>
-                                <span>RATING</span>
-                            </div>
+                    {/* Personal season order stays fixed; only comparison values change scope. */}
+                    <div className="min-w-0 lg:col-span-6">
+                        <div className="mb-3 border-b border-[var(--border-color)] pb-2">
+                            <h3 className="font-display text-lg text-white uppercase tracking-wider md:text-2xl">DRIVER RATINGS</h3>
+                            <p className="mt-1 font-oxanium text-[9px] tracking-wide text-[var(--text-muted)]">
+                                {source === 'race' ? 'RACE RATINGS · PERSONAL SEASON ORDER' : 'QUICK RATE · SEASON RATINGS'}
+                            </p>
                         </div>
-
+                        <CommunityNotice status={community.status} legacy={hasLegacy} />
+                        {communityVisible && source === 'race' && (
+                            <div className="mb-3">
+                                <div className="inline-flex border border-[var(--border-color)] p-0.5" role="group" aria-label="Community comparison scope">
+                                    {(['same', 'season'] as const).map(scope => (
+                                        <button key={scope} type="button" aria-pressed={communityScope === scope}
+                                            onClick={() => setCommunityScope(scope)}
+                                            className={`px-3 py-2 font-oxanium text-[10px] tracking-wide transition-colors focus-visible:outline-2 focus-visible:outline-white ${communityScope === scope ? 'bg-[var(--accent-yellow)] text-black' : 'text-[var(--text-muted)] hover:text-white'}`}>
+                                            {scope === 'same' ? 'SAME RACES' : 'FULL SEASON'}
+                                        </button>
+                                    ))}
+                                </div>
+                                <p className="mt-2 font-oxanium text-[10px] leading-relaxed text-[var(--text-muted)]">
+                                    {communityScope === 'same'
+                                        ? 'Both averages use races with your rating and community votes. Season order stays unchanged.'
+                                        : 'Community averages each race equally. Your ratings may cover different races.'}
+                                </p>
+                            </div>
+                        )}
                         <div className="bg-[var(--bg-panel)] border-t border-[var(--border-color)]">
-                            <div className="max-h-[400px] md:max-h-[600px] overflow-y-auto pr-1">
-                                {averages.map((driver, index) => (
-                                    <motion.div
-                                        key={driver.driverId}
-                                        className="telemetry-row p-2 md:p-3 animate-enter"
-                                        style={{ animationDelay: `${index * 50}ms`, gridTemplateColumns: '30px 20px 1fr auto' }}
-                                    >
-                                        {/* POS */}
-                                        <div className="font-oxanium text-sm md:text-lg text-[var(--text-secondary)] font-bold text-center">
-                                            {index + 1}
-                                        </div>
-
-                                        {/* TEAM STRIPE */}
-                                        <div className="h-4 w-1 bg-white/20 mx-auto" style={{ backgroundColor: getTeamColor(driver.constructorId) }} />
-
-                                        {/* DRIVER */}
-                                        <div className="flex flex-col justify-center min-w-0">
-                                            <div className="font-display-condensed text-sm md:text-xl text-white leading-none uppercase tracking-tight truncate">
-                                                {driver.driverName}
+                            <div className={`grid items-center gap-2 border-b border-[var(--border-color)] px-2 py-2 font-oxanium text-[8px] text-[var(--text-muted)] md:px-3 md:text-[9px] ${communityVisible ? 'grid-cols-[minmax(0,1fr)_50px_110px] md:grid-cols-[minmax(0,1fr)_60px_120px_40px]' : 'grid-cols-[minmax(0,1fr)_60px]'}`}>
+                                <span>DRIVER</span><span className="text-right">MY AVG</span>
+                                {communityVisible && <><span className="text-right">COMMUNITY AVG</span><span className="hidden text-right md:block">VOTES</span></>}
+                            </div>
+                            <div className="max-h-[400px] overflow-y-auto md:max-h-[600px]">
+                                {averages.map((driver, index) => {
+                                    const comparison = compareCommunity(driver, personalRaces, community.ratings, source, communityScope);
+                                    const communityRating = comparison.communityAverage === null ? undefined : {
+                                        averageRating: comparison.communityAverage, voteCount: comparison.voteCount,
+                                    };
+                                    return (
+                                        <div key={driver.driverId}
+                                            className={`grid items-center gap-2 border-b border-[var(--border-color)] p-2 md:p-3 ${communityVisible ? 'grid-cols-[minmax(0,1fr)_50px_110px] md:grid-cols-[minmax(0,1fr)_60px_120px_40px]' : 'grid-cols-[minmax(0,1fr)_60px]'}`}>
+                                            <div className="flex min-w-0 items-center gap-2">
+                                                <span className="w-4 shrink-0 font-oxanium text-[10px] text-[var(--text-muted)]">{index + 1}</span>
+                                                <div className="min-w-0 border-l-2 pl-2" style={{ borderColor: getTeamColor(driver.constructorId) }}>
+                                                    <div className="truncate font-display-condensed text-sm uppercase text-white md:text-lg" title={driver.driverName} aria-label={driver.driverName}>
+                                                        <span className="md:hidden">{getDriverLabel(driver.driverName)}</span>
+                                                        <span className="hidden md:inline">{driver.driverName}</span>
+                                                    </div>
+                                                    <div className="truncate font-ui text-[8px] uppercase text-[var(--text-muted)]">{driver.constructorName}</div>
+                                                </div>
                                             </div>
-                                            <div className="font-ui text-[8px] md:text-[10px] text-[var(--text-muted)] uppercase tracking-wider truncate">
-                                                {driver.constructorName}
+                                            <div className="text-right font-oxanium">
+                                                <span className="text-base font-bold tabular-nums text-[var(--accent-red)] md:text-xl">{(communityVisible ? comparison.myAverage : driver.averageRating).toFixed(2)}</span>
+                                                {communityVisible && source === 'race' && communityScope === 'same' && comparison.raceCount === 0 && <div className="text-[7px] text-[var(--text-muted)]">SEASON AVG</div>}
                                             </div>
+                                            {communityVisible && <>
+                                                <div className="min-w-0 text-right">
+                                                    <CommunityValue rating={communityRating} status={community.status} label="" showVotes={false} />
+                                                    <div className="font-oxanium text-[8px] text-[var(--text-muted)]">
+                                                        {source === 'race' && <div>{communityScope === 'same' ? `${comparison.raceCount}/${comparison.personalRaceCount}` : comparison.raceCount} RACES</div>}
+                                                        {comparison.voteCount > 0 && <div className="md:hidden">{comparison.voteCount} VOTES</div>}
+                                                    </div>
+                                                </div>
+                                                <div className="hidden text-right font-oxanium text-[10px] tabular-nums text-[var(--text-muted)] md:block">{comparison.voteCount || '—'}</div>
+                                            </>}
                                         </div>
-
-                                        {/* RATING */}
-                                        <div className="font-oxanium text-base md:text-xl font-bold tracking-widest text-right pr-1 md:pr-2"
-                                            style={{ color: index < 3 ? 'var(--accent-yellow)' : 'white' }}>
-                                            {driver.averageRating.toFixed(2)}
-                                        </div>
-                                    </motion.div>
-                                ))}
+                                    );
+                                })}
                             </div>
                         </div>
                     </div>
-
                 </div>
 
                 {/* 4. SECTION: FORM TRACKER */}

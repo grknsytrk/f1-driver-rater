@@ -79,6 +79,8 @@ export interface DriverRating {
     constructorId: string;
     constructorName: string;
     rating: number;
+    // Missing on historical/imported ratings. Only an explicit selection opts in.
+    communityEligible?: boolean;
 }
 
 export interface RaceRatings {

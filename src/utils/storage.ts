@@ -3,8 +3,10 @@ import {
     queueGuestClearAll,
     queueGuestQuickSeasonDelete,
     queueGuestSeasonDelete,
-    queueGuestSync,
+    queueGuestRatingChanges,
+    queueGuestRaceSeasonDelete,
 } from './guestSync';
+import { isValidRating, localEntries, notifyLocalRatings, validRatings } from './ratingData';
 
 const STORAGE_KEY = 'f1_pilot_ratings';
 
@@ -29,7 +31,8 @@ export function getSeasonRatings(season: string): SeasonRatings | null {
 export function getRaceRatings(season: string, round: string): RaceRatings | null {
     const seasonRatings = getSeasonRatings(season);
     if (!seasonRatings) return null;
-    return seasonRatings.races.find(r => r.round === round) || null;
+    const race = seasonRatings.races.find(r => r.round === round);
+    return race ? { ...race, ratings: validRatings(race.ratings) } : null;
 }
 
 // Save ratings for a race
@@ -41,6 +44,7 @@ export function saveRaceRatings(
     ratings: DriverRating[]
 ): void {
     try {
+        const before = localEntries();
         const allRatings = getAllRatings();
 
         // Initialize season if doesn't exist
@@ -57,8 +61,8 @@ export function saveRaceRatings(
             round,
             raceName,
             date,
-            ratings,
-            completed: true,
+            ratings: validRatings(ratings),
+            completed: validRatings(ratings).length > 0,
         };
 
         if (existingIndex >= 0) {
@@ -68,10 +72,21 @@ export function saveRaceRatings(
         }
 
         localStorage.setItem(STORAGE_KEY, JSON.stringify(allRatings));
-        queueGuestSync();
+        queueGuestRatingChanges(before, localEntries());
+        notifyLocalRatings();
     } catch (error) {
         console.error('Error saving ratings:', error);
     }
+}
+
+// Merge the selection into the latest storage, rather than a stale modal snapshot.
+export function saveRaceDriverRating(season: string, round: string, raceName: string, date: string, rating: DriverRating): void {
+    if (!isValidRating(rating.rating)) return;
+    const existing = getRaceRatings(season, round)?.ratings ?? [];
+    saveRaceRatings(season, round, raceName, date, [
+        ...existing.filter(value => value.driverId !== rating.driverId),
+        { ...rating, communityEligible: true },
+    ]);
 }
 
 // Check if a race has been rated
@@ -94,7 +109,7 @@ export function calculateAverages(season: string): AverageRating[] {
     const quickRatings = getQuickRatings(season);
 
     // If we have race-by-race ratings, calculate from those
-    if (seasonRatings && seasonRatings.races.length > 0) {
+    if (seasonRatings && seasonRatings.races.some(race => race.completed && validRatings(race.ratings).length > 0)) {
         // Process races in order so the last constructor is the current one.
         const completedRaces = [...seasonRatings.races]
             .filter(race => race.completed)
@@ -102,7 +117,7 @@ export function calculateAverages(season: string): AverageRating[] {
         const driverMap = new Map<string, AverageRating>();
 
         for (const race of completedRaces) {
-            for (const rating of race.ratings) {
+            for (const rating of validRatings(race.ratings)) {
                 if (!driverMap.has(rating.driverId)) {
                     driverMap.set(rating.driverId, {
                         driverId: rating.driverId,
@@ -189,7 +204,7 @@ export function exportRatings(season: string): string {
     const quickRatings = getQuickRatings(season);
 
     const exportData = {
-        version: 1,
+        version: 2,
         exportDate: new Date().toISOString(),
         season,
         raceRatings: seasonRatings,
@@ -226,25 +241,50 @@ export function importRatings(jsonString: string): ImportResult {
         const data = JSON.parse(jsonString);
 
         // Validate structure
-        if (!data.season) {
+        if (typeof data.season !== 'string' || !/^\d{4}$/.test(data.season)) {
             return { success: false, message: 'Invalid file: missing season' };
         }
 
         const season = data.season;
         let racesImported = 0;
 
+        const importedRatings = (ratings: DriverRating[]): DriverRating[] => {
+            if (!Array.isArray(ratings)) throw new Error('Invalid ratings');
+            const unique = new Map<string, DriverRating>();
+            for (const rating of ratings) {
+                if (!rating || !['driverId', 'driverName', 'constructorId', 'constructorName'].every(
+                    key => typeof rating[key as keyof DriverRating] === 'string')) throw new Error('Invalid driver');
+                if (rating.rating === 0) continue;
+                if (!validRatings([rating]).length) throw new Error('Invalid score');
+                unique.set(rating.driverId, { ...rating, communityEligible: false });
+            }
+            return [...unique.values()];
+        };
+        // Validate the entire import before changing any saved data.
+        const importedRaces: RaceRatings[] | undefined = data.raceRatings?.races?.map((race: RaceRatings) => {
+            if (!race || typeof race.round !== 'string' || !/^\d+$/.test(race.round)
+                || typeof race.raceName !== 'string' || typeof race.date !== 'string') throw new Error('Invalid race');
+            const ratings = importedRatings(race.ratings);
+            return { ...race, ratings, completed: ratings.length > 0 };
+        });
+        const importedQuick = data.quickRatings ? importedRatings(data.quickRatings) : undefined;
+
         // Import race-by-race ratings
-        if (data.raceRatings && data.raceRatings.races) {
+        if (importedRaces) {
             const allRatings = getAllRatings();
-            allRatings[season] = data.raceRatings;
+            allRatings[season] = { season, races: importedRaces };
             localStorage.setItem(STORAGE_KEY, JSON.stringify(allRatings));
-            racesImported = data.raceRatings.races.length;
+            queueGuestRaceSeasonDelete(season);
+            queueGuestRatingChanges([], localEntries().filter(entry => entry.kind === 'race' && entry.season === season));
+            racesImported = importedRaces.length;
         }
 
         // Import quick ratings
-        if (data.quickRatings && data.quickRatings.length > 0) {
-            saveQuickRatings(season, data.quickRatings);
+        if (importedQuick) {
+            clearQuickRatings(season);
+            saveQuickRatings(season, importedQuick);
         }
+        notifyLocalRatings();
 
         return {
             success: true,
@@ -264,13 +304,23 @@ const QUICK_RATINGS_KEY = 'f1_quick_ratings';
 // Save Quick Ratings for a season
 export function saveQuickRatings(season: string, ratings: DriverRating[]): void {
     try {
+        const before = localEntries();
         const allQuickRatings = getQuickRatingsAll();
-        allQuickRatings[season] = ratings;
+        allQuickRatings[season] = validRatings(ratings);
         localStorage.setItem(QUICK_RATINGS_KEY, JSON.stringify(allQuickRatings));
-        queueGuestSync();
+        queueGuestRatingChanges(before, localEntries());
+        notifyLocalRatings();
     } catch (error) {
         console.error('Error saving quick ratings:', error);
     }
+}
+
+export function saveQuickDriverRating(season: string, rating: DriverRating): void {
+    if (!isValidRating(rating.rating)) return;
+    saveQuickRatings(season, [
+        ...(getQuickRatings(season) ?? []).filter(value => value.driverId !== rating.driverId),
+        { ...rating, communityEligible: true },
+    ]);
 }
 
 // Get all Quick Ratings
@@ -287,7 +337,7 @@ function getQuickRatingsAll(): Record<string, DriverRating[]> {
 // Get Quick Ratings for a season
 export function getQuickRatings(season: string): DriverRating[] | null {
     const allQuickRatings = getQuickRatingsAll();
-    return allQuickRatings[season] || null;
+    return allQuickRatings[season] ? validRatings(allQuickRatings[season]) : null;
 }
 
 // Clear only the Quick Rate ratings for a season, including the cloud copy.
@@ -526,7 +576,7 @@ export function getRaceByRaceMatrix(season: string): { races: RaceColumn[]; driv
     const driverMap = new Map<string, DriverRow>();
 
     for (const race of sortedRaces) {
-        for (const rating of race.ratings) {
+        for (const rating of validRatings(race.ratings)) {
             if (!driverMap.has(rating.driverId)) {
                 driverMap.set(rating.driverId, {
                     driverId: rating.driverId,
@@ -583,7 +633,7 @@ export function getDriverFormSeries(season: string): DriverFormSeries[] {
     }>();
 
     for (const race of sortedRaces) {
-        for (const rating of race.ratings) {
+        for (const rating of validRatings(race.ratings)) {
             if (!driverMap.has(rating.driverId)) {
                 driverMap.set(rating.driverId, {
                     driverId: rating.driverId,
