@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence, useAnimation } from 'framer-motion';
-import { Swords, RotateCcw, Flag, Timer, Loader2, Download, Share2 } from 'lucide-react';
+import { toPng } from 'html-to-image';
+import { Swords, RotateCcw, Flag, Timer, Loader2, Download, Share2, ImageDown } from 'lucide-react';
 import { useExportImage } from '../hooks/useExportImage';
 import { calculateAverages } from '../utils/storage';
 import { getAllSeasonResults, getAllSeasonQualifying, getConstructorStandings, getDriverStandings } from '../api/f1Api';
@@ -32,6 +33,15 @@ interface TeamDriver {
     totalRaces: number;
 }
 
+interface H2HCardMatchup {
+    teamId: string;
+    teamName: string;
+    teamColor: string;
+    driverA: TeamDriver;
+    driverB: TeamDriver;
+    h2h: H2HStats | null;
+}
+
 function getDriverFamilyName(driverName: string): string {
     const parts = driverName.trim().split(/\s+/);
     return parts[parts.length - 1]?.toUpperCase() || driverName.toUpperCase();
@@ -51,6 +61,11 @@ export function TeammateWars({ season }: TeammateWarsProps) {
     // Image Export
     const { exportAsImage, isExporting } = useExportImage();
     const [exportContainerRef, setExportContainerRef] = useState<HTMLDivElement | null>(null);
+    const cardRef = useRef<HTMLDivElement>(null);
+    const shareSectionRef = useRef<HTMLDivElement>(null);
+    const [showCardSection, setShowCardSection] = useState(false);
+    const [cardImage, setCardImage] = useState<string | null>(null);
+    const [generatingCard, setGeneratingCard] = useState(false);
 
     // API data
     const [raceResults, setRaceResults] = useState<SeasonRaceResult[]>([]);
@@ -268,6 +283,14 @@ export function TeammateWars({ season }: TeammateWarsProps) {
         return acc;
     }, {});
 
+    const getSortedTeamDrivers = (teamId: string) => teams[teamId].sort((a, b) => {
+        // Prioritize drivers with more races, then by rating (null = lowest)
+        if (Math.abs(b.totalRaces - a.totalRaces) > 3) return b.totalRaces - a.totalRaces;
+        const ratingA = a.averageRating ?? -Infinity;
+        const ratingB = b.averageRating ?? -Infinity;
+        return ratingB - ratingA;
+    });
+
     const sortedTeamIds = Object.keys(teams)
         .filter(id => teams[id].length >= 2)
         .sort((a, b) => {
@@ -289,6 +312,22 @@ export function TeammateWars({ season }: TeammateWarsProps) {
             // Last resort: stable-ish tie-breaker
             return a.localeCompare(b);
         });
+
+    const cardMatchups: H2HCardMatchup[] = sortedTeamIds.map((teamId) => {
+        const allTeamDrivers = getSortedTeamDrivers(teamId);
+        const [indexA, indexB] = selections[teamId] || [0, 1];
+        const driverA = allTeamDrivers[indexA];
+        const driverB = allTeamDrivers[indexB];
+
+        return {
+            teamId,
+            teamName: driverA.constructorName,
+            teamColor: TEAM_COLORS[teamId] || '#666',
+            driverA,
+            driverB,
+            h2h: dataLoaded ? calculateH2H(driverA.driverId, driverB.driverId, teamId) : null,
+        };
+    });
 
     // Show loading state while fetching data
     if (loading && sortedTeamIds.length === 0) {
@@ -336,6 +375,43 @@ export function TeammateWars({ season }: TeammateWarsProps) {
         }
     };
 
+    const handleGenerateCard = async () => {
+        if (!cardRef.current || cardMatchups.length === 0) return;
+
+        setShowCardSection(true);
+        setGeneratingCard(true);
+        setCardImage(null);
+
+        // Give the share section time to render before scrolling and capturing the card.
+        await new Promise(resolve => setTimeout(resolve, 100));
+        shareSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        await new Promise(resolve => setTimeout(resolve, 100));
+
+        try {
+            const dataUrl = await toPng(cardRef.current, {
+                cacheBust: true,
+                pixelRatio: 2,
+                backgroundColor: '#0a0a0b',
+                width: cardRef.current.scrollWidth,
+                height: cardRef.current.scrollHeight,
+            });
+            setCardImage(dataUrl);
+        } catch (error) {
+            console.error('Error generating teammate H2H card:', error);
+        } finally {
+            setGeneratingCard(false);
+        }
+    };
+
+    const handleDownloadCard = () => {
+        if (!cardImage) return;
+
+        const link = document.createElement('a');
+        link.download = `f1-${season}-teammate-h2h.png`;
+        link.href = cardImage;
+        link.click();
+    };
+
     return (
         <div className="max-w-7xl mx-auto px-4 py-8" ref={setExportContainerRef}>
             {/* Header */}
@@ -367,6 +443,16 @@ export function TeammateWars({ season }: TeammateWarsProps) {
                         className="mt-6 flex gap-2 justify-center hide-on-export"
                     >
                         <button
+                            onClick={handleGenerateCard}
+                            disabled={generatingCard}
+                            className="inline-flex items-center justify-center gap-2 px-6 py-2 bg-[var(--bg-panel)] hover:bg-[var(--bg-panel-hover)] border border-[var(--border-color)] hover:border-white text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            {generatingCard ? <Loader2 size={16} className="animate-spin" /> : <ImageDown size={16} />}
+                            <span className="font-display text-sm uppercase tracking-wider">
+                                {generatingCard ? 'GENERATING...' : 'GENERATE CARD'}
+                            </span>
+                        </button>
+                        <button
                             onClick={handleShare}
                             className="inline-flex items-center justify-center gap-2 px-6 py-2 bg-zinc-800 hover:bg-zinc-700 border border-[var(--border-color)] text-white transition-colors"
                         >
@@ -390,14 +476,7 @@ export function TeammateWars({ season }: TeammateWarsProps) {
             {/* Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {sortedTeamIds.map((teamId) => {
-                    const allTeamDrivers = teams[teamId]
-                        .sort((a, b) => {
-                            // Prioritize drivers with more races, then by rating (null = lowest)
-                            if (Math.abs(b.totalRaces - a.totalRaces) > 3) return b.totalRaces - a.totalRaces;
-                            const ratingA = a.averageRating ?? -Infinity;
-                            const ratingB = b.averageRating ?? -Infinity;
-                            return ratingB - ratingA;
-                        });
+                    const allTeamDrivers = getSortedTeamDrivers(teamId);
 
                     const [indexA, indexB] = selections[teamId] || [0, 1];
                     const driverA = allTeamDrivers[indexA];
@@ -683,6 +762,173 @@ export function TeammateWars({ season }: TeammateWarsProps) {
                     );
                 })}
             </div>
+
+            {/* Hidden H2H card used for the shareable PNG */}
+            <div className="fixed -left-[9999px] top-0 hide-on-export">
+                <div
+                    ref={cardRef}
+                    className="w-[600px] p-8"
+                    style={{
+                        background: 'linear-gradient(135deg, #0a0a0b 0%, #1a1a1c 50%, #0a0a0b 100%)',
+                        fontFamily: 'system-ui, sans-serif',
+                    }}
+                >
+                    {/* Card Header */}
+                    <div className="border-l-4 border-[#e10600] pl-4 mb-6">
+                        <div className="text-[10px] text-[#e10600] tracking-[0.3em] mb-1">TEAMMATE WARS</div>
+                        <div className="text-5xl font-black text-white tracking-tight">{season} H2H</div>
+                        <div className="text-xs text-gray-500 mt-1">{cardMatchups.length} TEAMMATE BATTLES</div>
+                    </div>
+
+                    {/* H2H Matchups */}
+                    <div className="space-y-2">
+                        {cardMatchups.map((matchup, index) => {
+                            const hasRaceH2H = raceStatus === 'ok' && (matchup.h2h?.totalRaces ?? 0) > 0;
+                            const hasQualiH2H = qualiStatus === 'ok' && (matchup.h2h?.totalQualis ?? 0) > 0;
+                            const raceH2H = hasRaceH2H
+                                ? `${matchup.h2h!.raceWinsA} - ${matchup.h2h!.raceWinsB}`
+                                : '—';
+                            const qualiH2H = hasQualiH2H
+                                ? `${matchup.h2h!.qualiWinsA} - ${matchup.h2h!.qualiWinsB}`
+                                : '—';
+
+                            return (
+                                <div
+                                    key={matchup.teamId}
+                                    className="px-3 py-3"
+                                    style={{
+                                        background: 'rgba(255,255,255,0.03)',
+                                        borderLeft: `3px solid ${matchup.teamColor}`,
+                                    }}
+                                >
+                                    <div className="flex items-center justify-between mb-2">
+                                        <div className="text-[10px] text-gray-500 uppercase tracking-[0.2em]">
+                                            BATTLE {index + 1} • {matchup.teamName}
+                                        </div>
+                                        <div className="text-[10px] text-gray-600 uppercase tracking-wider">H2H</div>
+                                    </div>
+
+                                    <div className="flex items-center gap-3">
+                                        <div className="flex-1 min-w-0">
+                                            <div className="text-white font-bold text-base uppercase tracking-wide truncate">
+                                                {matchup.driverA.driverName}
+                                            </div>
+                                            <div className="text-gray-400 text-xs mt-1">
+                                                {matchup.driverA.averageRating !== null ? matchup.driverA.averageRating.toFixed(2) : '—'} AVG
+                                            </div>
+                                        </div>
+                                        <div className="text-gray-600 text-xs font-bold">VS</div>
+                                        <div className="flex-1 min-w-0 text-right">
+                                            <div className="text-white font-bold text-base uppercase tracking-wide truncate">
+                                                {matchup.driverB.driverName}
+                                            </div>
+                                            <div className="text-gray-400 text-xs mt-1">
+                                                {matchup.driverB.averageRating !== null ? matchup.driverB.averageRating.toFixed(2) : '—'} AVG
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="mt-3 pt-2 border-t border-gray-800 flex justify-between text-xs uppercase tracking-wider">
+                                        <div>
+                                            <span className="text-gray-600">RACE </span>
+                                            <span className="text-white">{raceH2H}</span>
+                                        </div>
+                                        <div>
+                                            <span className="text-gray-600">QUALI </span>
+                                            <span className="text-white">{qualiH2H}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+
+                    {/* Footer */}
+                    <div className="mt-6 pt-4 border-t border-gray-800 flex justify-between items-center">
+                        <div className="text-[10px] text-gray-600 uppercase tracking-widest">F1 DRIVER RATING</div>
+                        <div className="text-[10px] text-gray-600">{new Date().toLocaleDateString()}</div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Shareable H2H card section */}
+            {showCardSection && (
+                <motion.div
+                    ref={shareSectionRef}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="mt-20 pt-12 border-t border-[var(--border-color)]"
+                >
+                    <div className="mb-6 flex items-center justify-between">
+                        <div className="flex items-center gap-4">
+                            <Share2 size={20} className="text-[var(--accent-red)]" />
+                            <h3 className="font-display text-3xl text-white uppercase tracking-wider">SHARE H2H CARD</h3>
+                        </div>
+                        <button
+                            onClick={() => setShowCardSection(false)}
+                            className="font-oxanium text-xs text-[var(--text-muted)] hover:text-white uppercase tracking-wider transition-colors"
+                        >
+                            HIDE
+                        </button>
+                    </div>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
+                        {/* Card Preview */}
+                        <div className="bg-[var(--bg-panel)] border border-[var(--border-color)] p-6">
+                            <div className="mb-4">
+                                <span className="font-oxanium text-[10px] text-[var(--text-muted)] uppercase tracking-widest">PREVIEW</span>
+                            </div>
+                            <div className="border border-[var(--border-color)] overflow-hidden">
+                                {generatingCard ? (
+                                    <div className="flex flex-col items-center justify-center h-80 bg-[var(--bg-darker)] gap-4">
+                                        <div className="animate-spin w-10 h-10 border-2 border-[var(--accent-red)] border-t-transparent rounded-full" />
+                                        <span className="font-oxanium text-xs text-[var(--text-muted)] uppercase tracking-widest animate-pulse">Generating...</span>
+                                    </div>
+                                ) : cardImage ? (
+                                    <img src={cardImage} alt="Generated teammate H2H card" className="w-full" />
+                                ) : (
+                                    <div className="flex items-center justify-center h-80 bg-[var(--bg-darker)] text-[var(--text-muted)]">
+                                        Error generating card
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Actions Panel */}
+                        <div className="space-y-6">
+                            <div className="bg-[var(--bg-panel)] border border-[var(--border-color)] p-6">
+                                <h4 className="font-display text-xl text-white uppercase tracking-wider mb-4">DOWNLOAD</h4>
+                                <p className="font-oxanium text-sm text-[var(--text-secondary)] mb-6">
+                                    Save the season&apos;s teammate head-to-head battles as a high-quality PNG image.
+                                </p>
+                                <button
+                                    onClick={handleDownloadCard}
+                                    disabled={!cardImage || generatingCard}
+                                    className="w-full flex items-center justify-center gap-3 py-4 bg-[var(--accent-red)] hover:bg-[#ff0000] text-white font-display text-xl uppercase tracking-widest transition-colors disabled:opacity-50"
+                                >
+                                    <Download size={22} />
+                                    DOWNLOAD PNG
+                                </button>
+                            </div>
+
+                            <div className="bg-[var(--bg-panel)] border border-[var(--border-color)] p-6">
+                                <h4 className="font-display text-xl text-white uppercase tracking-wider mb-4">REGENERATE</h4>
+                                <p className="font-oxanium text-sm text-[var(--text-secondary)] mb-6">
+                                    Update the card with the current teammate selections and H2H results.
+                                </p>
+                                <button
+                                    onClick={handleGenerateCard}
+                                    disabled={generatingCard}
+                                    className="w-full flex items-center justify-center gap-3 py-4 bg-[var(--bg-darker)] border border-[var(--border-color)] hover:border-white text-white font-display text-xl uppercase tracking-widest transition-colors disabled:opacity-50"
+                                >
+                                    <ImageDown size={22} />
+                                    REGENERATE CARD
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </motion.div>
+            )}
         </div>
     );
 }

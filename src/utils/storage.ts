@@ -80,26 +80,24 @@ export function getRatedRacesCount(season: string): number {
     return seasonRatings.races.filter(r => r.completed).length;
 }
 
-// Calculate average ratings for all drivers in a season
-// Now tracks drivers PER CONSTRUCTOR to handle mid-season team changes
+// Calculate average ratings for all drivers in a season.
+// A driver remains one row even when they change constructors mid-season.
 export function calculateAverages(season: string): AverageRating[] {
     const seasonRatings = getSeasonRatings(season);
     const quickRatings = getQuickRatings(season);
 
     // If we have race-by-race ratings, calculate from those
     if (seasonRatings && seasonRatings.races.length > 0) {
-        // Use composite key: driverId_constructorId to track drivers per team
-        const driverTeamMap = new Map<string, AverageRating>();
+        // Process races in order so the last constructor is the current one.
+        const completedRaces = [...seasonRatings.races]
+            .filter(race => race.completed)
+            .sort((a, b) => parseInt(a.round) - parseInt(b.round));
+        const driverMap = new Map<string, AverageRating>();
 
-        for (const race of seasonRatings.races) {
-            if (!race.completed) continue;
-
+        for (const race of completedRaces) {
             for (const rating of race.ratings) {
-                // Composite key: tracks same driver separately for each team they drove for
-                const compositeKey = `${rating.driverId}_${rating.constructorId}`;
-
-                if (!driverTeamMap.has(compositeKey)) {
-                    driverTeamMap.set(compositeKey, {
+                if (!driverMap.has(rating.driverId)) {
+                    driverMap.set(rating.driverId, {
                         driverId: rating.driverId,
                         driverName: rating.driverName,
                         constructorId: rating.constructorId,
@@ -110,7 +108,10 @@ export function calculateAverages(season: string): AverageRating[] {
                     });
                 }
 
-                const driverEntry = driverTeamMap.get(compositeKey)!;
+                const driverEntry = driverMap.get(rating.driverId)!;
+                driverEntry.driverName = rating.driverName;
+                driverEntry.constructorId = rating.constructorId;
+                driverEntry.constructorName = rating.constructorName;
                 driverEntry.ratings.push(rating.rating);
                 driverEntry.totalRaces++;
             }
@@ -118,7 +119,7 @@ export function calculateAverages(season: string): AverageRating[] {
 
         // Calculate averages
         const results: AverageRating[] = [];
-        for (const driverEntry of driverTeamMap.values()) {
+        for (const driverEntry of driverMap.values()) {
             const sum = driverEntry.ratings.reduce((a, b) => a + b, 0);
             driverEntry.averageRating = parseFloat((sum / driverEntry.ratings.length).toFixed(2));
             results.push(driverEntry);
@@ -513,7 +514,11 @@ export function getRaceByRaceMatrix(season: string): { races: RaceColumn[]; driv
                     raceRatings: {},
                 });
             }
-            driverMap.get(rating.driverId)!.raceRatings[race.round] = rating.rating;
+            const driverEntry = driverMap.get(rating.driverId)!;
+            driverEntry.driverName = rating.driverName;
+            driverEntry.constructorId = rating.constructorId;
+            driverEntry.constructorName = rating.constructorName;
+            driverEntry.raceRatings[race.round] = rating.rating;
         }
     }
 

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { calculateAverages, getDriverFormSeries, getSeasonAwards, saveQuickRatings } from './storage';
+import { calculateAverages, getDriverFormSeries, getRaceByRaceMatrix, getSeasonAwards, saveQuickRatings } from './storage';
 import type { SeasonRatings } from '../types';
 
 describe('calculateAverages', () => {
@@ -62,6 +62,107 @@ describe('calculateAverages', () => {
     it('should return empty array if no ratings exist', () => {
         const results = calculateAverages('2024');
         expect(results).toEqual([]);
+    });
+
+    it('keeps a transferred driver in one row and displays their latest constructor', () => {
+        const mockData: Record<string, SeasonRatings> = {
+            '2024': {
+                season: '2024',
+                // Deliberately store the races out of order; the latest round should win.
+                races: [
+                    {
+                        round: '2',
+                        raceName: 'Saudi Arabian GP',
+                        date: '2024-03-09',
+                        completed: true,
+                        ratings: [
+                            {
+                                driverId: 'lawson',
+                                driverName: 'Liam Lawson',
+                                constructorId: 'red_bull',
+                                constructorName: 'Red Bull',
+                                rating: 8,
+                            },
+                        ],
+                    },
+                    {
+                        round: '1',
+                        raceName: 'Bahrain GP',
+                        date: '2024-03-02',
+                        completed: true,
+                        ratings: [
+                            {
+                                driverId: 'lawson',
+                                driverName: 'Liam Lawson',
+                                constructorId: 'rb',
+                                constructorName: 'RB F1 Team',
+                                rating: 6,
+                            },
+                        ],
+                    },
+                ],
+            },
+        };
+
+        localStorage.setItem('f1_pilot_ratings', JSON.stringify(mockData));
+
+        const results = calculateAverages('2024');
+
+        expect(results).toHaveLength(1);
+        expect(results[0]).toMatchObject({
+            driverId: 'lawson',
+            constructorId: 'red_bull',
+            constructorName: 'Red Bull',
+            averageRating: 7,
+            totalRaces: 2,
+        });
+    });
+
+    it('uses the latest constructor in the race-by-race matrix too', () => {
+        const mockData: Record<string, SeasonRatings> = {
+            '2024': {
+                season: '2024',
+                races: [
+                    {
+                        round: '1',
+                        raceName: 'Bahrain GP',
+                        date: '2024-03-02',
+                        completed: true,
+                        ratings: [{
+                            driverId: 'lawson',
+                            driverName: 'Liam Lawson',
+                            constructorId: 'rb',
+                            constructorName: 'RB F1 Team',
+                            rating: 6,
+                        }],
+                    },
+                    {
+                        round: '2',
+                        raceName: 'Saudi Arabian GP',
+                        date: '2024-03-09',
+                        completed: true,
+                        ratings: [{
+                            driverId: 'lawson',
+                            driverName: 'Liam Lawson',
+                            constructorId: 'red_bull',
+                            constructorName: 'Red Bull',
+                            rating: 8,
+                        }],
+                    },
+                ],
+            },
+        };
+
+        localStorage.setItem('f1_pilot_ratings', JSON.stringify(mockData));
+
+        const results = getRaceByRaceMatrix('2024');
+
+        expect(results.drivers).toHaveLength(1);
+        expect(results.drivers[0]).toMatchObject({
+            driverId: 'lawson',
+            constructorId: 'red_bull',
+            constructorName: 'Red Bull',
+        });
     });
 });
 
