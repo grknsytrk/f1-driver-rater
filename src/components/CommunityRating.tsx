@@ -4,7 +4,7 @@ export function CommunityNotice({ status, legacy = false }: { status: CommunityS
     return (
         <div className="space-y-1 font-oxanium text-[10px] leading-relaxed text-[var(--text-muted)]">
             {status === 'unavailable' && <p role="status" className="mb-2">COMMUNITY UNAVAILABLE · Your ratings are saved locally.</p>}
-            {status !== 'disabled' && legacy && <p className="mb-2">Previous ratings are preserved. Select a score again to include it in the community average.</p>}
+            {status !== 'disabled' && legacy && <p className="mb-2">Previous ratings are preserved. Reopen the rating screen and close it once to include saved scores in the community average.</p>}
         </div>
     );
 }

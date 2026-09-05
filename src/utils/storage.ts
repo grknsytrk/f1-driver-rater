@@ -89,6 +89,22 @@ export function saveRaceDriverRating(season: string, round: string, raceName: st
     ]);
 }
 
+// Promote all existing personal scores for a race when the user explicitly
+// leaves that race's rating screen. This keeps legacy scores intact while
+// avoiding a driver-by-driver re-entry step.
+export function markRaceRatingsCommunityEligible(season: string, round: string, raceName: string, date: string): number {
+    const race = getRaceRatings(season, round);
+    if (!race) return 0;
+    const ratings = validRatings(race.ratings);
+    const legacyCount = ratings.filter(rating => rating.communityEligible !== true).length;
+    if (legacyCount === 0) return 0;
+    saveRaceRatings(season, round, raceName || race.raceName, date || race.date, ratings.map(rating => ({
+        ...rating,
+        communityEligible: true,
+    })));
+    return legacyCount;
+}
+
 // Check if a race has been rated
 export function isRaceRated(season: string, round: string): boolean {
     const raceRatings = getRaceRatings(season, round);
@@ -321,6 +337,19 @@ export function saveQuickDriverRating(season: string, rating: DriverRating): voi
         ...(getQuickRatings(season) ?? []).filter(value => value.driverId !== rating.driverId),
         { ...rating, communityEligible: true },
     ]);
+}
+
+// Promote all existing personal Quick Rate scores for the season in one
+// explicit action, preserving the original values.
+export function markQuickRatingsCommunityEligible(season: string): number {
+    const ratings = getQuickRatings(season) ?? [];
+    const legacyCount = ratings.filter(rating => rating.communityEligible !== true).length;
+    if (legacyCount === 0) return 0;
+    saveQuickRatings(season, ratings.map(rating => ({
+        ...rating,
+        communityEligible: true,
+    })));
+    return legacyCount;
 }
 
 // Get all Quick Ratings

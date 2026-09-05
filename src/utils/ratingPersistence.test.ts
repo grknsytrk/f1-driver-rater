@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { calculateAverages, exportRatings, getQuickRatings, getRaceRatings, importRatings, saveQuickDriverRating, saveRaceDriverRating } from './storage';
+import { calculateAverages, exportRatings, getQuickRatings, getRaceRatings, importRatings, markQuickRatingsCommunityEligible, markRaceRatingsCommunityEligible, saveQuickDriverRating, saveRaceDriverRating } from './storage';
 import { OUTBOX_KEY } from './guestSync';
 import { QUICK_STORAGE_KEY, RACE_STORAGE_KEY, readStored } from './ratingData';
 
@@ -20,6 +20,28 @@ describe('explicit rating persistence', () => {
         const pending = readStored<{ entry: { rating: { driverId: string } } }[]>(OUTBOX_KEY, []);
         expect(pending).toHaveLength(1);
         expect(pending[0].entry.rating.driverId).toBe('norris');
+    });
+    it('promotes every existing race score when leaving the race screen', () => {
+        localStorage.setItem(RACE_STORAGE_KEY, JSON.stringify({
+            '2026': {
+                season: '2026',
+                races: [{
+                    round: '1', raceName: 'GP', date: '2026-01-01', completed: true,
+                    ratings: [driver, other],
+                }],
+            },
+        }));
+
+        expect(markRaceRatingsCommunityEligible('2026', '1', 'GP', '2026-01-01')).toBe(2);
+        expect(getRaceRatings('2026', '1')?.ratings.every(rating => rating.communityEligible === true)).toBe(true);
+        expect(readStored<unknown[]>(OUTBOX_KEY, [])).toHaveLength(2);
+    });
+    it('promotes every existing Quick Rate score when leaving the season screen', () => {
+        localStorage.setItem(QUICK_STORAGE_KEY, JSON.stringify({ '2026': [driver, other] }));
+
+        expect(markQuickRatingsCommunityEligible('2026')).toBe(2);
+        expect(getQuickRatings('2026')?.every(rating => rating.communityEligible === true)).toBe(true);
+        expect(readStored<unknown[]>(OUTBOX_KEY, [])).toHaveLength(2);
     });
     it('updates the same vote and preserves the latest independent selection', () => {
         saveQuickDriverRating('2026', driver);

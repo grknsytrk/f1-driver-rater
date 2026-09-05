@@ -2,13 +2,14 @@ import { useCallback, useEffect, useState } from 'react';
 import { Timer } from 'lucide-react';
 import { TEAM_COLORS } from '../types';
 import { getRaceRatingContext, type RaceRecap } from '../api/f1Api';
-import { saveRaceDriverRating, getRaceRatings } from '../utils/storage';
+import { saveRaceDriverRating, getRaceRatings, markRaceRatingsCommunityEligible } from '../utils/storage';
 import { fetchWithMinDelay } from '../utils/delay';
 import { ModalShell } from './ModalShell';
 import { RatingModalContentFallback } from './RouteFallbacks';
 import type { RaceRouteSnapshot } from '../routes/modalRouteState';
 
 import { useCommunityRatings, useRatingStorage } from '../hooks/useCommunityRatings';
+import { initializeGuestSync } from '../utils/guestSync';
 import { CommunityNotice, RatingComparison } from './CommunityRating';
 
 const MIN_LOADING_TIME = 800;
@@ -115,6 +116,15 @@ export function RatingModal({ race, season, metadataResolved = true, onClose }: 
         });
     }
 
+    function handleClose() {
+        // Existing personal scores are opted into community in one explicit
+        // action when leaving this race, instead of requiring every slider to
+        // be selected again.
+        markRaceRatingsCommunityEligible(season, race.round, race.raceName, race.date);
+        void initializeGuestSync();
+        onClose();
+    }
+
     function getTeamColor(constructorId: string): string {
         return TEAM_COLORS[constructorId] || '#888888';
     }
@@ -133,14 +143,14 @@ export function RatingModal({ race, season, metadataResolved = true, onClose }: 
             eyebrowIcon={<div className="h-2 w-2 bg-[var(--accent-red)] animate-pulse" />}
             title={(race.raceName || `Race ${race.round}`).toUpperCase()}
             subtitle={formattedDate}
-            onClose={onClose}
+            onClose={handleClose}
             footer={(
                 <div className="z-20 flex flex-col gap-2 border-t border-[var(--border-color)] bg-[var(--bg-panel)] p-4 md:flex-row md:items-center md:justify-between md:gap-0">
                     <span className="font-oxanium text-[10px] tracking-widest text-[var(--text-muted)] uppercase">
                         Auto-saved locally · cloud sync in background
                     </span>
                     <button
-                        onClick={onClose}
+                        onClick={handleClose}
                         className="border border-[var(--border-color)] px-6 py-3 font-oxanium text-xs font-bold tracking-widest text-[var(--text-secondary)] uppercase transition-colors hover:border-[var(--accent-red)] hover:text-white md:py-2"
                     >
                         CLOSE

@@ -3,12 +3,13 @@ import { RotateCcw, Zap } from 'lucide-react';
 import { toast } from 'sonner';
 import { TEAM_COLORS } from '../types';
 import { getDriverSeasonStats } from '../api/f1Api';
-import { clearQuickRatings, saveQuickDriverRating, getQuickRatings } from '../utils/storage';
+import { clearQuickRatings, saveQuickDriverRating, getQuickRatings, markQuickRatingsCommunityEligible } from '../utils/storage';
 import { fetchWithMinDelay } from '../utils/delay';
 import { ModalShell } from './ModalShell';
 import { QuickRateModalContentFallback } from './RouteFallbacks';
 
 import { useCommunityRatings, useRatingStorage } from '../hooks/useCommunityRatings';
+import { initializeGuestSync } from '../utils/guestSync';
 import { CommunityNotice, RatingComparison } from './CommunityRating';
 
 const MIN_LOADING_TIME = 1500;
@@ -93,6 +94,14 @@ export function QuickRateModal({ season, onClose }: QuickRateModalProps) {
         toast.success('Quick ratings cleared');
     }
 
+    function handleClose() {
+        // Opt all existing season scores into community in one explicit action
+        // while keeping their personal values unchanged.
+        markQuickRatingsCommunityEligible(season);
+        void initializeGuestSync();
+        onClose();
+    }
+
     function getTeamColor(constructorId: string): string {
         return TEAM_COLORS[constructorId] || '#888888';
     }
@@ -104,7 +113,7 @@ export function QuickRateModal({ season, onClose }: QuickRateModalProps) {
             eyebrowTextClassName="text-[var(--accent-yellow)]"
             title={`${season} SEASON RATINGS`}
             subtitle="Rate all drivers based on season performance"
-            onClose={onClose}
+            onClose={handleClose}
             footer={(
                 <div className="z-20 flex flex-col gap-3 border-t border-[var(--border-color)] bg-[var(--bg-panel)] p-4 md:flex-row md:items-center md:justify-between md:gap-0">
                     <button
@@ -121,7 +130,7 @@ export function QuickRateModal({ season, onClose }: QuickRateModalProps) {
                             Auto-saved locally · cloud sync in background
                         </span>
                         <button
-                            onClick={onClose}
+                            onClick={handleClose}
                             className="border border-[var(--border-color)] px-6 py-3 font-oxanium text-xs font-bold tracking-widest text-[var(--text-secondary)] uppercase transition-colors hover:border-[var(--accent-yellow)] hover:text-white md:py-2"
                         >
                             CLOSE
