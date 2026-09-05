@@ -10,7 +10,7 @@ import type { RaceRouteSnapshot } from '../routes/modalRouteState';
 
 import { useCommunityRatings, useRatingStorage } from '../hooks/useCommunityRatings';
 import { initializeGuestSync } from '../utils/guestSync';
-import { CommunityNotice, RatingComparison } from './CommunityRating';
+import { CommunityNotice, CommunityValue, PersonalRatingValue } from './CommunityRating';
 
 const MIN_LOADING_TIME = 800;
 
@@ -226,14 +226,12 @@ export function RatingModal({ race, season, metadataResolved = true, onClose }: 
                                         </div>
                                     </div>
 
-                                    <RatingComparison
-                                        value={displayRating}
-                                        community={community.ratings.find(rating => rating.driverId === driver.driverId)}
-                                        status={community.status}
-                                    />
-                                    <div className="flex w-full items-center gap-1 overflow-hidden md:gap-2">
+                                    <div className="flex w-full items-center gap-2 overflow-hidden md:gap-3">
+                                        <div className="w-12 flex-shrink-0 md:w-14">
+                                            <PersonalRatingValue value={displayRating} />
+                                        </div>
                                         <div className="min-w-0 flex-1 overflow-x-auto scrollbar-hide md:overflow-visible">
-                                            <div className="flex gap-[2px] py-1" onMouseLeave={() => setHoveredRating(null)}>
+                                            <div className="flex w-max gap-[2px] py-1" onMouseLeave={() => setHoveredRating(null)}>
                                                 {[...Array(20)].map((_, index) => {
                                                     const val = (index + 1) * 0.5;
                                                     const isFilled = val <= displayRating;
@@ -268,7 +266,7 @@ export function RatingModal({ race, season, metadataResolved = true, onClose }: 
                                                             onBlur={() => setHoveredRating(null)}
                                                             onMouseEnter={() => setHoveredRating({ id: driver.driverId, val })}
                                                             onClick={() => handleRatingChange(driver.driverId, val)}
-                                                            className="relative h-8 min-w-0 flex-1 cursor-pointer touch-manipulation focus-visible:outline-2 focus-visible:outline-white focus-visible:outline-offset-2 md:h-10 md:w-5"
+                                                            className="relative h-7 w-4 flex-shrink-0 cursor-pointer touch-manipulation focus-visible:outline-2 focus-visible:outline-white focus-visible:outline-offset-2 md:h-10 md:w-5"
                                                         >
                                                             <div
                                                                 className="h-full w-full rounded-sm"
@@ -283,6 +281,11 @@ export function RatingModal({ race, season, metadataResolved = true, onClose }: 
                                                 })}
                                             </div>
                                         </div>
+                                        <CommunityValue
+                                            rating={community.ratings.find(rating => rating.driverId === driver.driverId)}
+                                            status={community.status}
+                                            label="COMMUNITY AVG"
+                                        />
                                     </div>
                                 </div>
                             );

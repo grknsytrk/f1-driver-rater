@@ -16,7 +16,7 @@ import {
 import { TEAM_COLORS } from '../types';
 import { calculateAverages, clearSeasonRatings, getDriverFormSeries, getRatedRacesCount, getRaceByRaceMatrix, downloadRatingsAsJson, importRatings } from '../utils/storage';
 import { useCommunityRatings, useRatingStorage } from '../hooks/useCommunityRatings';
-import { CommunityNotice, CommunityValue } from './CommunityRating';
+import { CommunityNotice } from './CommunityRating';
 import { compareCommunity } from '../utils/communityRatings';
 import { getSeasonRatings, getQuickRatings } from '../utils/storage';
 import { validRatings } from '../utils/ratingData';
@@ -42,7 +42,6 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
     const personalRaces = getSeasonRatings(season);
     const source = personalRaces?.races.some(race => race.completed && validRatings(race.ratings).length) ? 'race' : 'quick';
     const community = useCommunityRatings(source, season);
-    const [communityScope, setCommunityScope] = useState<'same' | 'season'>('same');
     const communityVisible = community.status !== 'disabled' && community.status !== 'unavailable';
     const hasLegacy = (source === 'race'
         ? personalRaces?.races.flatMap(race => validRatings(race.ratings)) ?? []
@@ -524,24 +523,6 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
                             </p>
                         </div>
                         <CommunityNotice status={community.status} legacy={hasLegacy} />
-                        {communityVisible && source === 'race' && (
-                            <div className="mb-3">
-                                <div className="inline-flex border border-[var(--border-color)] p-0.5" role="group" aria-label="Community comparison scope">
-                                    {(['same', 'season'] as const).map(scope => (
-                                        <button key={scope} type="button" aria-pressed={communityScope === scope}
-                                            onClick={() => setCommunityScope(scope)}
-                                            className={`px-3 py-2 font-oxanium text-[10px] tracking-wide transition-colors focus-visible:outline-2 focus-visible:outline-white ${communityScope === scope ? 'bg-[var(--accent-yellow)] text-black' : 'text-[var(--text-muted)] hover:text-white'}`}>
-                                            {scope === 'same' ? 'SAME RACES' : 'FULL SEASON'}
-                                        </button>
-                                    ))}
-                                </div>
-                                <p className="mt-2 font-oxanium text-[10px] leading-relaxed text-[var(--text-muted)]">
-                                    {communityScope === 'same'
-                                        ? 'Both averages use races with your rating and community votes. Season order stays unchanged.'
-                                        : 'Community averages each race equally. Your ratings may cover different races.'}
-                                </p>
-                            </div>
-                        )}
                         <div className="bg-[var(--bg-panel)] border-t border-[var(--border-color)]">
                             <div className={`grid items-center gap-2 border-b border-[var(--border-color)] px-2 py-2 font-oxanium text-[8px] text-[var(--text-muted)] md:px-3 md:text-[9px] ${communityVisible ? 'grid-cols-[minmax(0,1fr)_50px_110px] md:grid-cols-[minmax(0,1fr)_60px_120px_40px]' : 'grid-cols-[minmax(0,1fr)_60px]'}`}>
                                 <span>DRIVER</span><span className="text-right">MY AVG</span>
@@ -549,7 +530,7 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
                             </div>
                             <div className="max-h-[400px] overflow-y-auto md:max-h-[600px]">
                                 {averages.map((driver, index) => {
-                                    const comparison = compareCommunity(driver, personalRaces, community.ratings, source, communityScope);
+                                    const comparison = compareCommunity(driver, personalRaces, community.ratings, source, 'season');
                                     const communityRating = comparison.communityAverage === null ? undefined : {
                                         averageRating: comparison.communityAverage, voteCount: comparison.voteCount,
                                     };
@@ -566,15 +547,18 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
                                                     <div className="truncate font-ui text-[8px] uppercase text-[var(--text-muted)]">{driver.constructorName}</div>
                                                 </div>
                                             </div>
-                                            <div className="text-right font-oxanium">
-                                                <span className="text-base font-bold tabular-nums text-[var(--accent-red)] md:text-xl">{(communityVisible ? comparison.myAverage : driver.averageRating).toFixed(2)}</span>
-                                                {communityVisible && source === 'race' && communityScope === 'same' && comparison.raceCount === 0 && <div className="text-[7px] text-[var(--text-muted)]">SEASON AVG</div>}
+                                            <div className="flex min-h-[54px] flex-col justify-center text-right font-oxanium">
+                                                <span className="text-base font-bold leading-none tabular-nums text-[var(--accent-red)] md:text-xl">{(communityVisible ? comparison.myAverage : driver.averageRating).toFixed(2)}</span>
                                             </div>
                                             {communityVisible && <>
-                                                <div className="min-w-0 text-right">
-                                                    <CommunityValue rating={communityRating} status={community.status} label="" showVotes={false} />
-                                                    <div className="font-oxanium text-[8px] text-[var(--text-muted)]">
-                                                        {source === 'race' && <div>{communityScope === 'same' ? `${comparison.raceCount}/${comparison.personalRaceCount}` : comparison.raceCount} RACES</div>}
+                                                <div className="flex min-h-[54px] min-w-0 flex-col justify-center text-right font-oxanium">
+                                                    {communityRating ? (
+                                                        <span className="text-base font-bold leading-none tabular-nums text-[var(--accent-yellow)] md:text-xl">{communityRating.averageRating.toFixed(2)}</span>
+                                                    ) : (
+                                                        <span className="text-[8px] leading-tight text-[var(--text-muted)]">NO COMMUNITY DATA</span>
+                                                    )}
+                                                    <div className="mt-1 text-[8px] leading-tight text-[var(--text-muted)]">
+                                                        {source === 'race' && comparison.raceCount > 0 && <div>{comparison.raceCount} RACES</div>}
                                                         {comparison.voteCount > 0 && <div className="md:hidden">{comparison.voteCount} VOTES</div>}
                                                     </div>
                                                 </div>
