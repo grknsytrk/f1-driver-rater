@@ -206,7 +206,7 @@ export function RatingModal({ race, season, metadataResolved = true, onClose }: 
                                             </div>
                                         </div>
 
-                                        <div className="ml-auto hidden h-12 w-32 flex-shrink-0 flex-col items-end justify-center pr-4 md:flex">
+                                        <div className="ml-auto hidden h-12 w-32 flex-shrink-0 flex-col items-end justify-center md:flex">
                                             <span className="mb-1 w-full text-right font-oxanium text-[10px] leading-none tracking-wide text-[var(--text-muted)]">
                                                 {parseInt(driver.position, 10) === 1 ? 'TIME' : 'GAP'}
                                             </span>
