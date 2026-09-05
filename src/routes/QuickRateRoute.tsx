@@ -19,7 +19,6 @@ export default function QuickRateRoute() {
             <QuickRateModal
                 season={season}
                 onClose={() => navigate(`/${season}`)}
-                onSave={() => navigate(`/${season}`)}
             />
         </>
     );

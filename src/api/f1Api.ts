@@ -232,6 +232,60 @@ export interface RaceQualifyingResult {
     Q3?: string;
 }
 
+export interface DriverStanding {
+    position: string;
+    positionText: string;
+    points: string;
+    wins: string;
+    Driver: Driver;
+    Constructors?: Constructor[];
+}
+
+interface ConstructorStandingApi {
+    position: string;
+    positionText: string;
+    points: string;
+    wins: string;
+    Constructor: Constructor;
+}
+
+interface SprintResult {
+    position: string;
+    positionText: string;
+    points: string;
+    status: string;
+    Driver: Driver;
+    Constructor: Constructor;
+}
+
+interface JolpicaRaceRecord extends Partial<Race> {
+    round: string;
+    date: string;
+    Results?: RaceResult[];
+    SprintResults?: SprintResult[];
+    QualifyingResults?: RaceQualifyingResult[];
+}
+
+interface PaginatedRaceResponse {
+    MRData: {
+        RaceTable: {
+            Races: JolpicaRaceRecord[];
+        };
+        total: string;
+    };
+}
+
+interface StandingsResponse {
+    MRData: {
+        StandingsTable: {
+            StandingsLists: Array<{
+                DriverStandings?: DriverStanding[];
+                ConstructorStandings?: ConstructorStandingApi[];
+            }>;
+        };
+    };
+}
+
 export interface RaceDriverCard {
     driver: Driver;
     constructor: Constructor;
@@ -373,10 +427,10 @@ export async function getConstructors(season: string): Promise<Constructor[]> {
 }
 
 // Fetch driver standings
-export async function getDriverStandings(season: string): Promise<any[]> {
+export async function getDriverStandings(season: string): Promise<DriverStanding[]> {
     try {
-        const response = await api.get(`/${season}/driverStandings.json`);
-        return response.data.MRData.StandingsTable.StandingsLists[0]?.DriverStandings || [];
+        const response = await api.get<StandingsResponse>(`/${season}/driverStandings.json`);
+        return response.data.MRData.StandingsTable.StandingsLists[0]?.DriverStandings ?? [];
     } catch (error) {
         console.error(`Error fetching standings for ${season}:`, error);
         return [];
@@ -407,7 +461,7 @@ export async function getSeasonDrivers(season: string): Promise<Array<{
     try {
         const standings = await getDriverStandings(season);
 
-        return standings.map((standing: any) => ({
+        return standings.map((standing: DriverStanding) => ({
             driverId: standing.Driver.driverId,
             givenName: standing.Driver.givenName,
             familyName: standing.Driver.familyName,
@@ -435,8 +489,8 @@ export interface DriverSeasonStats {
 
 // Helper function to fetch all paginated results from Jolpica API
 // The API has a max limit of 100 per request, so we need pagination
-async function fetchAllPaginated(endpoint: string): Promise<any[]> {
-    const allRaces: any[] = [];
+async function fetchAllPaginated(endpoint: string): Promise<JolpicaRaceRecord[]> {
+    const allRaces: JolpicaRaceRecord[] = [];
     let offset = 0;
     const limit = 100; // API max limit
     let hasMore = true;
@@ -448,13 +502,13 @@ async function fetchAllPaginated(endpoint: string): Promise<any[]> {
 
     while (hasMore) {
         const url = `${endpoint}?limit=${limit}&offset=${offset}`;
-        let response: any;
+        let response: { data: PaginatedRaceResponse } | null = null;
         try {
             // Retry a couple of times on 429 with exponential backoff (best-effort).
             const maxRetries = 2;
             for (let attempt = 0; attempt <= maxRetries; attempt++) {
                 try {
-                    response = await api.get(url);
+                    response = await api.get<PaginatedRaceResponse>(url);
                     break;
                 } catch (err) {
                     if (!isRateLimitAxiosError(err) || attempt === maxRetries) throw err;
@@ -463,7 +517,11 @@ async function fetchAllPaginated(endpoint: string): Promise<any[]> {
                 }
             }
 
-            const races = response.data.MRData.RaceTable?.Races || [];
+            if (!response) {
+                throw new Error('Jolpica API returned no response');
+            }
+
+            const races = response.data.MRData.RaceTable?.Races ?? [];
             const total = parseInt(response.data.MRData.total) || 0;
 
             allRaces.push(...races);
@@ -474,7 +532,7 @@ async function fetchAllPaginated(endpoint: string): Promise<any[]> {
         } catch (error) {
             // If we get rate-limited, try cache (fresh, then stale) and otherwise surface a typed error.
             if (isRateLimitAxiosError(error)) {
-                const cached = getCache<any[]>(cacheKey) ?? getStaleCache<any[]>(cacheKey);
+                const cached = getCache<JolpicaRaceRecord[]>(cacheKey) ?? getStaleCache<JolpicaRaceRecord[]>(cacheKey);
                 if (cached) return cached;
                 throw new RateLimitError('API rate limit reached (429). Please try again shortly.');
             }
@@ -505,10 +563,10 @@ export async function getConstructorStandings(season: string): Promise<Construct
 
     try {
         const maxRetries = 2;
-        let response: any;
+        let response: { data: StandingsResponse } | null = null;
         for (let attempt = 0; attempt <= maxRetries; attempt++) {
             try {
-                response = await api.get(endpoint);
+                response = await api.get<StandingsResponse>(endpoint);
                 break;
             } catch (err) {
                 if (!isRateLimitAxiosError(err) || attempt === maxRetries) throw err;
@@ -517,10 +575,13 @@ export async function getConstructorStandings(season: string): Promise<Construct
             }
         }
 
-        const standings =
-            response?.data?.MRData?.StandingsTable?.StandingsLists?.[0]?.ConstructorStandings ?? [];
+        if (!response) {
+            throw new Error('Jolpica API returned no response');
+        }
 
-        const normalized: ConstructorStanding[] = standings.map((s: any) => ({
+        const standings = response.data.MRData.StandingsTable.StandingsLists[0]?.ConstructorStandings ?? [];
+
+        const normalized: ConstructorStanding[] = standings.map((s: ConstructorStandingApi) => ({
             constructorId: s.Constructor?.constructorId ?? 'unknown',
             constructorName: s.Constructor?.name ?? 'Unknown',
             position: parseInt(s.position) || 0,
@@ -556,14 +617,14 @@ export async function getDriverSeasonStats(season: string): Promise<DriverSeason
         const driverStats: Map<string, { poles: number; podiums: number }> = new Map();
 
         // Initialize map for all drivers in standings
-        standings.forEach((standing: any) => {
+        standings.forEach((standing: DriverStanding) => {
             driverStats.set(standing.Driver.driverId, { poles: 0, podiums: 0 });
         });
 
         // Calculate Podiums (Position 1, 2, 3)
-        allRaces.forEach((race: any) => {
+        allRaces.forEach((race: JolpicaRaceRecord) => {
             const results = race.Results || [];
-            results.forEach((result: any) => {
+            results.forEach((result: RaceResult) => {
                 const pos = parseInt(result.position);
                 if (pos >= 1 && pos <= 3) {
                     const driverId = result.Driver.driverId;
@@ -577,9 +638,9 @@ export async function getDriverSeasonStats(season: string): Promise<DriverSeason
         });
 
         // Calculate Poles (Qualifying Position 1)
-        allQualifying.forEach((race: any) => {
+        allQualifying.forEach((race: JolpicaRaceRecord) => {
             const qualifyingResults = race.QualifyingResults || [];
-            const poleDriver = qualifyingResults.find((r: any) => r.position === '1');
+            const poleDriver = qualifyingResults.find((r: RaceQualifyingResult) => r.position === '1');
 
             if (poleDriver) {
                 const driverId = poleDriver.Driver.driverId;
@@ -592,7 +653,7 @@ export async function getDriverSeasonStats(season: string): Promise<DriverSeason
         });
 
         // Merge reliable standings data with calculated stats
-        return standings.map((standing: any) => {
+        return standings.map((standing: DriverStanding) => {
             const driverId = standing.Driver.driverId;
             const stats = driverStats.get(driverId) || { poles: 0, podiums: 0 };
 
@@ -636,9 +697,9 @@ export async function getAllSeasonResults(season: string): Promise<SeasonRaceRes
         const results: SeasonRaceResult[] = [];
         const normalizedRaces = applyCanonicalRounds(allRaces, calendar);
 
-        normalizedRaces.forEach((race: any) => {
-            race.Results?.forEach((result: any) => {
-                const isClassified = isClassifiedRaceResult(result as RaceResult);
+        normalizedRaces.forEach((race: JolpicaRaceRecord) => {
+            race.Results?.forEach((result: RaceResult) => {
+                const isClassified = isClassifiedRaceResult(result);
 
                 results.push({
                     round: race.round,
@@ -685,9 +746,9 @@ export async function getAllSeasonSprints(season: string): Promise<SeasonSprintR
         const results: SeasonSprintResult[] = [];
         const normalizedSprints = applyCanonicalRounds(allSprints, calendar);
 
-        normalizedSprints.forEach((race: any) => {
+        normalizedSprints.forEach((race: JolpicaRaceRecord) => {
             const sprintResults = race.SprintResults || [];
-            sprintResults.forEach((result: any) => {
+            sprintResults.forEach((result: SprintResult) => {
                 const positionText = result.positionText;
                 const isClassified = !['R', 'D', 'E', 'W', 'F', 'N'].includes(positionText);
 
@@ -733,8 +794,8 @@ export async function getAllSeasonQualifying(season: string): Promise<SeasonQual
         const results: SeasonQualifyingResult[] = [];
         const normalizedQualifying = applyCanonicalRounds(allQualifying, calendar);
 
-        normalizedQualifying.forEach((race: any) => {
-            race.QualifyingResults?.forEach((result: any) => {
+        normalizedQualifying.forEach((race: JolpicaRaceRecord) => {
+            race.QualifyingResults?.forEach((result: RaceQualifyingResult) => {
                 results.push({
                     round: race.round,
                     driverId: result.Driver.driverId,

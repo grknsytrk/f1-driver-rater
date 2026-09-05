@@ -1,0 +1,43 @@
+import * as Flags from 'country-flag-icons/react/3x2';
+
+export const COUNTRY_CODES: Record<string, keyof typeof Flags> = {
+    Bahrain: 'BH',
+    'Saudi Arabia': 'SA',
+    Australia: 'AU',
+    Japan: 'JP',
+    China: 'CN',
+    USA: 'US',
+    Italy: 'IT',
+    Monaco: 'MC',
+    Canada: 'CA',
+    Spain: 'ES',
+    Austria: 'AT',
+    UK: 'GB',
+    Hungary: 'HU',
+    Belgium: 'BE',
+    Netherlands: 'NL',
+    Azerbaijan: 'AZ',
+    Singapore: 'SG',
+    Mexico: 'MX',
+    Brazil: 'BR',
+    Qatar: 'QA',
+    UAE: 'AE',
+    'United Arab Emirates': 'AE',
+    'United Kingdom': 'GB',
+    'Great Britain': 'GB',
+    'Las Vegas': 'US',
+    Miami: 'US',
+    France: 'FR',
+    Germany: 'DE',
+    Russia: 'RU',
+    Portugal: 'PT',
+    Turkey: 'TR',
+    'South Africa': 'ZA',
+    India: 'IN',
+    Korea: 'KR',
+    Malaysia: 'MY',
+};
+
+export const COUNTRY_CODE_ALIASES: Record<string, keyof typeof Flags> = {
+    UK: 'GB',
+};

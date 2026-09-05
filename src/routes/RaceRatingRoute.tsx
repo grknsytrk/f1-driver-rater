@@ -39,25 +39,30 @@ export default function RaceRatingRoute() {
         return snapshot.season === season && snapshot.round === round ? snapshot : null;
     }, [location.state, round, season]);
 
-    const [raceSnapshot, setRaceSnapshot] = useState<RaceRouteSnapshot | null>(() => (
-        season && round ? routeSnapshot ?? createPlaceholderRace(season, round) : null
-    ));
-    const [metadataResolved, setMetadataResolved] = useState(Boolean(routeSnapshot));
+    const routeKey = season && round ? `${season}:${round}` : null;
+    const [loadedRaceSnapshot, setLoadedRaceSnapshot] = useState<RaceRouteSnapshot | null>(null);
+    const [resolvedMetadataKey, setResolvedMetadataKey] = useState<string | null>(
+        routeSnapshot && routeKey ? routeKey : null
+    );
+
+    const matchingLoadedRace = loadedRaceSnapshot
+        && loadedRaceSnapshot.season === season
+        && loadedRaceSnapshot.round === round
+        ? loadedRaceSnapshot
+        : null;
+    const raceSnapshot = routeSnapshot
+        ?? matchingLoadedRace
+        ?? (season && round ? createPlaceholderRace(season, round) : null);
+    const metadataResolved = Boolean(routeSnapshot || (routeKey && resolvedMetadataKey === routeKey));
 
     useEffect(() => {
         if (!season || !round) return;
         const resolvedSeason = season;
         const resolvedRound = round;
 
-        if (routeSnapshot) {
-            setRaceSnapshot(routeSnapshot);
-            setMetadataResolved(true);
-            return;
-        }
+        if (routeSnapshot) return;
 
         let isActive = true;
-        setRaceSnapshot(createPlaceholderRace(resolvedSeason, resolvedRound));
-        setMetadataResolved(false);
 
         async function loadRaceMetadata() {
             try {
@@ -66,8 +71,8 @@ export default function RaceRatingRoute() {
 
                 const selectedRace = races.find((race) => race.round === resolvedRound);
                 if (selectedRace) {
-                    setRaceSnapshot(createSnapshot(selectedRace));
-                    setMetadataResolved(true);
+                    setLoadedRaceSnapshot(createSnapshot(selectedRace));
+                    setResolvedMetadataKey(`${resolvedSeason}:${resolvedRound}`);
                 }
             } catch (error) {
                 console.error('Error loading race metadata:', error);
@@ -96,7 +101,6 @@ export default function RaceRatingRoute() {
                 season={season}
                 metadataResolved={metadataResolved}
                 onClose={() => navigate(`/${season}`)}
-                onSave={() => navigate(`/${season}`)}
             />
         </>
     );

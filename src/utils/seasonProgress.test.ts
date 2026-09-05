@@ -20,6 +20,12 @@ function makeRace(round: string, date: string): Race {
     };
 }
 
+function makeFutureDate(): string {
+    const date = new Date();
+    date.setDate(date.getDate() + 7);
+    return date.toISOString().slice(0, 10);
+}
+
 describe('getSeasonProgressFromRaces', () => {
     beforeEach(() => {
         localStorage.clear();
@@ -53,7 +59,7 @@ describe('getSeasonProgressFromRaces', () => {
         const progress = getSeasonProgressFromRaces('2026', [
             makeRace('1', '2026-03-08'),
             makeRace('2', '2026-03-15'),
-            makeRace('3', '2026-04-12'),
+            makeRace('3', makeFutureDate()),
         ]);
 
         expect(progress.completedCount).toBe(2);
@@ -77,7 +83,7 @@ describe('getSeasonProgressFromRaces', () => {
         const progress = getSeasonProgressFromRaces('2026', [
             makeRace('1', '2026-03-08'),
             makeRace('2', '2026-03-15'),
-            makeRace('3', '2026-04-12'),
+            makeRace('3', makeFutureDate()),
         ]);
 
         expect(progress.completedCount).toBe(2);

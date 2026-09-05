@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { calculateAverages, getDriverFormSeries, getRaceByRaceMatrix, getSeasonAwards, saveQuickRatings } from './storage';
+import { calculateAverages, clearQuickRatings, getDriverFormSeries, getRaceByRaceMatrix, getSeasonAwards, saveQuickRatings } from './storage';
 import type { SeasonRatings } from '../types';
 
 describe('calculateAverages', () => {
@@ -371,6 +371,41 @@ describe('getDriverFormSeries', () => {
             'leclerc',
             'sainz',
         ]);
+    });
+});
+
+describe('clearQuickRatings', () => {
+    beforeEach(() => {
+        localStorage.clear();
+    });
+
+    it('clears only the selected season from local storage', () => {
+        saveQuickRatings('2025', [{
+            driverId: 'norris',
+            driverName: 'Lando Norris',
+            constructorId: 'mclaren',
+            constructorName: 'McLaren',
+            rating: 9,
+        }]);
+        saveQuickRatings('2026', [{
+            driverId: 'verstappen',
+            driverName: 'Max Verstappen',
+            constructorId: 'red_bull',
+            constructorName: 'Red Bull',
+            rating: 10,
+        }]);
+
+        clearQuickRatings('2025');
+
+        expect(localStorage.getItem('f1_quick_ratings')).toBe(JSON.stringify({
+            '2026': [{
+                driverId: 'verstappen',
+                driverName: 'Max Verstappen',
+                constructorId: 'red_bull',
+                constructorName: 'Red Bull',
+                rating: 10,
+            }],
+        }));
     });
 });
 

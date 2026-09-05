@@ -60,6 +60,17 @@ You'll need Node.js version 18 or higher installed on your machine. You can use 
 
 If you want to build for production instead, you can run `npm run build` and the output will be in the `dist` folder.
 
+### Optional Guest Cloud Sync
+
+The app works with local storage by default. To persist guest ratings in Supabase without showing a login screen:
+
+1. Create a Supabase project and enable Anonymous Sign-Ins.
+2. Run `supabase/migrations/20260905182102_guest_rating_sync.sql` in the Supabase SQL Editor.
+3. Copy `.env.example` to `.env.local` and add your project URL and publishable key.
+4. Restart the development server.
+
+Existing local ratings are merged automatically when the guest session starts. If Supabase is not configured or unavailable, ratings continue to work locally.
+
 ## Tech Stack
 
 | Technology | Purpose |

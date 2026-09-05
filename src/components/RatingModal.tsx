@@ -1,7 +1,5 @@
-import { useEffect, useState } from 'react';
-import { Loader2, Save, Timer } from 'lucide-react';
-import { toast } from 'sonner';
-import type { DriverRating } from '../types';
+import { useCallback, useEffect, useState } from 'react';
+import { Timer } from 'lucide-react';
 import { TEAM_COLORS } from '../types';
 import { getRaceRatingContext, type RaceRecap } from '../api/f1Api';
 import { saveRaceRatings, getRaceRatings } from '../utils/storage';
@@ -17,7 +15,6 @@ interface RatingModalProps {
     season: string;
     metadataResolved?: boolean;
     onClose: () => void;
-    onSave: () => void;
 }
 
 interface DriverWithRating {
@@ -54,18 +51,13 @@ function getFinishNameClass(position: string): string {
     }
 }
 
-export function RatingModal({ race, season, metadataResolved = true, onClose, onSave }: RatingModalProps) {
+export function RatingModal({ race, season, metadataResolved = true, onClose }: RatingModalProps) {
     const [drivers, setDrivers] = useState<DriverWithRating[]>([]);
     const [recap, setRecap] = useState<RaceRecap>(EMPTY_RECAP);
     const [loading, setLoading] = useState(true);
-    const [saving, setSaving] = useState(false);
     const [hoveredRating, setHoveredRating] = useState<{ id: string, val: number } | null>(null);
 
-    useEffect(() => {
-        void loadDrivers();
-    }, [race.round, season]);
-
-    async function loadDrivers() {
+    const loadDrivers = useCallback(async () => {
         setLoading(true);
         setDrivers([]);
         setRecap(EMPTY_RECAP);
@@ -100,38 +92,32 @@ export function RatingModal({ race, season, metadataResolved = true, onClose, on
         } finally {
             setLoading(false);
         }
-    }
+    }, [race.round, season]);
+
+    useEffect(() => {
+        void loadDrivers();
+    }, [loadDrivers]);
 
     function handleRatingChange(driverId: string, rating: number) {
-        setDrivers((previousDrivers) => previousDrivers.map((driver) =>
-            driver.driverId === driverId ? { ...driver, rating } : driver
-        ));
-    }
+        if (loading || !metadataResolved) return;
 
-    async function handleSave() {
-        setSaving(true);
-        try {
-            const ratings: DriverRating[] = drivers.map((driver) => ({
+        const nextDrivers = drivers.map((driver) =>
+            driver.driverId === driverId ? { ...driver, rating } : driver
+        );
+        setDrivers(nextDrivers);
+        saveRaceRatings(
+            season,
+            race.round,
+            race.raceName,
+            race.date,
+            nextDrivers.map((driver) => ({
                 driverId: driver.driverId,
                 driverName: driver.driverName,
                 constructorId: driver.constructorId,
                 constructorName: driver.constructorName,
                 rating: driver.rating || 5,
-            }));
-
-            saveRaceRatings(season, race.round, race.raceName, race.date, ratings);
-            toast.success('Ratings Saved', {
-                description: `${race.raceName} • ${drivers.length} drivers rated`,
-            });
-            onSave();
-        } catch (error) {
-            console.error('Error saving ratings:', error);
-            toast.error('Failed to save', {
-                description: 'Please try again',
-            });
-        } finally {
-            setSaving(false);
-        }
+            }))
+        );
     }
 
     function getTeamColor(constructorId: string): string {
@@ -154,27 +140,16 @@ export function RatingModal({ race, season, metadataResolved = true, onClose, on
             subtitle={formattedDate}
             onClose={onClose}
             footer={(
-                <div className="z-20 flex flex-col gap-2 border-t border-[var(--border-color)] bg-[var(--bg-panel)] p-4 md:flex-row md:items-center md:justify-end md:gap-0">
-                    <div className="flex w-full flex-col-reverse items-stretch gap-2 md:w-auto md:flex-row md:items-center md:gap-4">
-                        <button
-                            onClick={onClose}
-                            className="border border-[var(--border-color)] px-6 py-3 font-oxanium text-xs font-bold tracking-widest text-[var(--text-secondary)] uppercase transition-colors hover:text-white md:border-0 md:py-2"
-                        >
-                            DISCARD
-                        </button>
-                        <button
-                            onClick={handleSave}
-                            disabled={saving || loading || !metadataResolved || drivers.length === 0}
-                            className="flex items-center justify-center bg-[var(--accent-red)] px-8 py-3 font-display text-lg tracking-widest text-white uppercase transition-colors hover:bg-[#ff0000] disabled:opacity-50 md:py-2"
-                        >
-                            {saving ? (
-                                <Loader2 size={16} className="mr-2 animate-spin" />
-                            ) : (
-                                <Save size={16} className="mr-2" />
-                            )}
-                            SAVE DATA
-                        </button>
-                    </div>
+                <div className="z-20 flex flex-col gap-2 border-t border-[var(--border-color)] bg-[var(--bg-panel)] p-4 md:flex-row md:items-center md:justify-between md:gap-0">
+                    <span className="font-oxanium text-[10px] tracking-widest text-[var(--text-muted)] uppercase">
+                        Auto-saved locally · cloud sync in background
+                    </span>
+                    <button
+                        onClick={onClose}
+                        className="border border-[var(--border-color)] px-6 py-3 font-oxanium text-xs font-bold tracking-widest text-[var(--text-secondary)] uppercase transition-colors hover:border-[var(--accent-red)] hover:text-white md:py-2"
+                    >
+                        CLOSE
+                    </button>
                 </div>
             )}
         >

@@ -62,5 +62,31 @@ export function useSeasonProgress(season?: string, enabled = true) {
         };
     }, [enabled, season]);
 
+    useEffect(() => {
+        if (!season || !enabled) return;
+
+        const handleGuestSync = () => {
+            setProgress((currentProgress) => {
+                if (!currentProgress) return currentProgress;
+
+                const ratedCount = getRatedRacesCount(season);
+                const remainingCount = Math.max(currentProgress.completedCount - ratedCount, 0);
+
+                return {
+                    ...currentProgress,
+                    ratedCount,
+                    remainingCount,
+                    unlocked: currentProgress.hasCompletedRaces && remainingCount === 0,
+                    progressPercent: currentProgress.completedCount > 0
+                        ? Math.min(100, Math.round((ratedCount / currentProgress.completedCount) * 100))
+                        : 0,
+                };
+            });
+        };
+
+        window.addEventListener('f1:guest-sync', handleGuestSync);
+        return () => window.removeEventListener('f1:guest-sync', handleGuestSync);
+    }, [enabled, season]);
+
     return { progress, loading };
 }

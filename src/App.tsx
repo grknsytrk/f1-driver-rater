@@ -32,6 +32,7 @@ import QuickRateRoute from './routes/QuickRateRoute';
 import RaceRatingRoute from './routes/RaceRatingRoute';
 import { fetchWithMinDelay } from './utils/delay';
 import { useSeasonProgress } from './hooks/useSeasonProgress';
+import { initializeGuestSync } from './utils/guestSync';
 import type { Season, Race } from './types';
 
 // Minimum loading time in ms for better UX
@@ -186,6 +187,18 @@ function RacesPage() {
 function App() {
   const navigate = useNavigate();
   const location = useLocation();
+  const [, setStorageRevision] = useState(0);
+
+  useEffect(() => {
+    void initializeGuestSync();
+
+    const handleStorageSync = () => {
+      setStorageRevision((revision) => revision + 1);
+    };
+
+    window.addEventListener('f1:guest-sync', handleStorageSync);
+    return () => window.removeEventListener('f1:guest-sync', handleStorageSync);
+  }, []);
 
   // Get current path info from React Router
   const pathname = location.pathname;

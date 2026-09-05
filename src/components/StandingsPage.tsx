@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { Medal, Users, Loader2, AlertTriangle, Download, Share2 } from 'lucide-react';
 import { useExportImage } from '../hooks/useExportImage';
@@ -43,11 +43,7 @@ export function StandingsPage({ season }: StandingsPageProps) {
     const [sprintResults, setSprintResults] = useState<SeasonSprintResult[]>([]);
     const [races, setRaces] = useState<RaceColumn[]>([]);
 
-    useEffect(() => {
-        loadData();
-    }, [season]);
-
-    async function loadData() {
+    const loadData = useCallback(async () => {
         setLoading(true);
         setError(null);
         
@@ -99,7 +95,11 @@ export function StandingsPage({ season }: StandingsPageProps) {
         } finally {
             setLoading(false);
         }
-    }
+    }, [season]);
+
+    useEffect(() => {
+        void loadData();
+    }, [loadData]);
 
     function getTeamColor(constructorId: string): string {
         return TEAM_COLORS[constructorId] || '#888888';

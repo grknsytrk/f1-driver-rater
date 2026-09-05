@@ -84,7 +84,7 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
         if (!selectedDriverId || !formSeries.some(series => series.driverId === selectedDriverId)) {
             setSelectedDriverId(formSeries[0].driverId);
         }
-    }, [season, formSeriesKey, selectedDriverId]);
+    }, [season, formSeries, formSeriesKey, selectedDriverId]);
 
     if (averages.length === 0) {
         return (

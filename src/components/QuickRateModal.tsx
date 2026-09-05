@@ -1,10 +1,9 @@
-import { useEffect, useState } from 'react';
-import { Loader2, RotateCcw, Save, Zap } from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
+import { RotateCcw, Zap } from 'lucide-react';
 import { toast } from 'sonner';
-import type { DriverRating } from '../types';
 import { TEAM_COLORS } from '../types';
 import { getDriverSeasonStats } from '../api/f1Api';
-import { saveQuickRatings, getQuickRatings } from '../utils/storage';
+import { clearQuickRatings, saveQuickRatings, getQuickRatings } from '../utils/storage';
 import { fetchWithMinDelay } from '../utils/delay';
 import { ModalShell } from './ModalShell';
 import { QuickRateModalContentFallback } from './RouteFallbacks';
@@ -14,7 +13,6 @@ const MIN_LOADING_TIME = 1500;
 interface QuickRateModalProps {
     season: string;
     onClose: () => void;
-    onSave: () => void;
 }
 
 interface DriverWithRating {
@@ -30,17 +28,12 @@ interface DriverWithRating {
     podiums: number;
 }
 
-export function QuickRateModal({ season, onClose, onSave }: QuickRateModalProps) {
+export function QuickRateModal({ season, onClose }: QuickRateModalProps) {
     const [drivers, setDrivers] = useState<DriverWithRating[]>([]);
     const [loading, setLoading] = useState(true);
-    const [saving, setSaving] = useState(false);
     const [hoveredRating, setHoveredRating] = useState<{ id: string, val: number } | null>(null);
 
-    useEffect(() => {
-        void loadDrivers();
-    }, [season]);
-
-    async function loadDrivers() {
+    const loadDrivers = useCallback(async () => {
         setLoading(true);
         try {
             const stats = await fetchWithMinDelay(
@@ -71,38 +64,33 @@ export function QuickRateModal({ season, onClose, onSave }: QuickRateModalProps)
         } finally {
             setLoading(false);
         }
-    }
+    }, [season]);
+
+    useEffect(() => {
+        void loadDrivers();
+    }, [loadDrivers]);
 
     function handleRatingChange(driverId: string, rating: number) {
-        setDrivers((previousDrivers) => previousDrivers.map((driver) =>
+        const nextDrivers = drivers.map((driver) =>
             driver.driverId === driverId ? { ...driver, rating } : driver
-        ));
-    }
-
-    async function handleSave() {
-        setSaving(true);
-        try {
-            const ratings: DriverRating[] = drivers.map((driver) => ({
+        );
+        setDrivers(nextDrivers);
+        saveQuickRatings(
+            season,
+            nextDrivers.map((driver) => ({
                 driverId: driver.driverId,
                 driverName: driver.driverName,
                 constructorId: driver.constructorId,
                 constructorName: driver.constructorName,
                 rating: driver.rating || 5,
-            }));
+            }))
+        );
+    }
 
-            saveQuickRatings(season, ratings);
-            toast.success('Quick Ratings Saved', {
-                description: `Season ${season} • ${drivers.length} drivers rated`,
-            });
-            onSave();
-        } catch (error) {
-            console.error('Error saving ratings:', error);
-            toast.error('Failed to save', {
-                description: 'Please try again',
-            });
-        } finally {
-            setSaving(false);
-        }
+    function handleClearAll() {
+        clearQuickRatings(season);
+        setDrivers((previousDrivers) => previousDrivers.map((driver) => ({ ...driver, rating: 0 })));
+        toast.success('Quick ratings cleared');
     }
 
     function getTeamColor(constructorId: string): string {
@@ -120,7 +108,7 @@ export function QuickRateModal({ season, onClose, onSave }: QuickRateModalProps)
             footer={(
                 <div className="z-20 flex flex-col gap-3 border-t border-[var(--border-color)] bg-[var(--bg-panel)] p-4 md:flex-row md:items-center md:justify-between md:gap-0">
                     <button
-                        onClick={() => setDrivers((previousDrivers) => previousDrivers.map((driver) => ({ ...driver, rating: 0 })))}
+                        onClick={handleClearAll}
                         disabled={loading}
                         className="flex items-center justify-center gap-2 border border-[var(--border-color)] px-4 py-3 font-oxanium text-xs font-bold tracking-widest text-[var(--text-muted)] uppercase transition-all hover:border-[var(--accent-red)] hover:bg-[var(--accent-red)]/10 hover:text-[var(--accent-red)] disabled:opacity-50 md:py-2"
                     >
@@ -129,23 +117,14 @@ export function QuickRateModal({ season, onClose, onSave }: QuickRateModalProps)
                     </button>
 
                     <div className="flex flex-col-reverse items-stretch gap-2 md:flex-row md:items-center md:gap-4">
+                        <span className="font-oxanium text-[10px] tracking-widest text-[var(--text-muted)] uppercase">
+                            Auto-saved locally · cloud sync in background
+                        </span>
                         <button
                             onClick={onClose}
-                            className="border border-[var(--border-color)] px-6 py-3 font-oxanium text-xs font-bold tracking-widest text-[var(--text-secondary)] uppercase transition-colors hover:text-white md:border-0 md:py-2"
+                            className="border border-[var(--border-color)] px-6 py-3 font-oxanium text-xs font-bold tracking-widest text-[var(--text-secondary)] uppercase transition-colors hover:border-[var(--accent-yellow)] hover:text-white md:py-2"
                         >
-                            DISCARD
-                        </button>
-                        <button
-                            onClick={handleSave}
-                            disabled={saving || loading}
-                            className="flex items-center justify-center bg-[var(--accent-yellow)] px-8 py-3 font-display text-lg tracking-widest text-black uppercase transition-colors hover:bg-[#FFD700] disabled:opacity-50 md:py-2"
-                        >
-                            {saving ? (
-                                <Loader2 size={16} className="mr-2 animate-spin" />
-                            ) : (
-                                <Save size={16} className="mr-2" />
-                            )}
-                            SAVE DATA
+                            CLOSE
                         </button>
                     </div>
                 </div>

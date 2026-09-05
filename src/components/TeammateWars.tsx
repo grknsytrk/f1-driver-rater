@@ -5,7 +5,7 @@ import { Swords, RotateCcw, Flag, Timer, Loader2, Download, Share2, ImageDown } 
 import { useExportImage } from '../hooks/useExportImage';
 import { calculateAverages } from '../utils/storage';
 import { getAllSeasonResults, getAllSeasonQualifying, getConstructorStandings, getDriverStandings } from '../api/f1Api';
-import type { SeasonRaceResult, SeasonQualifyingResult, ConstructorStanding } from '../api/f1Api';
+import type { SeasonRaceResult, SeasonQualifyingResult, ConstructorStanding, DriverStanding } from '../api/f1Api';
 import { RateLimitError } from '../api/f1Api';
 import { TEAM_COLORS } from '../types';
 
@@ -71,7 +71,7 @@ export function TeammateWars({ season }: TeammateWarsProps) {
     const [raceResults, setRaceResults] = useState<SeasonRaceResult[]>([]);
     const [qualiResults, setQualiResults] = useState<SeasonQualifyingResult[]>([]);
     const [constructorStandings, setConstructorStandings] = useState<ConstructorStanding[]>([]);
-    const [driverStandings, setDriverStandings] = useState<any[]>([]);
+    const [driverStandings, setDriverStandings] = useState<DriverStanding[]>([]);
     const [loading, setLoading] = useState(true);
     const [dataLoaded, setDataLoaded] = useState(false);
     const [raceStatus, setRaceStatus] = useState<'idle' | 'ok' | 'rate_limited' | 'error'>('idle');
@@ -278,7 +278,7 @@ export function TeammateWars({ season }: TeammateWarsProps) {
         return acc;
     }, {});
 
-    const standingsByDriverId = driverStandings.reduce<Record<string, any>>((acc, s) => {
+    const standingsByDriverId = driverStandings.reduce<Record<string, DriverStanding>>((acc, s) => {
         acc[s.Driver.driverId] = s;
         return acc;
     }, {});

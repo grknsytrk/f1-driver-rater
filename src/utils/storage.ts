@@ -1,4 +1,10 @@
 import type { SeasonRatings, RaceRatings, DriverRating, AverageRating } from '../types';
+import {
+    queueGuestClearAll,
+    queueGuestQuickSeasonDelete,
+    queueGuestSeasonDelete,
+    queueGuestSync,
+} from './guestSync';
 
 const STORAGE_KEY = 'f1_pilot_ratings';
 
@@ -62,6 +68,7 @@ export function saveRaceRatings(
         }
 
         localStorage.setItem(STORAGE_KEY, JSON.stringify(allRatings));
+        queueGuestSync();
     } catch (error) {
         console.error('Error saving ratings:', error);
     }
@@ -159,6 +166,7 @@ export function clearSeasonRatings(season: string): void {
         const allQuickRatings = JSON.parse(localStorage.getItem(QUICK_RATINGS_KEY) || '{}');
         delete allQuickRatings[season];
         localStorage.setItem(QUICK_RATINGS_KEY, JSON.stringify(allQuickRatings));
+        queueGuestSeasonDelete(season);
     } catch (error) {
         console.error('Error clearing season ratings:', error);
     }
@@ -168,6 +176,8 @@ export function clearSeasonRatings(season: string): void {
 export function clearAllRatings(): void {
     try {
         localStorage.removeItem(STORAGE_KEY);
+        localStorage.removeItem(QUICK_RATINGS_KEY);
+        queueGuestClearAll();
     } catch (error) {
         console.error('Error clearing all ratings:', error);
     }
@@ -257,6 +267,7 @@ export function saveQuickRatings(season: string, ratings: DriverRating[]): void 
         const allQuickRatings = getQuickRatingsAll();
         allQuickRatings[season] = ratings;
         localStorage.setItem(QUICK_RATINGS_KEY, JSON.stringify(allQuickRatings));
+        queueGuestSync();
     } catch (error) {
         console.error('Error saving quick ratings:', error);
     }
@@ -277,6 +288,18 @@ function getQuickRatingsAll(): Record<string, DriverRating[]> {
 export function getQuickRatings(season: string): DriverRating[] | null {
     const allQuickRatings = getQuickRatingsAll();
     return allQuickRatings[season] || null;
+}
+
+// Clear only the Quick Rate ratings for a season, including the cloud copy.
+export function clearQuickRatings(season: string): void {
+    try {
+        const allQuickRatings = getQuickRatingsAll();
+        delete allQuickRatings[season];
+        localStorage.setItem(QUICK_RATINGS_KEY, JSON.stringify(allQuickRatings));
+        queueGuestQuickSeasonDelete(season);
+    } catch (error) {
+        console.error('Error clearing quick ratings:', error);
+    }
 }
 
 // Check if quick ratings exist for a season

@@ -1,52 +1,5 @@
 import * as Flags from 'country-flag-icons/react/3x2';
-
-// F1 Race locations to ISO 3166-1 alpha-2 country codes
-export const COUNTRY_CODES: Record<string, keyof typeof Flags> = {
-    // Current F1 Calendar Countries
-    'Bahrain': 'BH',
-    'Saudi Arabia': 'SA',
-    'Australia': 'AU',
-    'Japan': 'JP',
-    'China': 'CN',
-    'USA': 'US',
-    'Italy': 'IT',
-    'Monaco': 'MC',
-    'Canada': 'CA',
-    'Spain': 'ES',
-    'Austria': 'AT',
-    'UK': 'GB',
-    'Hungary': 'HU',
-    'Belgium': 'BE',
-    'Netherlands': 'NL',
-    'Azerbaijan': 'AZ',
-    'Singapore': 'SG',
-    'Mexico': 'MX',
-    'Brazil': 'BR',
-    'Qatar': 'QA',
-    'UAE': 'AE',
-    'United Arab Emirates': 'AE',
-    // Regional/alias names
-    'United Kingdom': 'GB',
-    'Great Britain': 'GB',
-    // City-based races (use country code)
-    'Las Vegas': 'US',
-    'Miami': 'US',
-    // Historical races
-    'France': 'FR',
-    'Germany': 'DE',
-    'Russia': 'RU',
-    'Portugal': 'PT',
-    'Turkey': 'TR',
-    'South Africa': 'ZA',
-    'India': 'IN',
-    'Korea': 'KR',
-    'Malaysia': 'MY',
-};
-
-// Country code aliases that need remapping (e.g., UK -> GB)
-const COUNTRY_CODE_ALIASES: Record<string, keyof typeof Flags> = {
-    UK: 'GB',
-};
+import { COUNTRY_CODES, COUNTRY_CODE_ALIASES } from './countryCodes';
 
 interface CountryFlagProps {
     country: string;
@@ -56,16 +9,12 @@ interface CountryFlagProps {
 
 export function CountryFlag({ country, className = '', size = 'md' }: CountryFlagProps) {
     const normalizedInput = country.trim();
-    // Check if input is already a country code (2 letters uppercase)
     const isCountryCode = normalizedInput.length === 2 && normalizedInput === normalizedInput.toUpperCase();
 
-    // Get the code - either from lookup or direct
     let countryCode: keyof typeof Flags | undefined;
     if (isCountryCode) {
-        // Direct country code like "BH", "SA"
         countryCode = COUNTRY_CODE_ALIASES[normalizedInput] ?? (normalizedInput as keyof typeof Flags);
     } else {
-        // Country name lookup
         countryCode = COUNTRY_CODES[normalizedInput];
     }
 
@@ -76,7 +25,6 @@ export function CountryFlag({ country, className = '', size = 'md' }: CountryFla
     };
 
     if (!countryCode) {
-        // Fallback for unknown countries
         return (
             <div className={`${sizeClasses[size]} bg-[var(--bg-darker)] border border-[var(--border-color)] flex items-center justify-center ${className}`}>
                 <span className="text-[8px] text-[var(--text-muted)]">?</span>
@@ -84,7 +32,6 @@ export function CountryFlag({ country, className = '', size = 'md' }: CountryFla
         );
     }
 
-    // Get the flag component dynamically
     const FlagComponent = Flags[countryCode];
 
     if (!FlagComponent) {
