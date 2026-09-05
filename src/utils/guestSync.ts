@@ -208,6 +208,7 @@ export function createGuestSync(client: SupabaseClient | null) {
 
 const guestSync = createGuestSync(supabase);
 export const initializeGuestSync = guestSync.initialize;
+export const syncGuestRatings = guestSync.sync;
 export const ensureGuestUser = guestSync.ensureUser;
 export const queueGuestRatingChanges = guestSync.queueChanges;
 export const queueGuestSeasonDelete = (season: string) => guestSync.queueDelete({ season });
