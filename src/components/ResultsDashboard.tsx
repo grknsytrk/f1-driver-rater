@@ -549,16 +549,17 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
                                                 </div>
                                             </div>
                                             <div className="flex min-h-[54px] flex-col justify-center text-right font-oxanium">
-                                                <span className="text-base font-bold leading-none tabular-nums text-[var(--accent-red)] md:text-xl">{(communityVisible ? comparison.myAverage : driver.averageRating).toFixed(2)}</span>
+                                                <span className="text-sm font-normal leading-none tabular-nums md:text-lg" style={{ color: getRatingColor(communityVisible ? comparison.myAverage : driver.averageRating) }}>{(communityVisible ? comparison.myAverage : driver.averageRating).toFixed(2)}</span>
+                                                {communityVisible && <span className="mt-1 h-[9px]" aria-hidden="true" />}
                                             </div>
                                             {communityVisible && <>
                                                 <div className="flex min-h-[54px] min-w-0 flex-col justify-center text-right font-oxanium">
                                                     {communityRating ? (
-                                                        <span className="text-base font-bold leading-none tabular-nums md:text-xl" style={{ color: getRatingColor(communityRating.averageRating) }}>{communityRating.averageRating.toFixed(2)}</span>
+                                                        <span className="text-sm font-normal leading-none tabular-nums md:text-lg" style={{ color: getRatingColor(communityRating.averageRating) }}>{communityRating.averageRating.toFixed(2)}</span>
                                                     ) : (
                                                         <span className="text-[8px] leading-tight text-[var(--text-muted)]">NO COMMUNITY DATA</span>
                                                     )}
-                                                    <div className="mt-1 text-[8px] leading-tight text-[var(--text-muted)]">
+                                                    <div className="mt-1 h-[9px] text-[8px] leading-tight text-[var(--text-muted)]">
                                                         {source === 'race' && comparison.raceCount > 0 && <div>{comparison.raceCount} RACES</div>}
                                                         {comparison.voteCount > 0 && <div className="md:hidden">{comparison.voteCount} VOTES</div>}
                                                     </div>
