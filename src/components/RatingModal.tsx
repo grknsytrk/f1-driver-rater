@@ -206,12 +206,12 @@ export function RatingModal({ race, season, metadataResolved = true, onClose }: 
                                             </div>
                                         </div>
 
-                                        <div className="ml-auto hidden h-12 min-w-[100px] flex-shrink-0 flex-col items-end justify-center pr-4 md:flex">
-                                            <span className="mb-0.5 font-oxanium text-[8px] leading-none text-[var(--text-muted)]">
+                                        <div className="ml-auto hidden h-12 w-32 flex-shrink-0 flex-col items-end justify-center pr-4 md:flex">
+                                            <span className="mb-0.5 w-full text-right font-oxanium text-[8px] leading-none text-[var(--text-muted)]">
                                                 {parseInt(driver.position, 10) === 1 ? 'TIME' : 'GAP'}
                                             </span>
                                             <span
-                                                className={`font-oxanium text-sm leading-none ${
+                                                className={`w-full whitespace-nowrap text-right font-oxanium text-sm leading-none ${
                                                     parseInt(driver.position, 10) === 1
                                                         ? 'text-[#00FF88]'
                                                         : driver.gap?.includes('Lap')
@@ -221,13 +221,13 @@ export function RatingModal({ race, season, metadataResolved = true, onClose }: 
                                                                 : 'text-white'
                                                 }`}
                                             >
-                                                {driver.gap || driver.status || '-'}
+                                                {(driver.gap || driver.status || '-').trim()}
                                             </span>
                                         </div>
                                     </div>
 
-                                    <div className="flex w-full items-center gap-2 overflow-hidden md:gap-3">
-                                        <div className="w-12 flex-shrink-0 md:w-14">
+                                    <div className="flex w-full items-center gap-3 overflow-hidden md:gap-4">
+                                        <div className="w-16 flex-shrink-0 md:w-20">
                                             <PersonalRatingValue value={displayRating} />
                                         </div>
                                         <div className="min-w-0 flex-1 overflow-x-auto scrollbar-hide md:overflow-visible">
