@@ -20,6 +20,7 @@ import { CommunityNotice } from './CommunityRating';
 import { compareCommunity } from '../utils/communityRatings';
 import { getSeasonRatings, getQuickRatings } from '../utils/storage';
 import { validRatings } from '../utils/ratingData';
+import { getRatingColor } from '../utils/ratingColor';
 import { CountryFlag } from '../utils/countryFlags';
 
 interface ResultsDashboardProps {
@@ -553,7 +554,7 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
                                             {communityVisible && <>
                                                 <div className="flex min-h-[54px] min-w-0 flex-col justify-center text-right font-oxanium">
                                                     {communityRating ? (
-                                                        <span className="text-base font-bold leading-none tabular-nums text-[var(--accent-yellow)] md:text-xl">{communityRating.averageRating.toFixed(2)}</span>
+                                                        <span className="text-base font-bold leading-none tabular-nums md:text-xl" style={{ color: getRatingColor(communityRating.averageRating) }}>{communityRating.averageRating.toFixed(2)}</span>
                                                     ) : (
                                                         <span className="text-[8px] leading-tight text-[var(--text-muted)]">NO COMMUNITY DATA</span>
                                                     )}
