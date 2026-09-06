@@ -37,6 +37,20 @@ function formatRaceDisplayName(raceName: string | null): string {
     return raceName.replace(' Grand Prix', '').replace(' GP', '');
 }
 
+const FORM_RACE_LABELS: Record<string, string> = {
+    'EMILIA-ROMAGNA': 'IMO',
+    ITALY: 'ITA',
+    LASVEGAS: 'LV',
+    MIAMI: 'MIA',
+    'UNITED STATES': 'USA',
+};
+
+function getFormRaceLabel(raceName: string, countryCode: string): string {
+    const normalizedName = formatRaceDisplayName(raceName).replace(/\s+/g, ' ').trim().toUpperCase();
+    const compactName = normalizedName.replace(/[^A-Z0-9]/g, '');
+    return FORM_RACE_LABELS[normalizedName] ?? FORM_RACE_LABELS[compactName] ?? (countryCode !== 'XX' ? countryCode : normalizedName.slice(0, 3));
+}
+
 export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
     useRatingStorage();
     const averages = calculateAverages(season);
@@ -272,10 +286,23 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
     const selectedFormDriver = formSeries.find(series => series.driverId === selectedDriverId) ?? formSeries[0] ?? null;
     const selectedFormColor = selectedFormDriver ? getTeamColor(selectedFormDriver.latestConstructorId) : 'var(--accent-red)';
     const formChartData = selectedFormDriver
-        ? selectedFormDriver.points.map(point => ({
-            ...point,
-            roundLabel: point.countryCode !== 'XX' ? point.countryCode : `R${point.roundNumber}`,
-        }))
+        ? (() => {
+            const usedLabels = new Set<string>();
+            return selectedFormDriver.points.map(point => {
+                const baseLabel = getFormRaceLabel(point.raceName, point.countryCode);
+                let roundLabel = baseLabel;
+
+                // Race names such as Miami, Austin and Las Vegas can share a
+                // country code. Keep every chart category unique so Recharts
+                // resolves the hovered point to the correct race.
+                if (usedLabels.has(roundLabel)) {
+                    roundLabel = `${baseLabel}-${point.roundNumber}`;
+                }
+                usedLabels.add(roundLabel);
+
+                return { ...point, roundLabel };
+            });
+        })()
         : [];
 
     return (
