@@ -75,6 +75,22 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
         return b.averageRating - a.averageRating;
     });
     const raceMatrix = getRaceByRaceMatrix(season);
+    const rankedRaceMatrixDrivers = [...raceMatrix.drivers].sort((a, b) => {
+        const aRatedRaces = Object.keys(a.raceRatings).length;
+        const bRatedRaces = Object.keys(b.raceRatings).length;
+        const aQualified = aRatedRaces >= minimumRatedRaces;
+        const bQualified = bRatedRaces >= minimumRatedRaces;
+
+        if (aQualified !== bQualified) {
+            return aQualified ? -1 : 1;
+        }
+
+        if (b.totalAverage !== a.totalAverage) {
+            return b.totalAverage - a.totalAverage;
+        }
+
+        return bRatedRaces - aRatedRaces;
+    });
     const formSeries = getDriverFormSeries(season);
     const rankedFormSeries = [...formSeries].sort((a, b) => {
         const aQualified = a.totalRatedRaces >= minimumRatedRaces;
@@ -916,7 +932,7 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
 
                                     {/* Body */}
                                     <tbody>
-                                        {raceMatrix.drivers.map((driver, index) => (
+                                        {rankedRaceMatrixDrivers.map((driver, index) => (
                                             <tr
                                                 key={driver.driverId}
                                                 className="border-b border-[var(--border-color)] hover:bg-[var(--bg-panel-hover)] transition-colors"
