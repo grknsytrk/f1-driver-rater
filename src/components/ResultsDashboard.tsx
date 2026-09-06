@@ -525,9 +525,9 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
                         </div>
                         <CommunityNotice status={community.status} legacy={hasLegacy} />
                         <div className="bg-[var(--bg-panel)] border-t border-[var(--border-color)]">
-                            <div className={`grid items-center gap-2 border-b border-[var(--border-color)] px-2 py-2 font-oxanium text-[8px] text-[var(--text-muted)] md:px-3 md:text-[9px] ${communityVisible ? 'grid-cols-[minmax(0,1fr)_50px_110px] md:grid-cols-[minmax(0,1fr)_60px_120px_40px]' : 'grid-cols-[minmax(0,1fr)_60px]'}`}>
-                                <span>DRIVER</span><span className="text-right">MY AVG</span>
-                                {communityVisible && <><span className="text-right">COMMUNITY AVG</span><span className="hidden text-right md:block">VOTES</span></>}
+                            <div className={`grid items-center gap-2 border-b border-[var(--border-color)] px-2 py-2 font-oxanium text-[8px] text-[var(--text-muted)] md:px-3 md:text-[9px] ${communityVisible ? 'grid-cols-[minmax(0,1fr)_60px_104px] md:grid-cols-[minmax(0,1fr)_72px_112px_40px]' : 'grid-cols-[minmax(0,1fr)_60px] md:grid-cols-[minmax(0,1fr)_72px]'}`}>
+                                <span>DRIVER</span><span className="w-full whitespace-nowrap text-left">MY AVG</span>
+                                {communityVisible && <><span className="w-full whitespace-nowrap text-center">COMMUNITY AVG</span><span className="hidden w-full items-center justify-center whitespace-nowrap text-center md:flex">VOTES</span></>}
                             </div>
                             <div className="max-h-[400px] overflow-y-auto md:max-h-[600px]">
                                 {averages.map((driver, index) => {
@@ -537,34 +537,33 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
                                     };
                                     return (
                                         <div key={driver.driverId}
-                                            className={`grid items-center gap-2 border-b border-[var(--border-color)] p-2 md:p-3 ${communityVisible ? 'grid-cols-[minmax(0,1fr)_50px_110px] md:grid-cols-[minmax(0,1fr)_60px_120px_40px]' : 'grid-cols-[minmax(0,1fr)_60px]'}`}>
+                                            className={`grid items-center gap-2 border-b border-[var(--border-color)] p-2 md:p-3 ${communityVisible ? 'grid-cols-[minmax(0,1fr)_60px_104px] md:grid-cols-[minmax(0,1fr)_72px_112px_40px]' : 'grid-cols-[minmax(0,1fr)_60px] md:grid-cols-[minmax(0,1fr)_72px]'}`}>
                                             <div className="flex min-w-0 items-center gap-2">
                                                 <span className="w-4 shrink-0 font-oxanium text-[10px] text-[var(--text-muted)]">{index + 1}</span>
                                                 <div className="min-w-0 border-l-2 pl-2" style={{ borderColor: getTeamColor(driver.constructorId) }}>
-                                                    <div className="truncate font-display-condensed text-sm uppercase text-white md:text-lg" title={driver.driverName} aria-label={driver.driverName}>
-                                                        <span className="md:hidden">{getDriverLabel(driver.driverName)}</span>
-                                                        <span className="hidden md:inline">{driver.driverName}</span>
+                                                    <div className="break-words font-display-condensed text-sm uppercase leading-tight text-white md:text-lg" title={driver.driverName} aria-label={driver.driverName}>
+                                                        {driver.driverName}
                                                     </div>
                                                     <div className="truncate font-ui text-[8px] uppercase text-[var(--text-muted)]">{driver.constructorName}</div>
                                                 </div>
                                             </div>
-                                            <div className="flex min-h-[54px] flex-col justify-center text-right font-oxanium">
-                                                <span className="text-sm font-normal leading-none tabular-nums md:text-lg" style={{ color: getRatingColor(communityVisible ? comparison.myAverage : driver.averageRating) }}>{(communityVisible ? comparison.myAverage : driver.averageRating).toFixed(2)}</span>
+                                            <div className="flex min-h-[54px] w-full min-w-0 flex-col items-start justify-center text-left font-oxanium">
+                                                <span className="whitespace-nowrap text-sm font-normal leading-none tabular-nums md:text-lg" style={{ color: getRatingColor(communityVisible ? comparison.myAverage : driver.averageRating) }}>{(communityVisible ? comparison.myAverage : driver.averageRating).toFixed(2)}</span>
                                                 {communityVisible && <span className="mt-1 h-[9px]" aria-hidden="true" />}
                                             </div>
                                             {communityVisible && <>
-                                                <div className="flex min-h-[54px] min-w-0 flex-col justify-center text-right font-oxanium">
+                                                <div className="flex min-h-[54px] w-full min-w-0 flex-col items-center justify-center text-center font-oxanium">
                                                     {communityRating ? (
-                                                        <span className="text-sm font-normal leading-none tabular-nums md:text-lg" style={{ color: getRatingColor(communityRating.averageRating) }}>{communityRating.averageRating.toFixed(2)}</span>
+                                                        <span className="whitespace-nowrap text-sm font-normal leading-none tabular-nums md:text-lg" style={{ color: getRatingColor(communityRating.averageRating) }}>{communityRating.averageRating.toFixed(2)}</span>
                                                     ) : (
-                                                        <span className="text-[8px] leading-tight text-[var(--text-muted)]">NO COMMUNITY DATA</span>
+                                                        <span className="whitespace-nowrap text-[8px] leading-tight text-[var(--text-muted)]">NO COMMUNITY DATA</span>
                                                     )}
                                                     <div className="mt-1 h-[9px] text-[8px] leading-tight text-[var(--text-muted)]">
                                                         {source === 'race' && comparison.raceCount > 0 && <div>{comparison.raceCount} RACES</div>}
                                                         {comparison.voteCount > 0 && <div className="md:hidden">{comparison.voteCount} VOTES</div>}
                                                     </div>
                                                 </div>
-                                                <div className="hidden text-right font-oxanium text-[10px] tabular-nums text-[var(--text-muted)] md:block">{comparison.voteCount || '—'}</div>
+                                                <div className="hidden w-full translate-x-1 items-center justify-center whitespace-nowrap text-center font-oxanium text-[10px] tabular-nums text-[var(--text-muted)] md:flex">{comparison.voteCount || '—'}</div>
                                             </>}
                                         </div>
                                     );
