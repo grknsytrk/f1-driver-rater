@@ -63,8 +63,33 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
         : getQuickRatings(season) ?? []).some(rating => !rating.communityEligible);
 
     const ratedCount = getRatedRacesCount(season);
+    const minimumRatedRaces = ratedCount > 0 ? Math.ceil(ratedCount * 0.5) : 0;
+    const rankedAverages = [...averages].sort((a, b) => {
+        const aQualified = a.totalRaces >= minimumRatedRaces;
+        const bQualified = b.totalRaces >= minimumRatedRaces;
+
+        if (aQualified !== bQualified) {
+            return aQualified ? -1 : 1;
+        }
+
+        return b.averageRating - a.averageRating;
+    });
     const raceMatrix = getRaceByRaceMatrix(season);
     const formSeries = getDriverFormSeries(season);
+    const rankedFormSeries = [...formSeries].sort((a, b) => {
+        const aQualified = a.totalRatedRaces >= minimumRatedRaces;
+        const bQualified = b.totalRatedRaces >= minimumRatedRaces;
+
+        if (aQualified !== bQualified) {
+            return aQualified ? -1 : 1;
+        }
+
+        if (b.seasonAverage !== a.seasonAverage) {
+            return b.seasonAverage - a.seasonAverage;
+        }
+
+        return b.totalRatedRaces - a.totalRatedRaces;
+    });
     const [showCardSection, setShowCardSection] = useState(false);
     const [showScrollTop, setShowScrollTop] = useState(false);
     const [cardImage, setCardImage] = useState<string | null>(null);
@@ -103,17 +128,17 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
     }, []);
 
     useEffect(() => {
-        if (formSeries.length === 0) {
+        if (rankedFormSeries.length === 0) {
             if (selectedDriverId !== null) {
                 setSelectedDriverId(null);
             }
             return;
         }
 
-        if (!selectedDriverId || !formSeries.some(series => series.driverId === selectedDriverId)) {
-            setSelectedDriverId(formSeries[0].driverId);
+        if (!selectedDriverId || !rankedFormSeries.some(series => series.driverId === selectedDriverId)) {
+            setSelectedDriverId(rankedFormSeries[0].driverId);
         }
-    }, [season, formSeries, formSeriesKey, selectedDriverId]);
+    }, [season, rankedFormSeries, formSeriesKey, selectedDriverId]);
 
     if (averages.length === 0) {
         return (
@@ -272,7 +297,7 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
     }
 
     // Chart data
-    const chartData = averages.slice(0, 10).map(d => ({
+    const chartData = rankedAverages.slice(0, 10).map(d => ({
         name: getDriverLabel(d.driverName),
         rating: d.averageRating,
         fullName: d.driverName.toUpperCase(),
@@ -281,9 +306,9 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
     }));
 
     // Podium (top 3)
-    const podium = averages.slice(0, 3);
+    const podium = rankedAverages.slice(0, 3);
     const podiumOrder = [1, 0, 2]; // Silver, Gold, Bronze positions
-    const selectedFormDriver = formSeries.find(series => series.driverId === selectedDriverId) ?? formSeries[0] ?? null;
+    const selectedFormDriver = rankedFormSeries.find(series => series.driverId === selectedDriverId) ?? rankedFormSeries[0] ?? null;
     const selectedFormColor = selectedFormDriver ? getTeamColor(selectedFormDriver.latestConstructorId) : 'var(--accent-red)';
     const formChartData = selectedFormDriver
         ? (() => {
@@ -557,7 +582,7 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
                                 {communityVisible && <><span className="w-full whitespace-nowrap text-center">COMMUNITY AVG</span><span className="hidden w-full items-center justify-center whitespace-nowrap text-center md:flex">VOTES</span></>}
                             </div>
                             <div className="max-h-[400px] overflow-y-auto md:max-h-[600px]">
-                                {averages.map((driver, index) => {
+                                {rankedAverages.map((driver, index) => {
                                     const comparison = compareCommunity(driver, personalRaces, community.ratings, source, 'season');
                                     const communityRating = comparison.communityAverage === null ? undefined : {
                                         averageRating: comparison.communityAverage, voteCount: comparison.voteCount,
@@ -699,7 +724,7 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
 
                                 <div className="overflow-x-auto pb-2">
                                     <div className="flex gap-2 min-w-max">
-                                        {formSeries.map((driver) => {
+                                        {rankedFormSeries.map((driver) => {
                                             const isSelected = driver.driverId === selectedFormDriver.driverId;
 
                                             return (
@@ -984,7 +1009,7 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
 
                     {/* Top 10 Drivers */}
                     <div className="space-y-1">
-                        {averages.slice(0, 10).map((driver, index) => {
+                        {rankedAverages.slice(0, 10).map((driver, index) => {
                             const isTop3 = index < 3;
                             const positionColor = index === 0 ? '#FFD700' : index === 1 ? '#C0C0C0' : index === 2 ? '#CD7F32' : '#888';
 
