@@ -28,6 +28,8 @@ interface ResultsDashboardProps {
     onReset: () => void;
 }
 
+type DriverRatingsSortKey = 'myAverage' | 'communityAverage' | 'votes';
+
 function getDriverLabel(driverName: string): string {
     return driverName.split(' ').pop()?.toUpperCase() || driverName.toUpperCase();
 }
@@ -113,12 +115,37 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
     const [generatingTable, setGeneratingTable] = useState(false);
     const [showConfirmModal, setShowConfirmModal] = useState(false);
     const [selectedDriverId, setSelectedDriverId] = useState<string | null>(null);
+    const [driverRatingsSort, setDriverRatingsSort] = useState<DriverRatingsSortKey | null>(null);
     const cardRef = useRef<HTMLDivElement>(null);
     const shareSectionRef = useRef<HTMLDivElement>(null);
     const tableRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const isScrollingToTop = useRef(false);
     const formSeriesKey = formSeries.map(series => `${series.driverId}:${series.latestConstructorId}:${series.totalRatedRaces}`).join('|');
+    const driverRatingRows = rankedAverages.map(driver => ({
+        driver,
+        comparison: compareCommunity(driver, personalRaces, community.ratings, source, 'season'),
+    }));
+    const sortedDriverRatingRows = [...driverRatingRows].sort((a, b) => {
+        if (!driverRatingsSort) return 0;
+
+        const getSortValue = (row: typeof driverRatingRows[number]) => {
+            switch (driverRatingsSort) {
+                case 'communityAverage':
+                    return row.comparison.communityAverage ?? Number.NEGATIVE_INFINITY;
+                case 'votes':
+                    return row.comparison.voteCount;
+                case 'myAverage':
+                    return row.comparison.myAverage;
+            }
+        };
+
+        const valueDifference = getSortValue(b) - getSortValue(a);
+        if (valueDifference !== 0) return valueDifference;
+
+        return b.comparison.myAverage - a.comparison.myAverage
+            || a.driver.driverName.localeCompare(b.driver.driverName);
+    });
 
     // Track scroll position to show/hide "Top" button
     useEffect(() => {
@@ -583,7 +610,7 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
                         </div>
                     </div>
 
-                    {/* Personal season order stays fixed; only comparison values change scope. */}
+                    {/* Personal season order is the default; the three metric columns can be sorted independently. */}
                     <div className="min-w-0 lg:col-span-6">
                         <div className="mb-3 border-b border-[var(--border-color)] pb-2">
                             <h3 className="font-display text-lg text-white uppercase tracking-wider md:text-2xl">DRIVER RATINGS</h3>
@@ -594,12 +621,39 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
                         <CommunityNotice status={community.status} legacy={hasLegacy} />
                         <div className="bg-[var(--bg-panel)] border-t border-[var(--border-color)]">
                             <div className={`grid items-center gap-2 border-b border-[var(--border-color)] px-2 py-2 font-oxanium text-[8px] text-[var(--text-muted)] md:px-3 md:text-[9px] ${communityVisible ? 'grid-cols-[minmax(0,1fr)_60px_104px] md:grid-cols-[minmax(0,1fr)_72px_112px_40px]' : 'grid-cols-[minmax(0,1fr)_60px] md:grid-cols-[minmax(0,1fr)_72px]'}`}>
-                                <span>DRIVER</span><span className="w-full whitespace-nowrap text-left">MY AVG</span>
-                                {communityVisible && <><span className="w-full whitespace-nowrap text-center">COMMUNITY AVG</span><span className="hidden w-full items-center justify-center whitespace-nowrap text-center md:flex">VOTES</span></>}
+                                <span>DRIVER</span>
+                                <button
+                                    type="button"
+                                    aria-label="Sort by my average, highest first"
+                                    aria-pressed={driverRatingsSort === 'myAverage'}
+                                    onClick={() => setDriverRatingsSort('myAverage')}
+                                    className={`w-full cursor-pointer select-none whitespace-nowrap text-left transition-colors hover:text-white ${driverRatingsSort === 'myAverage' ? 'text-white' : ''}`}
+                                >
+                                    MY AVG
+                                </button>
+                                {communityVisible && <>
+                                    <button
+                                        type="button"
+                                        aria-label="Sort by community average, highest first"
+                                        aria-pressed={driverRatingsSort === 'communityAverage'}
+                                        onClick={() => setDriverRatingsSort('communityAverage')}
+                                        className={`w-full cursor-pointer select-none whitespace-nowrap text-center transition-colors hover:text-white ${driverRatingsSort === 'communityAverage' ? 'text-white' : ''}`}
+                                    >
+                                        COMMUNITY AVG
+                                    </button>
+                                    <button
+                                        type="button"
+                                        aria-label="Sort by votes, highest first"
+                                        aria-pressed={driverRatingsSort === 'votes'}
+                                        onClick={() => setDriverRatingsSort('votes')}
+                                        className={`hidden w-full cursor-pointer select-none items-center justify-center whitespace-nowrap text-center transition-colors hover:text-white md:flex ${driverRatingsSort === 'votes' ? 'text-white' : ''}`}
+                                    >
+                                        VOTES
+                                    </button>
+                                </>}
                             </div>
                             <div className="max-h-[400px] overflow-y-auto md:max-h-[600px]">
-                                {rankedAverages.map((driver, index) => {
-                                    const comparison = compareCommunity(driver, personalRaces, community.ratings, source, 'season');
+                                {sortedDriverRatingRows.map(({ driver, comparison }, index) => {
                                     const communityRating = comparison.communityAverage === null ? undefined : {
                                         averageRating: comparison.communityAverage, voteCount: comparison.voteCount,
                                     };
