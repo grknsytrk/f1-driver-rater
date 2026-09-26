@@ -688,7 +688,7 @@ export interface SeasonRaceResult {
     status: string;
 }
 
-export async function getAllSeasonResults(season: string): Promise<SeasonRaceResult[]> {
+export async function getAllSeasonResults(season: string, options: { throwOnError?: boolean } = {}): Promise<SeasonRaceResult[]> {
     try {
         const [allRaces, calendar] = await Promise.all([
             fetchAllPaginated(`/${season}/results.json`),
@@ -716,7 +716,7 @@ export async function getAllSeasonResults(season: string): Promise<SeasonRaceRes
 
         return results;
     } catch (error) {
-        if (error instanceof RateLimitError) {
+        if (options.throwOnError || error instanceof RateLimitError) {
             // Let the UI decide how to render "unavailable" vs "0 results"
             throw error;
         }
@@ -737,7 +737,7 @@ export interface SeasonSprintResult {
     status: string;
 }
 
-export async function getAllSeasonSprints(season: string): Promise<SeasonSprintResult[]> {
+export async function getAllSeasonSprints(season: string, options: { throwOnError?: boolean } = {}): Promise<SeasonSprintResult[]> {
     try {
         const [allSprints, calendar] = await Promise.all([
             fetchAllPaginated(`/${season}/sprint.json`),
@@ -767,7 +767,7 @@ export async function getAllSeasonSprints(season: string): Promise<SeasonSprintR
 
         return results;
     } catch (error) {
-        if (error instanceof RateLimitError) {
+        if (options.throwOnError || error instanceof RateLimitError) {
             throw error;
         }
         console.error(`Error fetching season sprints for ${season}:`, error);

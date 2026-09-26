@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { Medal, Users, Loader2, AlertTriangle, Download, Share2 } from 'lucide-react';
 import { useExportImage } from '../hooks/useExportImage';
@@ -8,7 +8,8 @@ import type { Race } from '../types';
 import { TEAM_COLORS } from '../types';
 import { getCountryCode } from '../utils/storage';
 import { CountryFlag } from '../utils/countryFlags';
-import { buildWdcRaceMap, getWdcCellDisplay } from '../utils/standings';
+import { buildChampionshipProgress, buildConstructorTrackerEntries, buildDriverTrackerEntries, buildPointsTimeline, buildWccRaceMap, buildWdcRaceMap, getWdcCellDisplay, type LatestTeamMap } from '../utils/standings';
+import { StandingsPointsTracker } from './StandingsPointsTracker';
 
 interface StandingsPageProps {
     season: string;
@@ -16,6 +17,12 @@ interface StandingsPageProps {
 }
 
 type TabType = 'wdc' | 'wcc';
+
+interface TrackerSelection {
+    season: string;
+    wdc: string[] | null;
+    wcc: string[] | null;
+}
 
 interface RaceColumn {
     round: string;
@@ -41,20 +48,42 @@ export function StandingsPage({ season }: StandingsPageProps) {
     // Race-by-race data
     const [raceResults, setRaceResults] = useState<SeasonRaceResult[]>([]);
     const [sprintResults, setSprintResults] = useState<SeasonSprintResult[]>([]);
-    const [races, setRaces] = useState<RaceColumn[]>([]);
+    const [calendar, setCalendar] = useState<Race[]>([]);
+    const [pointsError, setPointsError] = useState<string | null>(null);
+    const [trackerSelection, setTrackerSelection] = useState<TrackerSelection | null>(null);
+    const loadVersion = useRef(0);
+
+    const races: RaceColumn[] = calendar
+        .filter(race => new Date(race.date) < new Date())
+        .map(race => ({
+            round: race.round,
+            raceName: race.raceName.replace(' Grand Prix', '').replace(' GP', ''),
+            countryCode: getCountryCode(race.raceName),
+        }));
 
     const loadData = useCallback(async () => {
+        const requestVersion = ++loadVersion.current;
         setLoading(true);
         setError(null);
+        setPointsError(null);
+        setTrackerSelection(selection => selection?.season === season ? selection : null);
+        setDriverStats([]);
+        setConstructorStandings([]);
+        setRaceResults([]);
+        setSprintResults([]);
+        setCalendar([]);
         
         try {
             const [driverRes, constructorRes, resultsRes, sprintRes, racesRes] = await Promise.allSettled([
                 getDriverSeasonStats(season),
                 getConstructorStandings(season),
-                getAllSeasonResults(season),
-                getAllSeasonSprints(season),
+                getAllSeasonResults(season, { throwOnError: true }),
+                getAllSeasonSprints(season, { throwOnError: true }),
                 getRaces(season),
             ]);
+
+            // A response from a previous season must not replace the current timeline.
+            if (requestVersion !== loadVersion.current) return;
 
             if (driverRes.status === 'fulfilled') {
                 setDriverStats(driverRes.value);
@@ -74,31 +103,25 @@ export function StandingsPage({ season }: StandingsPageProps) {
                 setSprintResults(sprintRes.value);
             }
 
+            if (resultsRes.status === 'rejected' || sprintRes.status === 'rejected') {
+                setPointsError('Race or sprint results could not be loaded. Retry to see the complete points timeline.');
+            }
+
             if (racesRes.status === 'fulfilled') {
-                // Build race columns from races data
-                const raceColumns: RaceColumn[] = racesRes.value
-                    .filter((race: Race) => {
-                        // Only include races that have happened (have results)
-                        const raceDate = new Date(race.date);
-                        return raceDate < new Date();
-                    })
-                    .map((race: Race) => ({
-                        round: race.round,
-                        raceName: race.raceName.replace(' Grand Prix', '').replace(' GP', ''),
-                        countryCode: getCountryCode(race.raceName),
-                    }));
-                setRaces(raceColumns);
+                // Keep the full calendar so Saturday sprint points retain Sunday's race name.
+                setCalendar(racesRes.value);
             }
         } catch (err) {
             console.error('Error loading standings:', err);
-            setError('Failed to load standings data.');
+            if (requestVersion === loadVersion.current) setError('Failed to load standings data.');
         } finally {
-            setLoading(false);
+            if (requestVersion === loadVersion.current) setLoading(false);
         }
     }, [season]);
 
     useEffect(() => {
         void loadData();
+        return () => { loadVersion.current += 1; };
     }, [loadData]);
 
     function getTeamColor(constructorId: string): string {
@@ -106,10 +129,10 @@ export function StandingsPage({ season }: StandingsPageProps) {
     }
 
     // Build WDC race-by-race map with weekend points plus main-race status
-    const wdcRaceMap = buildWdcRaceMap(raceResults, sprintResults);
+    const wdcRaceMap = useMemo(() => buildWdcRaceMap(raceResults, sprintResults), [raceResults, sprintResults]);
 
     // Build WCC race-by-race map: constructorId -> { round -> totalPoints }
-    const wccRaceMap = new Map<string, Map<string, number>>();
+    const wccRaceMap = useMemo(() => buildWccRaceMap(raceResults, sprintResults), [raceResults, sprintResults]);
     // Calculate podiums per constructor
     const constructorPodiums = new Map<string, number>();
     // Calculate poles per constructor (from driver stats)
@@ -122,13 +145,6 @@ export function StandingsPage({ season }: StandingsPageProps) {
     });
     
     raceResults.forEach(result => {
-        if (!wccRaceMap.has(result.constructorId)) {
-            wccRaceMap.set(result.constructorId, new Map());
-        }
-        const constructorRaces = wccRaceMap.get(result.constructorId)!;
-        const currentPoints = constructorRaces.get(result.round) || 0;
-        constructorRaces.set(result.round, currentPoints + result.points);
-        
         // Count podiums (position 1, 2, or 3)
         if (result.position !== null && result.position <= 3) {
             const currentPodiums = constructorPodiums.get(result.constructorId) || 0;
@@ -136,33 +152,31 @@ export function StandingsPage({ season }: StandingsPageProps) {
         }
     });
 
-    // Merge sprint points into WCC map (weekend points = GP + Sprint)
-    sprintResults.forEach(result => {
-        if (!wccRaceMap.has(result.constructorId)) {
-            wccRaceMap.set(result.constructorId, new Map());
-        }
-        const constructorRounds = wccRaceMap.get(result.constructorId)!;
-        const currentPoints = constructorRounds.get(result.round) || 0;
-        constructorRounds.set(result.round, currentPoints + result.points);
-    });
-
     // Build latest team map: driverId -> { constructorId, constructorName } from highest round
     // This ensures mid-season team changes show the end-of-season (or latest completed race) team
-    const latestTeamByDriverId = new Map<string, { constructorId: string; constructorName: string }>();
-    const driverMaxRound = new Map<string, number>(); // track highest round per driver
-    
-    raceResults.forEach(result => {
-        const roundNum = parseInt(result.round);
-        const currentMax = driverMaxRound.get(result.driverId) || 0;
-        
-        if (roundNum > currentMax) {
-            driverMaxRound.set(result.driverId, roundNum);
-            latestTeamByDriverId.set(result.driverId, {
-                constructorId: result.constructorId,
-                constructorName: result.constructorName,
-            });
-        }
-    });
+    const latestTeamByDriverId = useMemo(() => {
+        const teams: LatestTeamMap = new Map();
+        const driverMaxRound = new Map<string, number>();
+        [...raceResults, ...sprintResults].forEach(result => {
+            const roundNum = Number(result.round);
+            if (roundNum > (driverMaxRound.get(result.driverId) ?? 0)) {
+                driverMaxRound.set(result.driverId, roundNum);
+                teams.set(result.driverId, {
+                    constructorId: result.constructorId,
+                    constructorName: result.constructorName,
+                });
+            }
+        });
+        return teams;
+    }, [raceResults, sprintResults]);
+
+    const driverEntries = useMemo(() => buildDriverTrackerEntries(driverStats, latestTeamByDriverId), [driverStats, latestTeamByDriverId]);
+    const constructorEntries = useMemo(() => buildConstructorTrackerEntries(constructorStandings), [constructorStandings]);
+    // Keep the chart dataset stable when selections change so existing lines can interpolate their positions.
+    const driverTimeline = useMemo(() => buildChampionshipProgress(driverEntries.map(entry => entry.id), calendar, wdcRaceMap), [driverEntries, calendar, wdcRaceMap]);
+    const constructorTimeline = useMemo(() => buildPointsTimeline(
+        constructorEntries.map(entry => entry.id), calendar, wccRaceMap, new Set(raceResults.map(result => result.round)),
+    ), [constructorEntries, calendar, wccRaceMap, raceResults]);
 
     if (loading) {
         return (
@@ -297,6 +311,22 @@ export function StandingsPage({ season }: StandingsPageProps) {
                     getTeamColor={getTeamColor}
                 />
             )}
+
+            <StandingsPointsTracker
+                key={`${season}-${activeTab}`}
+                season={season}
+                mode={activeTab === 'wdc' ? 'drivers' : 'constructors'}
+                entries={activeTab === 'wdc' ? driverEntries : constructorEntries}
+                points={activeTab === 'wdc' ? driverTimeline : constructorTimeline}
+                selectedIds={trackerSelection?.season === season ? trackerSelection[activeTab] : null}
+                onSelectionChange={ids => setTrackerSelection(previous => ({
+                    ...(previous?.season === season ? previous : { season, wdc: null, wcc: null }),
+                    [activeTab]: ids,
+                }))}
+                isExporting={isExporting}
+                error={pointsError}
+                onRetry={loadData}
+            />
         </div>
     );
 }

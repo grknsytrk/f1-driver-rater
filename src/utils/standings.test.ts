@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { SeasonRaceResult, SeasonSprintResult } from '../api/f1Api';
-import { buildWdcRaceMap, getWdcCellDisplay, normalizeStandingStatus } from './standings';
+import { buildChampionshipProgress, buildPointsTimeline, buildWccRaceMap, buildWdcRaceMap, getWdcCellDisplay, normalizeStandingStatus } from './standings';
 
 function makeRaceResult(overrides: Partial<SeasonRaceResult>): SeasonRaceResult {
     return {
@@ -128,5 +128,136 @@ describe('getWdcCellDisplay', () => {
         expect(getWdcCellDisplay(undefined)).toEqual({
             kind: 'empty',
         });
+    });
+});
+
+describe('buildChampionshipProgress', () => {
+    it('accumulates GP and sprint points in numeric round order without adding future races', () => {
+        const calendar = [
+            { round: '1', raceName: 'Australian Grand Prix' },
+            { round: '2', raceName: 'Chinese Grand Prix' },
+            { round: '10', raceName: 'Spanish Grand Prix' },
+            { round: '11', raceName: 'Austrian Grand Prix' },
+        ];
+        const raceMap = buildWdcRaceMap([
+            makeRaceResult({ round: '10', points: 25 }),
+            makeRaceResult({ round: '2', points: 25 }),
+            makeRaceResult({ round: '1', points: 18 }),
+        ], [makeSprintResult({ round: '2', points: 4 })]);
+
+        const timeline = buildChampionshipProgress(['max_verstappen'], calendar, raceMap);
+
+        expect(timeline.map(point => point.round)).toEqual(['1', '2', '10']);
+        expect(timeline.map(point => point.scores.max_verstappen)).toEqual([
+            { weekendPoints: 18, totalPoints: 18 },
+            { weekendPoints: 29, totalPoints: 47 },
+            { weekendPoints: 25, totalPoints: 72 },
+        ]);
+        expect(timeline.map(point => point.raceName)).toEqual(calendar.slice(0, 3).map(race => race.raceName));
+        expect(timeline.every(point => !point.sprintOnly)).toBe(true);
+    });
+
+    it('preserves fractional points and carries totals through zero points and non-participation', () => {
+        const timeline = buildChampionshipProgress(['max_verstappen', 'reserve'], [], buildWdcRaceMap([
+            makeRaceResult({ round: '1', points: 12.5 }),
+            makeRaceResult({ round: '2', points: 0, position: 12 }),
+            makeRaceResult({ round: '2', driverId: 'reserve', points: 0.5 }),
+            makeRaceResult({ round: '3', driverId: 'reserve', points: 1 }),
+        ], []));
+
+        expect(timeline.map(point => point.scores.max_verstappen.totalPoints)).toEqual([12.5, 12.5, 12.5]);
+        expect(timeline.map(point => point.scores.reserve.totalPoints)).toEqual([0, 0.5, 1.5]);
+        expect(timeline[2].scores.max_verstappen.weekendPoints).toBe(0);
+        expect(timeline[0].raceName).toBe('Round 1');
+    });
+
+    it.each(['Engine', 'Disqualified', 'Did not start'])('keeps sprint points when the GP status is %s', status => {
+        const timeline = buildChampionshipProgress(['max_verstappen'], [], buildWdcRaceMap([
+            makeRaceResult({ points: 0, position: null, status }),
+        ], [makeSprintResult({ points: 3 })]));
+
+        expect(timeline[0].scores.max_verstappen).toEqual({ weekendPoints: 3, totalPoints: 3 });
+        expect(timeline[0].sprintOnly).toBe(false);
+    });
+
+    it('includes a sprint-only weekend with its calendar name before the GP has happened', () => {
+        const timeline = buildChampionshipProgress(['max_verstappen', 'reserve'], [
+            { round: '2', raceName: 'Chinese Grand Prix' },
+        ], buildWdcRaceMap([
+            makeRaceResult({ points: 25 }),
+        ], [makeSprintResult({ round: '2', points: 8 })]));
+
+        expect(timeline[1]).toEqual({
+            round: '2',
+            raceName: 'Chinese Grand Prix',
+            sprintOnly: true,
+            scores: {
+                max_verstappen: { weekendPoints: 8, totalPoints: 33 },
+                reserve: { weekendPoints: 0, totalPoints: 0 },
+            },
+        });
+    });
+
+    it('does not mark a weekend sprint-only when another driver has a GP result', () => {
+        const timeline = buildChampionshipProgress(['max_verstappen'], [], buildWdcRaceMap([
+            makeRaceResult({ driverId: 'reserve' }),
+        ], [makeSprintResult({ points: 8 })]));
+        expect(timeline[0].sprintOnly).toBe(false);
+        expect(timeline[0].scores.max_verstappen.totalPoints).toBe(8);
+    });
+
+    it('does not manufacture a timeline when there are no published results', () => {
+        expect(buildChampionshipProgress(['max_verstappen'], [
+            { round: '1', raceName: 'Australian Grand Prix' },
+        ], new Map())).toEqual([]);
+    });
+});
+
+describe('constructor points timeline', () => {
+    it('adds both teammates and sprint points to the team recorded in each result, including transfers and reserves', () => {
+        const races = [
+            makeRaceResult({ round: '1', driverId: 'regular', constructorId: 'ferrari', points: 25 }),
+            makeRaceResult({ round: '1', driverId: 'transfer', constructorId: 'ferrari', points: 18 }),
+            makeRaceResult({ round: '2', driverId: 'reserve', constructorId: 'ferrari', points: 6 }),
+            makeRaceResult({ round: '2', driverId: 'transfer', constructorId: 'red_bull', points: 15 }),
+        ];
+        const sprints = [
+            makeSprintResult({ round: '1', driverId: 'regular', constructorId: 'ferrari', points: 8 }),
+            makeSprintResult({ round: '1', driverId: 'transfer', constructorId: 'ferrari', points: 7 }),
+            makeSprintResult({ round: '2', driverId: 'reserve', constructorId: 'ferrari', points: 2 }),
+            makeSprintResult({ round: '2', driverId: 'transfer', constructorId: 'red_bull', points: 3 }),
+        ];
+        const weekendPoints = buildWccRaceMap(races, sprints);
+        expect(weekendPoints.get('ferrari')?.get('1')).toBe(58);
+        expect(weekendPoints.get('ferrari')?.get('2')).toBe(8);
+        expect(weekendPoints.get('red_bull')?.get('1')).toBeUndefined();
+        const timeline = buildPointsTimeline(['ferrari', 'red_bull'], [], weekendPoints, new Set(['1', '2']));
+        expect(timeline.map(point => point.scores)).toEqual([
+            { ferrari: { weekendPoints: 58, totalPoints: 58 }, red_bull: { weekendPoints: 0, totalPoints: 0 } },
+            { ferrari: { weekendPoints: 8, totalPoints: 66 }, red_bull: { weekendPoints: 18, totalPoints: 18 } },
+        ]);
+    });
+
+    it('keeps fractional and zero totals, carries missing teams forward, and includes sprint-only rounds in numeric order', () => {
+        const raceMap = buildWccRaceMap([
+            makeRaceResult({ round: '2', points: 12.5 }),
+            makeRaceResult({ round: '2', driverId: 'teammate', points: 0.5 }),
+            makeRaceResult({ round: '9', points: 0, position: null, status: 'Did not start' }),
+        ], [
+            makeSprintResult({ round: '10', constructorId: 'ferrari', points: 3 }),
+            makeSprintResult({ round: '9', points: 1 }),
+        ]);
+        const timeline = buildPointsTimeline(['red_bull', 'ferrari', 'mercedes'], [
+            { round: '10', raceName: 'Chinese Grand Prix' },
+            { round: '11', raceName: 'Future Grand Prix' },
+        ], raceMap, new Set(['2', '9']));
+        expect(timeline.map(point => point.round)).toEqual(['2', '9', '10']);
+        expect(timeline.map(point => point.scores.red_bull.totalPoints)).toEqual([13, 14, 14]);
+        expect(timeline.map(point => point.scores.mercedes.totalPoints)).toEqual([0, 0, 0]);
+        expect(timeline[2]).toMatchObject({
+            raceName: 'Chinese Grand Prix', sprintOnly: true,
+            scores: { red_bull: { weekendPoints: 0, totalPoints: 14 }, ferrari: { weekendPoints: 3, totalPoints: 3 } },
+        });
+        expect(timeline.slice(0, 2).every(point => !point.sprintOnly)).toBe(true);
     });
 });
