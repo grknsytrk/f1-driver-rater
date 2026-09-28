@@ -25,6 +25,7 @@ export interface PointsTrackerEntry {
     id: string;
     name: string;
     label: string;
+    code?: string;
     description: string;
     points: number;
     color: string;
@@ -48,10 +49,15 @@ export function buildDriverTrackerEntries(drivers: DriverSeasonStats[], latestTe
 
     return [...drivers].sort((a, b) => Number(a.position) - Number(b.position)).map(driver => {
         const team = latestTeams.get(driver.driverId) ?? driver;
+        const label = driver.driverName.split(' ').pop() ?? driver.driverName;
+        const officialCode = driver.code?.trim();
         return {
             id: driver.driverId,
             name: driver.driverName,
-            label: driver.driverName.split(' ').pop() ?? driver.driverName,
+            label,
+            code: officialCode && /^[A-Za-z]{3}$/.test(officialCode)
+                ? officialCode.toUpperCase()
+                : label.slice(0, 3).toUpperCase(),
             description: `${driver.driverName} · ${team.constructorName}`,
             points: Number(driver.points),
             color: TEAM_COLORS[team.constructorId] ?? '#888888',

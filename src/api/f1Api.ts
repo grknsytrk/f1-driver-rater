@@ -478,6 +478,7 @@ export async function getSeasonDrivers(season: string): Promise<Array<{
 export interface DriverSeasonStats {
     driverId: string;
     driverName: string;
+    code?: string;
     constructorId: string;
     constructorName: string;
     position: string;
@@ -660,6 +661,7 @@ export async function getDriverSeasonStats(season: string): Promise<DriverSeason
             return {
                 driverId,
                 driverName: `${standing.Driver.givenName} ${standing.Driver.familyName}`,
+                code: standing.Driver.code,
                 constructorId: standing.Constructors?.[0]?.constructorId || 'unknown',
                 constructorName: standing.Constructors?.[0]?.name || 'Unknown',
                 position: standing.position,

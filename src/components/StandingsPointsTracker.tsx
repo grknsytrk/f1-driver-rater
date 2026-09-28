@@ -278,7 +278,7 @@ export function StandingsPointsTracker({
                                                                         <div key={entry.id} className="contents">
                                                                             <div className="flex items-center gap-2 text-white uppercase min-w-0">
                                                                                 <LineSwatch {...entry} />
-                                                                                <span className="truncate" title={entry.name}>{entry.label}</span>
+                                                                                <span className="truncate" title={entry.name}>{mode === 'drivers' ? entry.code ?? entry.label : entry.label}</span>
                                                                             </div>
                                                                             <span className="text-white text-right tabular-nums">{pointsFormatter.format(score.totalPoints)}</span>
                                                                             <span className="text-[var(--accent-yellow)] text-right tabular-nums">{deficit === '0' ? 'LEADER' : `−${deficit}`}</span>

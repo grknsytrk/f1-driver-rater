@@ -45,8 +45,8 @@ afterEach(async () => {
     vi.unstubAllGlobals();
 });
 
-async function render(selectedIds: string[], isExporting = false, data = points, mode: 'drivers' | 'constructors' = 'drivers') {
-    await act(async () => root.render(<StandingsPointsTracker season="2026" mode={mode} entries={entries}
+async function render(selectedIds: string[], isExporting = false, data = points, mode: 'drivers' | 'constructors' = 'drivers', trackerEntries = entries) {
+    await act(async () => root.render(<StandingsPointsTracker season="2026" mode={mode} entries={trackerEntries}
         points={data} selectedIds={selectedIds} onSelectionChange={() => {}} isExporting={isExporting}
         error={null} onRetry={() => {}} />));
 }
@@ -85,6 +85,27 @@ async function hoverRound(index: number) {
 }
 
 describe('points tracker SVG', () => {
+    it('shows three-letter driver codes in the round tooltip while keeping full names available', async () => {
+        const codedEntries = entries.map((entry, index) => ({
+            ...entry,
+            name: ['Lewis Hamilton', 'Charles Leclerc', 'Andrea Kimi Antonelli'][index],
+            label: ['Hamilton', 'Leclerc', 'Antonelli'][index],
+            code: ['HAM', 'LEC', 'ANT'][index],
+        }));
+        const selected = entries.map(entry => entry.id);
+        await render(selected, true, points, 'drivers', codedEntries);
+        await render(selected, false, points, 'drivers', codedEntries);
+        await hoverRound(0);
+
+        const tooltip = container.querySelector('.recharts-tooltip-wrapper');
+        expect(tooltip?.textContent).toContain('HAM');
+        expect(tooltip?.textContent).toContain('LEC');
+        expect(tooltip?.textContent).toContain('ANT');
+        expect(tooltip?.textContent).not.toContain('Hamilton');
+        expect([...tooltip!.querySelectorAll('span[title]')].map(span => span.getAttribute('title')))
+            .toEqual(['Lewis Hamilton', 'Charles Leclerc', 'Andrea Kimi Antonelli']);
+    });
+
     it('draws markers only when the line reaches them, preserving solid circles and settled sibling lines', async () => {
         await render(['leader']);
         await advance(1600);

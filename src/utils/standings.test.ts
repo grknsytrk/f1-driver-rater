@@ -1,6 +1,25 @@
 import { describe, expect, it } from 'vitest';
-import type { SeasonRaceResult, SeasonSprintResult } from '../api/f1Api';
-import { buildChampionshipProgress, buildPointsTimeline, buildWccRaceMap, buildWdcRaceMap, getWdcCellDisplay, normalizeStandingStatus } from './standings';
+import type { DriverSeasonStats, SeasonRaceResult, SeasonSprintResult } from '../api/f1Api';
+import { buildChampionshipProgress, buildDriverTrackerEntries, buildPointsTimeline, buildWccRaceMap, buildWdcRaceMap, getWdcCellDisplay, normalizeStandingStatus } from './standings';
+
+describe('driver tracker labels', () => {
+    it('uses the F1 code when available and a three-letter surname fallback', () => {
+        const drivers: DriverSeasonStats[] = [
+            { driverId: 'leclerc', driverName: 'Charles Leclerc', code: 'LEC' },
+            { driverId: 'hamilton', driverName: 'Lewis Hamilton' },
+            { driverId: 'antonelli', driverName: 'Andrea Kimi Antonelli', code: 'ANT' },
+            { driverId: 'michael_schumacher', driverName: 'Michael Schumacher', code: 'MSC' },
+        ].map((driver, index) => ({
+            constructorId: 'ferrari', constructorName: 'Ferrari', position: String(index + 1),
+            points: '0', wins: 0, poles: 0, podiums: 0, ...driver,
+        }));
+
+        const entries = buildDriverTrackerEntries(drivers, new Map());
+        expect(entries.map(entry => entry.code)).toEqual(['LEC', 'HAM', 'ANT', 'MSC']);
+        expect(entries.map(entry => entry.name)).toEqual(drivers.map(driver => driver.driverName));
+        expect(entries.map(entry => entry.label)).toEqual(['Leclerc', 'Hamilton', 'Antonelli', 'Schumacher']);
+    });
+});
 
 function makeRaceResult(overrides: Partial<SeasonRaceResult>): SeasonRaceResult {
     return {
