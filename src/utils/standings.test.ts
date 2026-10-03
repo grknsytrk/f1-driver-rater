@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { DriverSeasonStats, SeasonRaceResult, SeasonSprintResult } from '../api/f1Api';
-import { buildChampionshipProgress, buildDriverTrackerEntries, buildPointsTimeline, buildWccRaceMap, buildWdcRaceMap, getWdcCellDisplay, normalizeStandingStatus } from './standings';
+import { buildChampionshipProgress, buildDriverLineDashes, buildDriverTrackerEntries, buildPointsTimeline, buildWccRaceMap, buildWdcRaceMap, getWdcCellDisplay, normalizeStandingStatus } from './standings';
 
 describe('driver tracker labels', () => {
     it('uses the F1 code when available and a three-letter surname fallback', () => {
@@ -18,6 +18,22 @@ describe('driver tracker labels', () => {
         expect(entries.map(entry => entry.code)).toEqual(['LEC', 'HAM', 'ANT', 'MSC']);
         expect(entries.map(entry => entry.name)).toEqual(drivers.map(driver => driver.driverName));
         expect(entries.map(entry => entry.label)).toEqual(['Leclerc', 'Hamilton', 'Antonelli', 'Schumacher']);
+    });
+
+    it('assigns one solid and one dashed line per teammate pair independent of display order', () => {
+        const drivers = [
+            { driverId: 'oscar_piastri', constructorId: 'mclaren' },
+            { driverId: 'max_verstappen', constructorId: 'red_bull' },
+            { driverId: 'lando_norris', constructorId: 'mclaren' },
+            { driverId: 'sergio_perez', constructorId: 'red_bull' },
+        ];
+        const dashes = buildDriverLineDashes(drivers);
+
+        expect(dashes.get('lando_norris')).toBeUndefined();
+        expect(dashes.get('oscar_piastri')).toBe('8 5');
+        expect(dashes.get('max_verstappen')).toBeUndefined();
+        expect(dashes.get('sergio_perez')).toBe('8 5');
+        expect(buildDriverLineDashes([...drivers].reverse())).toEqual(dashes);
     });
 });
 

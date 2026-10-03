@@ -96,6 +96,8 @@ describe('Form Tracker line animation', () => {
         await render(['ham', 'ver']);
         expect(dots('ver')).toHaveLength(0);
         await advance(700);
+        expect(curve('ham')?.hasAttribute('stroke-dasharray')).toBe(false);
+        expect(curve('ver')?.getAttribute('stroke-dasharray')).toBe('8 5');
         expect(dots('ver').length).toBeGreaterThan(0);
         expect(dots('ver').length).toBeLessThan(3);
 

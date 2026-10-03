@@ -36,16 +36,23 @@ export type LatestTeamMap = Map<string, { constructorId: string; constructorName
 
 const LINE_PATTERNS = [undefined, '8 5', '2 4', '10 4 2 4', '12 4 2 4 2 4'];
 
-export function buildDriverTrackerEntries(drivers: DriverSeasonStats[], latestTeams: LatestTeamMap): PointsTrackerEntry[] {
+/** Keep each driver's line style stable and distinguish teammates in every tracker. */
+export function buildDriverLineDashes(drivers: { driverId: string; constructorId: string }[]): Map<string, string | undefined> {
     const teamCounts = new Map<string, number>();
     const patterns = new Map<string, string | undefined>();
-    // Use the full field so selecting or removing a teammate cannot change a line's style.
     [...drivers].sort((a, b) => a.driverId.localeCompare(b.driverId)).forEach(driver => {
-        const teamId = latestTeams.get(driver.driverId)?.constructorId ?? driver.constructorId;
-        const index = teamCounts.get(teamId) ?? 0;
+        const index = teamCounts.get(driver.constructorId) ?? 0;
         patterns.set(driver.driverId, LINE_PATTERNS[index % LINE_PATTERNS.length]);
-        teamCounts.set(teamId, index + 1);
+        teamCounts.set(driver.constructorId, index + 1);
     });
+    return patterns;
+}
+
+export function buildDriverTrackerEntries(drivers: DriverSeasonStats[], latestTeams: LatestTeamMap): PointsTrackerEntry[] {
+    const patterns = buildDriverLineDashes(drivers.map(driver => ({
+        driverId: driver.driverId,
+        constructorId: latestTeams.get(driver.driverId)?.constructorId ?? driver.constructorId,
+    })));
 
     return [...drivers].sort((a, b) => Number(a.position) - Number(b.position)).map(driver => {
         const team = latestTeams.get(driver.driverId) ?? driver;

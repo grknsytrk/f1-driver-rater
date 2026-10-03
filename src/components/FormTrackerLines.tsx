@@ -1,7 +1,7 @@
-import { useState } from 'react';
 import { useReducedMotion } from 'framer-motion';
 import { Line, useActiveTooltipDataPoints } from 'recharts';
 import { POINTS_RESCALE_MS, usePointsTrackerSeries } from '../hooks/usePointsTrackerSeries';
+import { buildDriverLineDashes } from '../utils/standings';
 import type { DriverFormSeries } from '../utils/storage';
 import type { FormChartPoint } from '../utils/formTracker';
 import { ProgressiveTrackerCurve, ProgressiveTrackerDot } from './ProgressiveTrackerLine';
@@ -34,31 +34,17 @@ export function FormTrackerLines({ drivers, selectedDriverIds, getColor }: FormT
     const reducedMotion = useReducedMotion();
     const selectedDrivers = drivers.filter(driver => selectedDriverIds.includes(driver.driverId));
     const series = usePointsTrackerSeries(selectedDrivers.map(driver => driver.driverId), !!reducedMotion);
-    const selectionKey = JSON.stringify(selectedDrivers.map(driver => driver.driverId));
-    const [dashState, setDashState] = useState(() => ({
-        selectionKey,
-        patterns: new Map(selectedDrivers.map((driver, index) => [
-            driver.driverId,
-            index === 0 ? undefined : index % 2 === 1 ? '7 4' : '2 3',
-        ])),
-    }));
-    let renderedDashPatterns = dashState.patterns;
-    if (dashState.selectionKey !== selectionKey) {
-        renderedDashPatterns = new Map(dashState.patterns);
-        selectedDrivers.forEach((driver, index) => {
-            if (!renderedDashPatterns.has(driver.driverId)) {
-                renderedDashPatterns.set(driver.driverId, index === 0 ? undefined : index % 2 === 1 ? '7 4' : '2 3');
-            }
-        });
-        setDashState({ selectionKey, patterns: renderedDashPatterns });
-    }
+    const dashPatterns = buildDriverLineDashes(drivers.map(driver => ({
+        driverId: driver.driverId,
+        constructorId: driver.latestConstructorId,
+    })));
 
     return <>
         {series.flatMap(animation => {
             const driver = drivers.find(candidate => candidate.driverId === animation.id);
             if (!driver) return [];
             const color = getColor(driver.latestConstructorId);
-            const dash = renderedDashPatterns.get(driver.driverId);
+            const dash = dashPatterns.get(driver.driverId);
             return [
                 <Line
                     key={driver.driverId}
