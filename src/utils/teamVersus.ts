@@ -1,5 +1,6 @@
 import type { ConstructorStanding, SeasonQualifyingResult, SeasonRaceResult } from '../api/f1Api';
 import type { AverageRating } from '../types';
+import type { CommunityRating, CommunityStatus } from './communityRatings';
 
 export type DataStatus = 'idle' | 'ok' | 'rate_limited' | 'error';
 
@@ -53,6 +54,14 @@ export interface VersusRow {
 export interface VersusRowOptions {
     raceAvailable?: boolean;
     qualiAvailable?: boolean;
+    communityA?: TeamCommunityAverage;
+    communityB?: TeamCommunityAverage;
+    communityStatus?: CommunityStatus;
+}
+
+export interface TeamCommunityAverage {
+    averageRating: number | null;
+    voteCount: number;
 }
 
 /** Teams that appear in the season, ordered by WCC position (then points, then name). */
@@ -144,6 +153,45 @@ export function buildTeamStats(
         podiums: teamResults.filter(r => r.position !== null && r.position <= 3).length,
         dnfs: teamResults.filter(r => r.position === null).length,
     };
+}
+
+/** Aggregate eligible community votes for one team, weighted by the vote counts returned by Supabase. */
+export function buildTeamCommunityAverage(
+    teamId: string,
+    ratings: CommunityRating[],
+    source: 'race' | 'quick',
+    raceResults: SeasonRaceResult[],
+    averages: AverageRating[],
+): TeamCommunityAverage {
+    const teamByDriverRound = new Map<string, string>();
+    const teamByDriver = new Map<string, string>();
+    const roundDriverKey = (round: string, driverId: string) => JSON.stringify([round, driverId]);
+
+    for (const result of raceResults) {
+        teamByDriverRound.set(roundDriverKey(result.round, result.driverId), result.constructorId);
+    }
+
+    // Quick ratings have no race round, so attribute each driver to their latest
+    // season team; a saved Quick Rate entry is the best source when available.
+    for (const result of [...raceResults].sort((a, b) => Number(a.round) - Number(b.round))) {
+        teamByDriver.set(result.driverId, result.constructorId);
+    }
+    if (source === 'quick') {
+        for (const average of averages) teamByDriver.set(average.driverId, average.constructorId);
+    }
+
+    const relevant = ratings.filter(rating => {
+        if (source === 'race') {
+            return rating.round !== undefined
+                && teamByDriverRound.get(roundDriverKey(rating.round, rating.driverId)) === teamId;
+        }
+        return rating.round === undefined && teamByDriver.get(rating.driverId) === teamId;
+    });
+    const voteCount = relevant.reduce((sum, rating) => sum + rating.voteCount, 0);
+    if (voteCount === 0) return { averageRating: null, voteCount: 0 };
+
+    const weightedTotal = relevant.reduce((sum, rating) => sum + rating.averageRating * rating.voteCount, 0);
+    return { averageRating: roundTo2(weightedTotal / voteCount), voteCount };
 }
 
 function bestPositionByRound(
@@ -304,8 +352,20 @@ export function buildComparisonRows(
     options: VersusRowOptions = {},
 ): VersusRow[] {
     const { raceAvailable = true, qualiAvailable = true } = options;
+    const communityA = options.communityA ?? { averageRating: null, voteCount: 0 };
+    const communityB = options.communityB ?? { averageRating: null, voteCount: 0 };
+    const communityStatus = options.communityStatus ?? 'disabled';
+    const communityNote = communityStatus === 'loading' && communityA.voteCount + communityB.voteCount === 0
+        ? 'Loading community votes…'
+        : communityStatus === 'disabled' || communityStatus === 'unavailable'
+            ? 'Community data unavailable'
+            : communityA.voteCount + communityB.voteCount === 0
+                ? 'No votes yet'
+                : `A ${communityA.voteCount} · B ${communityB.voteCount} votes`;
 
     return [
+        numericRow('communityAvg', 'Community Avg', communityA.averageRating, communityB.averageRating, true,
+            value => value.toFixed(2), communityNote),
         numericRow('avgRating', 'Avg Rating', a.avgRating, b.avgRating, true, value => value.toFixed(2)),
         numericRow('wccPosition', 'WCC Position', a.wccPosition, b.wccPosition, false, value => `P${value}`),
         numericRow('wccPoints', 'WCC Points', a.wccPoints, b.wccPoints, true),

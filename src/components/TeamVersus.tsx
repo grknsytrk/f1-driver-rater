@@ -8,8 +8,12 @@ import { useExportImage } from '../hooks/useExportImage';
 import type { ConstructorStanding, SeasonQualifyingResult, SeasonRaceResult } from '../api/f1Api';
 import { TEAM_COLORS } from '../types';
 import type { AverageRating } from '../types';
+import { useCommunityRatings, useRatingStorage } from '../hooks/useCommunityRatings';
+import { getSeasonRatings } from '../utils/storage';
+import { validRatings } from '../utils/ratingData';
 import {
     buildComparisonRows,
+    buildTeamCommunityAverage,
     buildTeamOptions,
     buildTeamStats,
     calculateTeamH2H,
@@ -139,6 +143,14 @@ export function TeamVersus({
     qualiStatus,
     toggle,
 }: TeamVersusProps) {
+    const ratingStorageSnapshot = useRatingStorage();
+    const communitySource = useMemo(() => {
+        const personalRaces = getSeasonRatings(season);
+        return personalRaces?.races.some(race => race.completed && validRatings(race.ratings).length > 0)
+            ? 'race' as const
+            : 'quick' as const;
+    }, [season, ratingStorageSnapshot]);
+    const community = useCommunityRatings(communitySource, season);
     const [searchParams, setSearchParams] = useSearchParams();
     const { exportAsImage, isExporting } = useExportImage();
     const [exportContainerRef, setExportContainerRef] = useState<HTMLDivElement | null>(null);
@@ -165,10 +177,15 @@ export function TeamVersus({
 
         const statsA = buildTeamStats(idA, nameOf(idA), raceResults, averages, constructorStandings);
         const statsB = buildTeamStats(idB, nameOf(idB), raceResults, averages, constructorStandings);
+        const communityA = buildTeamCommunityAverage(idA, community.ratings, communitySource, raceResults, averages);
+        const communityB = buildTeamCommunityAverage(idB, community.ratings, communitySource, raceResults, averages);
         const h2h = calculateTeamH2H(idA, idB, raceResults, qualiResults);
         const rows = buildComparisonRows(statsA, statsB, h2h, {
             raceAvailable: raceStatus === 'ok',
             qualiAvailable: qualiStatus === 'ok',
+            communityA,
+            communityB,
+            communityStatus: community.status,
         });
 
         return {
@@ -179,7 +196,8 @@ export function TeamVersus({
             driversA: getTeamDrivers(idA, raceResults, averages),
             driversB: getTeamDrivers(idB, raceResults, averages),
         };
-    }, [selection, teamOptions, raceResults, qualiResults, averages, constructorStandings, raceStatus, qualiStatus]);
+    }, [selection, teamOptions, raceResults, qualiResults, averages, constructorStandings, raceStatus, qualiStatus,
+        community.ratings, community.status, communitySource]);
 
     const updateSelection = (nextA: string, nextB: string) => {
         setSearchParams(prev => {
