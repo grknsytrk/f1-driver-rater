@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence, useAnimation } from 'framer-motion';
 import { toPng } from 'html-to-image';
 import { Swords, RotateCcw, Flag, Timer, Loader2, Download, Share2, ImageDown } from 'lucide-react';
@@ -8,6 +9,9 @@ import { getAllSeasonResults, getAllSeasonQualifying, getConstructorStandings, g
 import type { SeasonRaceResult, SeasonQualifyingResult, ConstructorStanding, DriverStanding } from '../api/f1Api';
 import { RateLimitError } from '../api/f1Api';
 import { TEAM_COLORS } from '../types';
+import { TeamVersus } from './TeamVersus';
+import { VersusModeToggle } from './VersusModeToggle';
+import type { VersusMode } from './VersusModeToggle';
 
 interface TeammateWarsProps {
     season: string;
@@ -54,6 +58,25 @@ function getDriverGivenName(driverName: string): string {
 
 export function TeammateWars({ season }: TeammateWarsProps) {
     const averages = calculateAverages(season);
+
+    const [searchParams, setSearchParams] = useSearchParams();
+    const mode: VersusMode = searchParams.get('mode') === 'teams' ? 'teams' : 'drivers';
+
+    const handleModeChange = (nextMode: VersusMode) => {
+        setSearchParams(prev => {
+            const next = new URLSearchParams(prev);
+            if (nextMode === 'teams') {
+                next.set('mode', 'teams');
+            } else {
+                next.delete('mode');
+                next.delete('a');
+                next.delete('b');
+            }
+            return next;
+        }, { replace: true });
+    };
+
+    const modeToggle = <VersusModeToggle mode={mode} onChange={handleModeChange} />;
 
     const [selections, setSelections] = useState<Record<string, [number, number]>>({});
     const [expandedTeamId, setExpandedTeamId] = useState<string | null>(null);
@@ -329,6 +352,23 @@ export function TeammateWars({ season }: TeammateWarsProps) {
         };
     });
 
+    // Team mode reuses the data fetched above; the drivers-only loading/empty states below don't apply to it.
+    if (mode === 'teams') {
+        return (
+            <TeamVersus
+                season={season}
+                raceResults={raceResults}
+                qualiResults={qualiResults}
+                constructorStandings={constructorStandings}
+                averages={averages}
+                loading={loading}
+                raceStatus={raceStatus}
+                qualiStatus={qualiStatus}
+                toggle={modeToggle}
+            />
+        );
+    }
+
     // Show loading state while fetching data
     if (loading && sortedTeamIds.length === 0) {
         return (
@@ -428,6 +468,7 @@ export function TeammateWars({ season }: TeammateWarsProps) {
                     <Swords size={32} className="text-[var(--accent-red)] scale-x-[-1]" />
                 </motion.div>
                 <div className="h-1 w-24 bg-[var(--accent-red)] mx-auto" />
+                {modeToggle}
                 {loading && (
                     <div className="mt-4 flex items-center justify-center gap-2 text-[var(--text-muted)]">
                         <Loader2 size={14} className="animate-spin" />
