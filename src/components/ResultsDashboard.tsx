@@ -557,13 +557,13 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 md:gap-12">
 
                     {/* CHART (Span 6) - Hidden on mobile */}
-                    <div className="hidden md:block lg:col-span-6">
+                    <div className="hidden md:flex md:flex-col lg:col-span-6">
                         <div className="mb-4 flex items-center justify-between border-b border-[var(--border-color)] pb-2">
                             <h3 className="font-display text-xl md:text-2xl text-white uppercase tracking-wider">PERFORMANCE ANALYSIS</h3>
                             <BarChart3 className="text-[var(--accent-red)] opacity-50" size={16} />
                         </div>
 
-                        <div className="bg-[var(--bg-panel)] border border-[var(--border-color)] p-4 md:p-6 h-[400px] md:h-[600px] relative scanline">
+                        <div className="bg-[var(--bg-panel)] border border-[var(--border-color)] p-4 md:p-6 flex-1 min-h-[400px] md:min-h-[600px] relative scanline">
                             {/* Grid Lines Overlay */}
                             <div className="absolute inset-0 pointer-events-none opacity-5"
                                 style={{ backgroundImage: 'linear-gradient(var(--border-color) 1px, transparent 1px), linear-gradient(90deg, var(--border-color) 1px, transparent 1px)', backgroundSize: '20px 20px' }} />
