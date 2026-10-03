@@ -1,11 +1,11 @@
-import { useCallback, useState, type ComponentProps } from 'react';
+import { useCallback, useState } from 'react';
 import { useReducedMotion } from 'framer-motion';
 import { ChartNoAxesCombined } from 'lucide-react';
-import { CartesianGrid, Curve, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis, useActiveTooltipDataPoints } from 'recharts';
+import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis, useActiveTooltipDataPoints } from 'recharts';
 import { POINTS_RESCALE_MS, usePointsTrackerSeries } from '../hooks/usePointsTrackerSeries';
 import type { ChampionshipProgressPoint, PointsTrackerEntry } from '../utils/standings';
-import { revealPointsLine, type TrackerCoordinate } from '../utils/pointsTracker';
 import { getCountryCode } from '../utils/storage';
+import { ProgressiveTrackerCurve, ProgressiveTrackerDot } from './ProgressiveTrackerLine';
 
 interface StandingsPointsTrackerProps {
     season: string;
@@ -49,15 +49,6 @@ function LineSwatch({ color, dash }: Pick<PointsTrackerEntry, 'color' | 'dash'>)
     );
 }
 
-function PointsCurve({ progress, dash, ...props }: ComponentProps<typeof Curve> & { progress: number; dash?: string }) {
-    const { visiblePoints } = revealPointsLine(props.points ?? [], progress);
-    return <>
-        {/* Keep Recharts' geometry reference full length so scale interpolation is independent of the reveal. */}
-        <Curve {...props} className="points-tracker-geometry" strokeDasharray={dash} visibility="hidden" pointerEvents="none" aria-hidden />
-        <Curve {...props} pathRef={undefined} points={visiblePoints} strokeDasharray={dash} />
-    </>;
-}
-
 interface PointsDotProps {
     progress: number;
     color: string;
@@ -66,20 +57,14 @@ interface PointsDotProps {
     cx?: number;
     cy?: number;
     index?: number;
-    points?: readonly TrackerCoordinate[];
+    points?: readonly { x: number | null; y: number | null }[];
     payload?: ChampionshipProgressPoint;
 }
 
 function PointsDot({ progress, color, isExporting, name, cx, cy, index, points = [], payload }: PointsDotProps) {
     const activePoints = useActiveTooltipDataPoints<ChampionshipProgressPoint>();
-    const { visibleIndexes, dotScale } = revealPointsLine(points, progress);
-    if (index === undefined || !visibleIndexes.has(index) || cx === undefined || cy === undefined) return null;
     const active = !isExporting && activePoints?.some(point => point.round === payload?.round);
-    return <circle
-        className={`recharts-dot recharts-line-dot${active ? ' points-tracker-active-dot' : ''}`}
-        name={name} data-point-index={index} cx={cx} cy={cy} r={(active ? 6 : 4) * dotScale}
-        fill={color} stroke={active ? '#fff' : '#0a0a0b'} strokeWidth={2 * dotScale} strokeDasharray="none"
-    />;
+    return <ProgressiveTrackerDot progress={progress} color={color} active={active} name={name} cx={cx} cy={cy} index={index} points={points} />;
 }
 
 export function StandingsPointsTracker({
@@ -299,7 +284,7 @@ export function StandingsPointsTracker({
                                                         stroke={entry.color}
                                                         strokeDasharray={entry.dash}
                                                         strokeWidth={3}
-                                                        shape={<PointsCurve progress={progress} dash={entry.dash} />}
+                                                        shape={<ProgressiveTrackerCurve progress={progress} dash={entry.dash} />}
                                                         dot={<PointsDot progress={progress} color={entry.color} isExporting={isExporting} />}
                                                         activeDot={false}
                                                         isAnimationActive={!instant}

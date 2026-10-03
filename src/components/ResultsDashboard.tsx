@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Trophy, BarChart3, RotateCcw, ImageDown, Download, Share2, AlertTriangle, Table, Upload, FileJson, ChevronsUp } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, LineChart, Line, CartesianGrid, ReferenceLine } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, LineChart, CartesianGrid, ReferenceLine } from 'recharts';
 import { toPng } from 'html-to-image';
 import { toast } from 'sonner';
 import { Tooltip as ShadcnTooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -23,6 +23,7 @@ import { buildFormChartData, reconcileFormDriverSelection, toggleFormDriverSelec
 import { getSeasonRatings, getQuickRatings } from '../utils/storage';
 import { validRatings } from '../utils/ratingData';
 import { CountryFlag } from '../utils/countryFlags';
+import { FormTrackerLines } from './FormTrackerLines';
 
 interface ResultsDashboardProps {
     season: string;
@@ -165,6 +166,9 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
             rankedFormSeries.map(series => series.driverId),
         ));
     }, [season, rankedFormSeries, formSeriesKey]);
+
+    const selectedFormDrivers = rankedFormSeries.filter(series => selectedFormDriverIds.includes(series.driverId));
+    const visibleFormDrivers = selectedFormDrivers.length > 0 ? selectedFormDrivers : rankedFormSeries.slice(0, 1);
 
     if (averages.length === 0) {
         return (
@@ -334,9 +338,7 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
     // Podium (top 3)
     const podium = rankedAverages.slice(0, 3);
     const podiumOrder = [1, 0, 2]; // Silver, Gold, Bronze positions
-    const selectedFormDrivers = rankedFormSeries.filter(series => selectedFormDriverIds.includes(series.driverId));
-    const visibleFormDrivers = selectedFormDrivers.length > 0 ? selectedFormDrivers : rankedFormSeries.slice(0, 1);
-    const formChartData = buildFormChartData(visibleFormDrivers);
+    const formChartData = buildFormChartData(rankedFormSeries);
 
     return (
         <div className="min-h-screen py-4 md:py-8 px-3 md:px-6">
@@ -841,23 +843,11 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
                                                     />
                                                 );
                                             })}
-                                            {visibleFormDrivers.map((driver, index) => {
-                                                const color = getTeamColor(driver.latestConstructorId);
-                                                return (
-                                                    <Line
-                                                        key={driver.driverId}
-                                                        type="linear"
-                                                        name={driver.driverId}
-                                                        dataKey={driver.driverId}
-                                                        connectNulls={false}
-                                                        stroke={color}
-                                                        strokeDasharray={index === 0 ? undefined : index % 2 === 1 ? '7 4' : '2 3'}
-                                                        strokeWidth={3}
-                                                        dot={{ r: 4, fill: color, stroke: '#0a0a0b', strokeWidth: 2 }}
-                                                        activeDot={{ r: 6, fill: color, stroke: '#ffffff', strokeWidth: 2 }}
-                                                    />
-                                                );
-                                            })}
+                                            <FormTrackerLines
+                                                drivers={rankedFormSeries}
+                                                selectedDriverIds={visibleFormDrivers.map(driver => driver.driverId)}
+                                                getColor={getTeamColor}
+                                            />
                                         </LineChart>
                                     </ResponsiveContainer>
                                 </div>

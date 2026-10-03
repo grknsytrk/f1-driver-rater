@@ -15,6 +15,18 @@ describe('revealPointsLine', () => {
         expect(revealPointsLine(points, 0).visiblePoints).toEqual([]);
         expect(revealPointsLine(points, 1).visiblePoints).toEqual(points);
     });
+    it('keeps gaps disconnected while revealing each contiguous segment in sequence', () => {
+        const sparse = [
+            { x: 0, y: 0 }, { x: 10, y: 0 }, { x: null, y: null },
+            { x: 20, y: 10 }, { x: 30, y: 10 },
+        ];
+        const reveal = revealPointsLine(sparse, 0.75);
+        expect(reveal.visiblePoints).toEqual([
+            { x: 0, y: 0 }, { x: 10, y: 0 }, { x: null, y: null },
+            { x: 20, y: 10 }, { x: 25, y: 10 },
+        ]);
+        expect([...reveal.visibleIndexes]).toEqual([0, 1, 3]);
+    });
     it('scales single and coincident points without dividing by zero', () => {
         expect(revealPointsLine(points.slice(0, 1), 0.4).dotScale).toBe(0.4);
         expect(revealPointsLine([points[0], points[0]], 0.4).dotScale).toBe(0.4);

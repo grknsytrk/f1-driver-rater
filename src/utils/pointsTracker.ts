@@ -3,39 +3,50 @@ export interface TrackerCoordinate {
     y: number | null;
 }
 
-/** Reveal a linear SVG path by distance, keeping its original dash origin and full circular markers. */
+/** Reveal a linear SVG path by distance, keeping gaps and full circular markers intact. */
 export function revealPointsLine(points: readonly TrackerCoordinate[], progress: number) {
-    const vertices = points.flatMap((point, index) =>
-        point.x !== null && point.y !== null && Number.isFinite(point.x) && Number.isFinite(point.y)
-            ? [{ x: point.x, y: point.y, index }]
-            : []);
-    const distances = [0];
-    for (let index = 1; index < vertices.length; index++) {
-        const previous = vertices[index - 1];
-        const point = vertices[index];
-        distances.push(distances[index - 1] + Math.hypot(point.x - previous.x, point.y - previous.y));
+    const distances: (number | null)[] = [];
+    let length = 0;
+    let previous: { x: number; y: number } | null = null;
+    for (const point of points) {
+        if (point.x === null || point.y === null || !Number.isFinite(point.x) || !Number.isFinite(point.y)) {
+            distances.push(null);
+            previous = null;
+            continue;
+        }
+        if (previous) length += Math.hypot(point.x - previous.x, point.y - previous.y);
+        distances.push(length);
+        previous = { x: point.x, y: point.y };
     }
     const fraction = Math.max(0, Math.min(1, progress));
-    const length = distances.at(-1) ?? 0;
     const limit = length * fraction;
-    const visiblePoints: { x: number; y: number }[] = [];
+    const visiblePoints: TrackerCoordinate[] = [];
     const visibleIndexes = new Set<number>();
     if (fraction > 0) {
-        for (let index = 0; index < vertices.length; index++) {
-            const point = vertices[index];
-            if (distances[index] <= limit) {
+        let previousVisible: { x: number; y: number; distance: number } | null = null;
+        for (let index = 0; index < points.length; index++) {
+            const point = points[index];
+            const distance = distances[index];
+            if (distance === null) {
+                if (visiblePoints.length > 0 && visiblePoints.at(-1)?.x !== null) visiblePoints.push({ x: null, y: null });
+                previousVisible = null;
+                continue;
+            }
+            if (distance <= limit) {
                 visiblePoints.push({ x: point.x, y: point.y });
-                visibleIndexes.add(point.index);
+                visibleIndexes.add(index);
+                previousVisible = { x: point.x!, y: point.y!, distance };
             } else {
-                const previous = vertices[index - 1];
-                const segmentProgress = (limit - distances[index - 1]) / (distances[index] - distances[index - 1]);
+                if (!previousVisible) break;
+                const segmentProgress = (limit - previousVisible.distance) / (distance - previousVisible.distance);
                 visiblePoints.push({
-                    x: previous.x + (point.x - previous.x) * segmentProgress,
-                    y: previous.y + (point.y - previous.y) * segmentProgress,
+                    x: previousVisible.x + (point.x! - previousVisible.x) * segmentProgress,
+                    y: previousVisible.y + (point.y! - previousVisible.y) * segmentProgress,
                 });
                 break;
             }
         }
+        if (visiblePoints.at(-1)?.x === null) visiblePoints.pop();
     }
     return { visiblePoints, visibleIndexes, dotScale: length === 0 ? fraction : 1 };
 }
