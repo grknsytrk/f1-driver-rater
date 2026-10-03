@@ -19,6 +19,7 @@ import { useCommunityRatings, useRatingStorage } from '../hooks/useCommunityRati
 import { CommunityNotice } from './CommunityRating';
 import { CommunityRatingRows } from './CommunityRatingRows';
 import { compareCommunity } from '../utils/communityRatings';
+import { buildFormChartData, reconcileFormDriverSelection, toggleFormDriverSelection, type FormChartPoint } from '../utils/formTracker';
 import { getSeasonRatings, getQuickRatings } from '../utils/storage';
 import { validRatings } from '../utils/ratingData';
 import { CountryFlag } from '../utils/countryFlags';
@@ -37,20 +38,6 @@ function getDriverLabel(driverName: string): string {
 function formatRaceDisplayName(raceName: string | null): string {
     if (!raceName) return 'N/A';
     return raceName.replace(' Grand Prix', '').replace(' GP', '');
-}
-
-const FORM_RACE_LABELS: Record<string, string> = {
-    'EMILIA-ROMAGNA': 'IMO',
-    ITALY: 'ITA',
-    LASVEGAS: 'LV',
-    MIAMI: 'MIA',
-    'UNITED STATES': 'USA',
-};
-
-function getFormRaceLabel(raceName: string, countryCode: string): string {
-    const normalizedName = formatRaceDisplayName(raceName).replace(/\s+/g, ' ').trim().toUpperCase();
-    const compactName = normalizedName.replace(/[^A-Z0-9]/g, '');
-    return FORM_RACE_LABELS[normalizedName] ?? FORM_RACE_LABELS[compactName] ?? (countryCode !== 'XX' ? countryCode : normalizedName.slice(0, 3));
 }
 
 export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
@@ -114,7 +101,9 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
     const [generating, setGenerating] = useState(false);
     const [generatingTable, setGeneratingTable] = useState(false);
     const [showConfirmModal, setShowConfirmModal] = useState(false);
-    const [selectedDriverId, setSelectedDriverId] = useState<string | null>(null);
+    const [selectedFormDriverIds, setSelectedFormDriverIds] = useState<string[]>(() =>
+        rankedFormSeries[0] ? [rankedFormSeries[0].driverId] : [],
+    );
     const [driverRatingsSort, setDriverRatingsSort] = useState<DriverRatingsSortKey | null>(null);
     const cardRef = useRef<HTMLDivElement>(null);
     const shareSectionRef = useRef<HTMLDivElement>(null);
@@ -171,17 +160,11 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
     }, []);
 
     useEffect(() => {
-        if (rankedFormSeries.length === 0) {
-            if (selectedDriverId !== null) {
-                setSelectedDriverId(null);
-            }
-            return;
-        }
-
-        if (!selectedDriverId || !rankedFormSeries.some(series => series.driverId === selectedDriverId)) {
-            setSelectedDriverId(rankedFormSeries[0].driverId);
-        }
-    }, [season, rankedFormSeries, formSeriesKey, selectedDriverId]);
+        setSelectedFormDriverIds(current => reconcileFormDriverSelection(
+            current,
+            rankedFormSeries.map(series => series.driverId),
+        ));
+    }, [season, rankedFormSeries, formSeriesKey]);
 
     if (averages.length === 0) {
         return (
@@ -351,27 +334,9 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
     // Podium (top 3)
     const podium = rankedAverages.slice(0, 3);
     const podiumOrder = [1, 0, 2]; // Silver, Gold, Bronze positions
-    const selectedFormDriver = rankedFormSeries.find(series => series.driverId === selectedDriverId) ?? rankedFormSeries[0] ?? null;
-    const selectedFormColor = selectedFormDriver ? getTeamColor(selectedFormDriver.latestConstructorId) : 'var(--accent-red)';
-    const formChartData = selectedFormDriver
-        ? (() => {
-            const usedLabels = new Set<string>();
-            return selectedFormDriver.points.map(point => {
-                const baseLabel = getFormRaceLabel(point.raceName, point.countryCode);
-                let roundLabel = baseLabel;
-
-                // Race names such as Miami, Austin and Las Vegas can share a
-                // country code. Keep every chart category unique so Recharts
-                // resolves the hovered point to the correct race.
-                if (usedLabels.has(roundLabel)) {
-                    roundLabel = `${baseLabel}-${point.roundNumber}`;
-                }
-                usedLabels.add(roundLabel);
-
-                return { ...point, roundLabel };
-            });
-        })()
-        : [];
+    const selectedFormDrivers = rankedFormSeries.filter(series => selectedFormDriverIds.includes(series.driverId));
+    const visibleFormDrivers = selectedFormDrivers.length > 0 ? selectedFormDrivers : rankedFormSeries.slice(0, 1);
+    const formChartData = buildFormChartData(visibleFormDrivers);
 
     return (
         <div className="min-h-screen py-4 md:py-8 px-3 md:px-6">
@@ -679,7 +644,7 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
                         </span>
                     </div>
 
-                    {formSeries.length === 0 || !selectedFormDriver ? (
+                    {formSeries.length === 0 || visibleFormDrivers.length === 0 ? (
                         <div className="bg-[var(--bg-panel)] border border-[var(--border-color)] p-6 md:p-8 relative overflow-hidden">
                             <div
                                 className="absolute inset-0 pointer-events-none opacity-5"
@@ -705,91 +670,96 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
                             />
 
                             <div className="relative z-10 space-y-6">
-                                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                                    <div className="space-y-2">
-                                        <div className="flex flex-wrap items-center gap-3">
-                                            <div className="flex items-center gap-3">
-                                                <div className="h-10 w-1.5" style={{ backgroundColor: selectedFormColor }} />
-                                                <div>
-                                                    <div className="font-display text-2xl md:text-4xl text-white uppercase tracking-tight leading-none">
-                                                        {selectedFormDriver.driverName}
+                                <div className="space-y-3">
+                                    <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                                        <p className="font-ui text-sm text-[var(--text-secondary)]">
+                                            Select multiple drivers to compare their race-by-race ratings.
+                                        </p>
+                                        <span className="font-oxanium text-[10px] uppercase tracking-widest text-[var(--text-muted)]">
+                                            {visibleFormDrivers.length} SELECTED
+                                        </span>
+                                    </div>
+                                    <div aria-label="Selected drivers" className="flex gap-3 overflow-x-auto pb-2">
+                                        {visibleFormDrivers.map(driver => {
+                                            const color = getTeamColor(driver.latestConstructorId);
+                                            return (
+                                                <div key={driver.driverId} className="w-[260px] shrink-0 border border-[var(--border-color)] bg-[var(--bg-darker)] p-3">
+                                                    <div className="flex items-start justify-between gap-3">
+                                                        <div className="flex min-w-0 items-center gap-2">
+                                                            <div className="h-10 w-1 shrink-0" style={{ backgroundColor: color }} />
+                                                            <div className="min-w-0">
+                                                                <div className="truncate font-display text-sm uppercase leading-tight text-white">{driver.driverName}</div>
+                                                                <div className="truncate font-oxanium text-[9px] uppercase tracking-wider text-[var(--text-muted)]">
+                                                                    {driver.latestConstructorName}{driver.changedTeams ? ' · TEAM CHANGE' : ''}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                        <div className="shrink-0 text-right">
+                                                            <div className="font-oxanium text-[9px] uppercase tracking-wider text-[var(--text-muted)]">AVG</div>
+                                                            <div className="font-display text-lg leading-none text-white">{driver.seasonAverage.toFixed(2)}</div>
+                                                        </div>
                                                     </div>
-                                                    <div className="font-oxanium text-[11px] text-[var(--text-muted)] uppercase tracking-[0.2em]">
-                                                        {selectedFormDriver.latestConstructorName}
+                                                    <div className="mt-3 grid grid-cols-3 gap-2 border-t border-[var(--border-color)] pt-2">
+                                                        <div>
+                                                            <div className="font-oxanium text-[8px] uppercase tracking-wider text-[var(--text-muted)]">RACES</div>
+                                                            <div className="font-oxanium text-xs text-white">{driver.totalRatedRaces}</div>
+                                                        </div>
+                                                        <div className="min-w-0">
+                                                            <div className="font-oxanium text-[8px] uppercase tracking-wider text-[var(--text-muted)]">BEST</div>
+                                                            <div className="font-oxanium text-xs text-white">{driver.bestRating?.toFixed(1) ?? 'N/A'}</div>
+                                                            <div className="truncate font-ui text-[8px] uppercase text-[var(--text-muted)]">{formatRaceDisplayName(driver.bestRaceName)}</div>
+                                                        </div>
+                                                        <div className="min-w-0">
+                                                            <div className="font-oxanium text-[8px] uppercase tracking-wider text-[var(--text-muted)]">WORST</div>
+                                                            <div className="font-oxanium text-xs text-white">{driver.worstRating?.toFixed(1) ?? 'N/A'}</div>
+                                                            <div className="truncate font-ui text-[8px] uppercase text-[var(--text-muted)]">{formatRaceDisplayName(driver.worstRaceName)}</div>
+                                                        </div>
                                                     </div>
                                                 </div>
-                                            </div>
-                                            {selectedFormDriver.changedTeams && (
-                                                <span className="px-3 py-1 border border-[var(--accent-yellow)]/40 bg-[var(--accent-yellow)]/10 font-oxanium text-[10px] text-[var(--accent-yellow)] uppercase tracking-[0.2em]">
-                                                    TEAM CHANGE
-                                                </span>
-                                            )}
-                                        </div>
-                                        <p className="font-ui text-sm text-[var(--text-secondary)] max-w-2xl">
-                                            Track how your race-by-race ratings changed across the season for the selected driver.
-                                        </p>
-                                    </div>
-
-                                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 w-full lg:w-auto lg:min-w-[460px]">
-                                        <div className="border border-[var(--border-color)] bg-[var(--bg-darker)] px-3 py-3">
-                                            <div className="font-oxanium text-[10px] text-[var(--text-muted)] uppercase tracking-widest mb-1">AVG</div>
-                                            <div className="font-display text-2xl text-white leading-none">{selectedFormDriver.seasonAverage.toFixed(2)}</div>
-                                        </div>
-                                        <div className="border border-[var(--border-color)] bg-[var(--bg-darker)] px-3 py-3">
-                                            <div className="font-oxanium text-[10px] text-[var(--text-muted)] uppercase tracking-widest mb-1">RACES</div>
-                                            <div className="font-display text-2xl text-white leading-none">{selectedFormDriver.totalRatedRaces}</div>
-                                        </div>
-                                        <div className="border border-[var(--border-color)] bg-[var(--bg-darker)] px-3 py-3">
-                                            <div className="font-oxanium text-[10px] text-[var(--text-muted)] uppercase tracking-widest mb-1">BEST</div>
-                                            <div className="font-display text-xl text-white leading-none">
-                                                {selectedFormDriver.bestRating !== null ? selectedFormDriver.bestRating.toFixed(1) : 'N/A'}
-                                            </div>
-                                            <div className="font-ui text-[10px] text-[var(--text-muted)] uppercase tracking-wide mt-1 truncate">
-                                                {formatRaceDisplayName(selectedFormDriver.bestRaceName)}
-                                            </div>
-                                        </div>
-                                        <div className="border border-[var(--border-color)] bg-[var(--bg-darker)] px-3 py-3">
-                                            <div className="font-oxanium text-[10px] text-[var(--text-muted)] uppercase tracking-widest mb-1">WORST</div>
-                                            <div className="font-display text-xl text-white leading-none">
-                                                {selectedFormDriver.worstRating !== null ? selectedFormDriver.worstRating.toFixed(1) : 'N/A'}
-                                            </div>
-                                            <div className="font-ui text-[10px] text-[var(--text-muted)] uppercase tracking-wide mt-1 truncate">
-                                                {formatRaceDisplayName(selectedFormDriver.worstRaceName)}
-                                            </div>
-                                        </div>
+                                            );
+                                        })}
                                     </div>
                                 </div>
 
-                                <div className="overflow-x-auto pb-2">
-                                    <div className="flex gap-2 min-w-max">
-                                        {rankedFormSeries.map((driver) => {
-                                            const isSelected = driver.driverId === selectedFormDriver.driverId;
+                                <div>
+                                    <div className="mb-2 flex items-center justify-between gap-3">
+                                        <span className="font-oxanium text-[10px] uppercase tracking-widest text-[var(--text-muted)]">SELECT DRIVERS</span>
+                                        <span className="font-oxanium text-[9px] uppercase tracking-wider text-[var(--text-muted)]">Click again to remove · keep at least one selected</span>
+                                    </div>
+                                    <div role="group" aria-label="Select drivers to compare in Form Tracker" className="overflow-x-auto pb-2">
+                                        <div className="flex min-w-max gap-2">
+                                            {rankedFormSeries.map(driver => {
+                                                const isSelected = selectedFormDriverIds.includes(driver.driverId);
+                                                const color = getTeamColor(driver.latestConstructorId);
 
-                                            return (
-                                                <button
-                                                    key={driver.driverId}
-                                                    type="button"
-                                                    aria-pressed={isSelected}
-                                                    onClick={() => setSelectedDriverId(driver.driverId)}
-                                                    className={`group min-w-[130px] border px-3 py-2 text-left transition-colors ${isSelected
-                                                        ? 'border-white bg-[var(--bg-darker)]'
-                                                        : 'border-[var(--border-color)] bg-[var(--bg-panel-hover)] hover:border-white/40'
-                                                        }`}
-                                                >
-                                                    <div className="flex items-center gap-2">
-                                                        <div className="w-1 h-8 flex-shrink-0" style={{ backgroundColor: getTeamColor(driver.latestConstructorId) }} />
-                                                        <div className="min-w-0">
-                                                            <div className="font-display text-sm text-white uppercase leading-none truncate">
-                                                                {getDriverLabel(driver.driverName)}
-                                                            </div>
-                                                            <div className="font-oxanium text-[9px] text-[var(--text-muted)] uppercase tracking-wider truncate mt-1">
-                                                                {driver.seasonAverage.toFixed(2)} AVG
+                                                return (
+                                                    <button
+                                                        key={driver.driverId}
+                                                        type="button"
+                                                        aria-label={`${isSelected ? 'Remove' : 'Add'} ${driver.driverName} ${isSelected ? 'from' : 'to'} the Form Tracker chart`}
+                                                        aria-pressed={isSelected}
+                                                        onClick={() => setSelectedFormDriverIds(current => toggleFormDriverSelection(current, driver.driverId))}
+                                                        className={`group min-w-[130px] border px-3 py-2 text-left transition-colors ${isSelected
+                                                            ? 'bg-[var(--bg-darker)]'
+                                                            : 'border-[var(--border-color)] bg-[var(--bg-panel-hover)] hover:border-white/40'
+                                                            }`}
+                                                        style={isSelected ? { borderColor: color } : undefined}
+                                                    >
+                                                        <div className="flex items-center gap-2">
+                                                            <div className="w-1 h-8 shrink-0" style={{ backgroundColor: color }} />
+                                                            <div className="min-w-0">
+                                                                <div className="truncate font-display text-sm uppercase leading-none text-white">
+                                                                    {getDriverLabel(driver.driverName)}
+                                                                </div>
+                                                                <div className="mt-1 truncate font-oxanium text-[9px] uppercase tracking-wider text-[var(--text-muted)]">
+                                                                    {driver.seasonAverage.toFixed(2)} AVG
+                                                                </div>
                                                             </div>
                                                         </div>
-                                                    </div>
-                                                </button>
-                                            );
-                                        })}
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
                                     </div>
                                 </div>
 
@@ -814,65 +784,80 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
                                             <Tooltip
                                                 cursor={{ stroke: 'rgba(255,255,255,0.08)', strokeWidth: 1 }}
                                                 content={({ active, payload }) => {
-                                                    if (!active || !payload || payload.length === 0) {
-                                                        return null;
-                                                    }
+                                                    if (!active || !payload || payload.length === 0) return null;
 
-                                                    const point = payload[0].payload;
-                                                    if (point.rating === null) {
-                                                        return null;
-                                                    }
+                                                    const point = payload[0]?.payload as FormChartPoint | undefined;
+                                                    if (!point) return null;
+
+                                                    const ratings = payload.flatMap(entry => {
+                                                        const driverId = typeof entry.dataKey === 'string' ? entry.dataKey : '';
+                                                        const driver = visibleFormDrivers.find(series => series.driverId === driverId);
+                                                        const rating = Number(entry.value);
+                                                        if (!driver || entry.value === null || entry.value === undefined || !Number.isFinite(rating)) return [];
+
+                                                        const racePoint = driver.points.find(candidate => candidate.round === point.round);
+                                                        return [{ driver, racePoint, rating, color: getTeamColor(driver.latestConstructorId) }];
+                                                    });
+                                                    if (ratings.length === 0) return null;
 
                                                     return (
-                                                        <div className="bg-[#050608] border border-[var(--border-color)] p-4 shadow-2xl max-w-[260px]">
-                                                            <div className="flex items-center gap-2 mb-2">
-                                                                <div className="w-1 h-10" style={{ backgroundColor: selectedFormColor }} />
-                                                                <div>
-                                                                    <div className="font-display text-lg text-white uppercase leading-none">
-                                                                        {selectedFormDriver.driverName}
-                                                                    </div>
-                                                                    <div className="font-oxanium text-[10px] text-[var(--text-muted)] uppercase tracking-wider mt-1">
-                                                                        {point.constructorName ?? selectedFormDriver.latestConstructorName}
-                                                                    </div>
-                                                                </div>
+                                                        <div className="max-w-[280px] border border-[var(--border-color)] bg-[#050608] p-4 shadow-2xl">
+                                                            <div className="font-display text-sm uppercase leading-tight text-white">
+                                                                {formatRaceDisplayName(point.raceName)}
                                                             </div>
-                                                            <div className="space-y-1 font-oxanium text-xs">
-                                                                <div className="flex justify-between gap-4">
-                                                                    <span className="text-[var(--text-muted)]">ROUND</span>
-                                                                    <span className="text-white">{point.roundNumber}</span>
-                                                                </div>
-                                                                <div className="flex justify-between gap-4">
-                                                                    <span className="text-[var(--text-muted)]">RACE</span>
-                                                                    <span className="text-white text-right">{formatRaceDisplayName(point.raceName)}</span>
-                                                                </div>
-                                                                <div className="flex justify-between gap-4">
-                                                                    <span className="text-[var(--text-muted)]">DATE</span>
-                                                                    <span className="text-white">{new Date(point.date).toLocaleDateString('en-GB')}</span>
-                                                                </div>
-                                                                <div className="flex justify-between gap-4 pt-1 border-t border-white/10 mt-2">
-                                                                    <span className="text-[var(--text-muted)]">RATING</span>
-                                                                    <span className="text-[var(--accent-yellow)]">{point.rating.toFixed(1)}</span>
-                                                                </div>
+                                                            <div className="mt-1 font-oxanium text-[10px] uppercase tracking-wider text-[var(--text-muted)]">
+                                                                ROUND {point.roundNumber} · {new Date(point.date).toLocaleDateString('en-GB')}
+                                                            </div>
+                                                            <div className="mt-3 space-y-2">
+                                                                {ratings.map(({ driver, racePoint, rating, color }) => (
+                                                                    <div key={driver.driverId} className="flex items-center justify-between gap-4 border-t border-white/10 pt-2">
+                                                                        <div className="flex min-w-0 items-center gap-2">
+                                                                            <span className="h-5 w-1 shrink-0" style={{ backgroundColor: color }} />
+                                                                            <span className="min-w-0">
+                                                                                <span className="block truncate font-display-condensed text-xs uppercase text-white">{driver.driverName}</span>
+                                                                                <span className="block truncate font-oxanium text-[9px] uppercase text-[var(--text-muted)]">
+                                                                                    {racePoint?.constructorName ?? driver.latestConstructorName}
+                                                                                </span>
+                                                                            </span>
+                                                                        </div>
+                                                                        <span className="font-oxanium text-sm tabular-nums text-[var(--accent-yellow)]">{rating.toFixed(1)}</span>
+                                                                    </div>
+                                                                ))}
                                                             </div>
                                                         </div>
                                                     );
                                                 }}
                                             />
-                                            <ReferenceLine
-                                                y={selectedFormDriver.seasonAverage}
-                                                stroke={selectedFormColor}
-                                                strokeDasharray="6 4"
-                                                strokeOpacity={0.45}
-                                            />
-                                            <Line
-                                                type="linear"
-                                                dataKey="rating"
-                                                connectNulls={false}
-                                                stroke={selectedFormColor}
-                                                strokeWidth={3}
-                                                dot={{ r: 4, fill: selectedFormColor, stroke: '#0a0a0b', strokeWidth: 2 }}
-                                                activeDot={{ r: 6, fill: selectedFormColor, stroke: '#ffffff', strokeWidth: 2 }}
-                                            />
+                                            {visibleFormDrivers.map((driver, index) => {
+                                                const color = getTeamColor(driver.latestConstructorId);
+                                                const dash = index % 2 === 0 ? '6 4' : '2 4';
+                                                return (
+                                                    <ReferenceLine
+                                                        key={`average-${driver.driverId}`}
+                                                        y={driver.seasonAverage}
+                                                        stroke={color}
+                                                        strokeDasharray={dash}
+                                                        strokeOpacity={0.45}
+                                                    />
+                                                );
+                                            })}
+                                            {visibleFormDrivers.map((driver, index) => {
+                                                const color = getTeamColor(driver.latestConstructorId);
+                                                return (
+                                                    <Line
+                                                        key={driver.driverId}
+                                                        type="linear"
+                                                        name={driver.driverId}
+                                                        dataKey={driver.driverId}
+                                                        connectNulls={false}
+                                                        stroke={color}
+                                                        strokeDasharray={index === 0 ? undefined : index % 2 === 1 ? '7 4' : '2 3'}
+                                                        strokeWidth={3}
+                                                        dot={{ r: 4, fill: color, stroke: '#0a0a0b', strokeWidth: 2 }}
+                                                        activeDot={{ r: 6, fill: color, stroke: '#ffffff', strokeWidth: 2 }}
+                                                    />
+                                                );
+                                            })}
                                         </LineChart>
                                     </ResponsiveContainer>
                                 </div>
