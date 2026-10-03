@@ -99,4 +99,31 @@ describe('community request cache', () => {
         expect(rpc).toHaveBeenCalledTimes(2);
         expect(await createCommunityClient(null, vi.fn()).load(query)).toEqual([]);
     });
+    it('loads aggregate distributions by source and caches them with season-wide invalidation', async () => {
+        const { client, rpc, response, ensureUser } = setup();
+        const buckets = Array.from({ length: 20 }, (_, index) => ({
+            score: (index + 1) / 2,
+            count: (index + 1) / 2 === 5 ? 5 : 0,
+        }));
+        response.mockResolvedValue({ data: [{ driver_id: 'norris', vote_count: '5', rating_distribution: buckets }], error: null });
+        const raceQuery = { kind: 'race' as const, season: '2026' };
+        const quickQuery = { kind: 'quick' as const, season: '2026' };
+
+        const raceDistribution = await client.loadDistribution(raceQuery);
+        expect(raceDistribution[0]).toMatchObject({ driverId: 'norris', voteCount: 5 });
+        expect(raceDistribution[0].buckets).toHaveLength(20);
+        await client.loadDistribution(raceQuery);
+        expect(rpc).toHaveBeenCalledTimes(1);
+        expect(rpc).toHaveBeenCalledWith('get_community_rating_distributions', { p_kind: 'race', p_season: '2026' });
+
+        await client.loadDistribution(quickQuery);
+        expect(rpc).toHaveBeenCalledTimes(2);
+        expect(rpc).toHaveBeenCalledWith('get_community_rating_distributions', { p_kind: 'quick', p_season: '2026' });
+        client.invalidate([{ kind: 'race', season: '2026', round: '3' }]);
+        await client.loadDistribution(quickQuery);
+        expect(rpc).toHaveBeenCalledTimes(2);
+        await client.loadDistribution(raceQuery);
+        expect(rpc).toHaveBeenCalledTimes(3);
+        expect(ensureUser).toHaveBeenCalledTimes(3);
+    });
 });

@@ -3,6 +3,7 @@ import type { AverageRating, SeasonRatings } from '../types';
 import { supabase } from '../lib/supabaseClient';
 import { COMMUNITY_CHANGE_EVENT, ensureGuestUser } from './guestSync';
 import { validRatings, type RatingScope } from './ratingData';
+import { normalizeCommunityDistributionRow, type CommunityRatingDistribution } from './communityRatingDistribution';
 
 export interface CommunityRating {
     driverId: string;
@@ -11,6 +12,7 @@ export interface CommunityRating {
     voteCount: number;
 }
 export interface CommunityQuery { kind: 'race' | 'quick'; season: string; round?: string }
+export interface CommunityDistributionQuery { kind: 'race' | 'quick'; season: string }
 export type CommunityStatus = 'disabled' | 'loading' | 'ready' | 'unavailable';
 export interface CommunityState { status: CommunityStatus; ratings: CommunityRating[] }
 export const queryKey = (query: CommunityQuery) => JSON.stringify([query.kind, query.season, query.round ?? '']);
@@ -21,9 +23,16 @@ export function scopeAffectsQuery(scope: RatingScope, query: CommunityQuery): bo
 
 export function createCommunityClient(client: SupabaseClient | null, ensureUser: () => Promise<unknown>, now = Date.now) {
     const cache = new Map<string, { query: CommunityQuery; expires: number; promise: Promise<CommunityRating[]> }>();
+    const distributionCache = new Map<string, {
+        query: CommunityDistributionQuery; expires: number; promise: Promise<CommunityRatingDistribution[]>;
+    }>();
     function invalidate(scopes: RatingScope[]) {
         for (const [key, entry] of cache) {
             if (scopes.some(scope => scopeAffectsQuery(scope, entry.query))) cache.delete(key);
+        }
+        for (const [key, entry] of distributionCache) {
+            const query: CommunityQuery = entry.query;
+            if (scopes.some(scope => scopeAffectsQuery(scope, query))) distributionCache.delete(key);
         }
     }
     function load(query: CommunityQuery): Promise<CommunityRating[]> {
@@ -61,7 +70,38 @@ export function createCommunityClient(client: SupabaseClient | null, ensureUser:
         cache.set(key, entry);
         return entry.promise;
     }
-    return { load, invalidate, configured: client !== null };
+    function loadDistribution(query: CommunityDistributionQuery): Promise<CommunityRatingDistribution[]> {
+        if (!client) return Promise.resolve([]);
+        const key = JSON.stringify(['distribution', query.kind, query.season]);
+        const cached = distributionCache.get(key);
+        if (cached && cached.expires > now()) return cached.promise;
+        const controller = new AbortController();
+        let timeout: ReturnType<typeof setTimeout>;
+        const deadline = new Promise<never>((_, reject) => {
+            timeout = setTimeout(() => { controller.abort(); reject(new Error('Community distribution request timed out')); }, 8000);
+        });
+        const request = (async () => {
+            await ensureUser();
+            if (controller.signal.aborted) throw new Error('Community distribution request timed out');
+            const { data, error } = await client.rpc('get_community_rating_distributions', {
+                p_kind: query.kind, p_season: query.season,
+            }).abortSignal(controller.signal);
+            if (error) throw error;
+            return ((data as unknown[] | null) ?? []).map(normalizeCommunityDistributionRow)
+                .filter((row): row is CommunityRatingDistribution => row !== null);
+        })();
+        const entry = { query, expires: Infinity, promise: Promise.resolve([] as CommunityRatingDistribution[]) };
+        entry.promise = Promise.race([request, deadline]).then(distributions => {
+            entry.expires = now() + 60_000;
+            return distributions;
+        }).catch(error => {
+            if (distributionCache.get(key) === entry) distributionCache.delete(key);
+            throw error;
+        }).finally(() => clearTimeout(timeout));
+        distributionCache.set(key, entry);
+        return entry.promise;
+    }
+    return { load, loadDistribution, invalidate, configured: client !== null };
 }
 
 export const communityClient = createCommunityClient(supabase, ensureGuestUser);

@@ -17,10 +17,10 @@ import { TEAM_COLORS } from '../types';
 import { calculateAverages, clearSeasonRatings, getDriverFormSeries, getRatedRacesCount, getRaceByRaceMatrix, downloadRatingsAsJson, importRatings } from '../utils/storage';
 import { useCommunityRatings, useRatingStorage } from '../hooks/useCommunityRatings';
 import { CommunityNotice } from './CommunityRating';
+import { CommunityRatingRows } from './CommunityRatingRows';
 import { compareCommunity } from '../utils/communityRatings';
 import { getSeasonRatings, getQuickRatings } from '../utils/storage';
 import { validRatings } from '../utils/ratingData';
-import { getRatingColor } from '../utils/ratingColor';
 import { CountryFlag } from '../utils/countryFlags';
 
 interface ResultsDashboardProps {
@@ -652,45 +652,13 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
                                     </button>
                                 </>}
                             </div>
-                            <div className="max-h-[400px] overflow-y-auto md:max-h-[600px]">
-                                {sortedDriverRatingRows.map(({ driver, comparison }, index) => {
-                                    const communityRating = comparison.communityAverage === null ? undefined : {
-                                        averageRating: comparison.communityAverage, voteCount: comparison.voteCount,
-                                    };
-                                    return (
-                                        <div key={driver.driverId}
-                                            className={`grid items-center gap-2 border-b border-[var(--border-color)] p-2 md:p-3 ${communityVisible ? 'grid-cols-[minmax(0,1fr)_60px_104px] md:grid-cols-[minmax(0,1fr)_72px_112px_40px]' : 'grid-cols-[minmax(0,1fr)_60px] md:grid-cols-[minmax(0,1fr)_72px]'}`}>
-                                            <div className="flex min-w-0 items-center gap-2">
-                                                <span className="w-4 shrink-0 font-oxanium text-[10px] text-[var(--text-muted)]">{index + 1}</span>
-                                                <div className="min-w-0 border-l-2 pl-2" style={{ borderColor: getTeamColor(driver.constructorId) }}>
-                                                    <div className="break-words font-display-condensed text-sm uppercase leading-tight text-white md:text-lg" title={driver.driverName} aria-label={driver.driverName}>
-                                                        {driver.driverName}
-                                                    </div>
-                                                    <div className="truncate font-ui text-[8px] uppercase text-[var(--text-muted)]">{driver.constructorName}</div>
-                                                </div>
-                                            </div>
-                                            <div className="flex min-h-[54px] w-full min-w-0 flex-col items-start justify-center text-left font-oxanium">
-                                                <span className="whitespace-nowrap text-sm font-normal leading-none tabular-nums md:text-lg" style={{ color: getRatingColor(communityVisible ? comparison.myAverage : driver.averageRating) }}>{(communityVisible ? comparison.myAverage : driver.averageRating).toFixed(2)}</span>
-                                                {communityVisible && <span className="mt-1 h-[9px]" aria-hidden="true" />}
-                                            </div>
-                                            {communityVisible && <>
-                                                <div className="flex min-h-[54px] w-full min-w-0 flex-col items-center justify-center text-center font-oxanium">
-                                                    {communityRating ? (
-                                                        <span className="whitespace-nowrap text-sm font-normal leading-none tabular-nums md:text-lg" style={{ color: getRatingColor(communityRating.averageRating) }}>{communityRating.averageRating.toFixed(2)}</span>
-                                                    ) : (
-                                                        <span className="whitespace-nowrap text-[8px] leading-tight text-[var(--text-muted)]">NO COMMUNITY DATA</span>
-                                                    )}
-                                                    <div className="mt-1 h-[9px] text-[8px] leading-tight text-[var(--text-muted)]">
-                                                        {source === 'race' && comparison.raceCount > 0 && <div>{comparison.raceCount} RACES</div>}
-                                                        {comparison.voteCount > 0 && <div className="md:hidden">{comparison.voteCount} VOTES</div>}
-                                                    </div>
-                                                </div>
-                                                <div className="hidden w-full translate-x-1 items-center justify-center whitespace-nowrap text-center font-oxanium text-[10px] tabular-nums text-[var(--text-muted)] md:flex">{comparison.voteCount || '—'}</div>
-                                            </>}
-                                        </div>
-                                    );
-                                })}
-                            </div>
+                            <CommunityRatingRows
+                                rows={sortedDriverRatingRows}
+                                season={season}
+                                source={source}
+                                communityStatus={community.status}
+                                communityVisible={communityVisible}
+                            />
                         </div>
                     </div>
                 </div>
