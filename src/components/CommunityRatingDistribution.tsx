@@ -130,7 +130,9 @@ export function CommunityRatingDistribution({
                             cursor={{ fill: 'rgba(255,255,255,0.04)' }}
                             formatter={(count: number) => [count, 'Votes']}
                             labelFormatter={(score: number) => `${Number(score).toFixed(1)} rating`}
-                            contentStyle={{ background: '#050608', border: '1px solid #34363a', fontFamily: 'Oxanium', fontSize: 11 }}
+                            contentStyle={{ background: '#050608', border: '1px solid #34363a', fontFamily: "'Formula1', 'Titillium Web', sans-serif", fontSize: 11 }}
+                            labelStyle={{ color: '#fff', fontFamily: "'Formula1', 'Titillium Web', sans-serif" }}
+                            itemStyle={{ color: '#8E9196', fontFamily: "'Formula1', 'Titillium Web', sans-serif", fontSize: 10 }}
                         />
                         <Bar dataKey="count" isAnimationActive={false}>
                             {distribution.buckets.map(bucket => (
