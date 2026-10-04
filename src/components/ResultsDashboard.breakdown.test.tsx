@@ -8,8 +8,8 @@ const communityFixture = vi.hoisted(() => ({
     ratings: [
         { driverId: 'lec', round: '1', averageRating: 6, voteCount: 100 },
         { driverId: 'lec', round: '2', averageRating: 10, voteCount: 1 },
-        { driverId: 'lec', round: '3', averageRating: 8, voteCount: 5 },
-        { driverId: 'nor', round: '3', averageRating: 7, voteCount: 10 },
+        { driverId: 'lec', round: '7', averageRating: 8, voteCount: 5 },
+        { driverId: 'nor', round: '7', averageRating: 7, voteCount: 10 },
     ],
 }));
 
@@ -29,7 +29,7 @@ vi.mock('../api/f1Api', async importOriginal => ({
     getRaces: vi.fn(async () => [
         { round: '1', raceName: 'Australian Grand Prix' },
         { round: '2', raceName: 'Chinese Grand Prix' },
-        { round: '3', raceName: 'Japanese Grand Prix' },
+        { round: '7', raceName: 'Barcelona-Catalunya Grand Prix' },
     ]),
     getSeasonDrivers: vi.fn(async () => [
         { driverId: 'nor', givenName: 'Lando', familyName: 'Norris', constructorId: 'mclaren', constructorName: 'McLaren' },
@@ -71,8 +71,8 @@ beforeEach(() => {
     communityFixture.ratings = [
         { driverId: 'lec', round: '1', averageRating: 6, voteCount: 100 },
         { driverId: 'lec', round: '2', averageRating: 10, voteCount: 1 },
-        { driverId: 'lec', round: '3', averageRating: 8, voteCount: 5 },
-        { driverId: 'nor', round: '3', averageRating: 7, voteCount: 10 },
+        { driverId: 'lec', round: '7', averageRating: 8, voteCount: 5 },
+        { driverId: 'nor', round: '7', averageRating: 7, voteCount: 10 },
     ];
     container = document.createElement('div');
     document.body.append(container);
@@ -99,7 +99,8 @@ describe('race-by-race rating source', () => {
         await act(async () => communityButton.click());
         expect(communityButton.getAttribute('aria-pressed')).toBe('true');
         expect(raceHeaders()).toHaveLength(3);
-        expect(raceHeaders()[2].getAttribute('title')).toBe('Japanese Grand Prix');
+        expect(raceHeaders()[2].getAttribute('title')).toBe('Barcelona-Catalunya Grand Prix');
+        expect(raceHeaders()[2].querySelector('svg')).not.toBeNull();
         expect(rows()[0].textContent).toContain('8.00');
         expect(rows()[0].textContent).toContain('6.00');
         expect(rows()[0].textContent).toContain('10.00');

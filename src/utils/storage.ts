@@ -1184,6 +1184,7 @@ export function getCountryCode(raceName: string): string {
         'Monaco': 'MC',
         'Canadian': 'CA',
         'Spanish': 'ES',
+        'Barcelona': 'ES',
         'Austrian': 'AT',
         'British': 'GB',
         'Hungarian': 'HU',
