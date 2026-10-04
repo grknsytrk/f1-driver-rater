@@ -14,7 +14,7 @@ import {
     AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { TEAM_COLORS } from '../types';
-import { calculateAverages, clearSeasonRatings, getDriverFormSeries, getRatedRacesCount, getRaceByRaceMatrix, downloadRatingsAsJson, importRatings } from '../utils/storage';
+import { calculateAverages, clearSeasonRatings, getDriverFormSeries, getRatedRacesCount, getRaceByRaceMatrix, downloadRatingsAsJson, importRatings, type DriverRow } from '../utils/storage';
 import { useCommunityRatings, useRatingStorage } from '../hooks/useCommunityRatings';
 import { CommunityNotice } from './CommunityRating';
 import { CommunityRatingRows } from './CommunityRatingRows';
@@ -26,6 +26,8 @@ import { CountryFlag } from '../utils/countryFlags';
 import { buildDriverLineDashes } from '../utils/standings';
 import { FormTrackerLines } from './FormTrackerLines';
 import { FormLineSwatch } from './FormLineSwatch';
+import { buildCommunityBreakdownDrivers } from '../utils/raceBreakdown';
+import { getRatingColor } from '../utils/ratingColor';
 
 interface ResultsDashboardProps {
     season: string;
@@ -33,6 +35,7 @@ interface ResultsDashboardProps {
 }
 
 type DriverRatingsSortKey = 'myAverage' | 'communityAverage' | 'votes';
+type BreakdownSource = 'personal' | 'community';
 
 function getDriverLabel(driverName: string): string {
     return driverName.split(' ').pop()?.toUpperCase() || driverName.toUpperCase();
@@ -41,6 +44,19 @@ function getDriverLabel(driverName: string): string {
 function formatRaceDisplayName(raceName: string | null): string {
     if (!raceName) return 'N/A';
     return raceName.replace(' Grand Prix', '').replace(' GP', '');
+}
+
+function rankBreakdownDrivers<T extends DriverRow>(drivers: T[], minimumRatedRaces: number): T[] {
+    return [...drivers].sort((a, b) => {
+        const aRatedRaces = Object.keys(a.raceRatings).length;
+        const bRatedRaces = Object.keys(b.raceRatings).length;
+        const aQualified = aRatedRaces >= minimumRatedRaces;
+        const bQualified = bRatedRaces >= minimumRatedRaces;
+
+        if (aQualified !== bQualified) return aQualified ? -1 : 1;
+        if (b.totalAverage !== a.totalAverage) return b.totalAverage - a.totalAverage;
+        return bRatedRaces - aRatedRaces;
+    });
 }
 
 export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
@@ -67,22 +83,10 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
         return b.averageRating - a.averageRating;
     });
     const raceMatrix = getRaceByRaceMatrix(season);
-    const rankedRaceMatrixDrivers = [...raceMatrix.drivers].sort((a, b) => {
-        const aRatedRaces = Object.keys(a.raceRatings).length;
-        const bRatedRaces = Object.keys(b.raceRatings).length;
-        const aQualified = aRatedRaces >= minimumRatedRaces;
-        const bQualified = bRatedRaces >= minimumRatedRaces;
-
-        if (aQualified !== bQualified) {
-            return aQualified ? -1 : 1;
-        }
-
-        if (b.totalAverage !== a.totalAverage) {
-            return b.totalAverage - a.totalAverage;
-        }
-
-        return bRatedRaces - aRatedRaces;
-    });
+    const rankedRaceMatrixDrivers = rankBreakdownDrivers(raceMatrix.drivers, minimumRatedRaces);
+    const communityBreakdownDrivers = buildCommunityBreakdownDrivers(raceMatrix.races, raceMatrix.drivers, community.ratings);
+    const rankedCommunityBreakdownDrivers = rankBreakdownDrivers(communityBreakdownDrivers, minimumRatedRaces);
+    const hasCommunityBreakdownRatings = communityBreakdownDrivers.some(driver => Object.keys(driver.raceRatings).length > 0);
     const formSeries = getDriverFormSeries(season);
     const rankedFormSeries = [...formSeries].sort((a, b) => {
         const aQualified = a.totalRatedRaces >= minimumRatedRaces;
@@ -103,6 +107,7 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
     const [cardImage, setCardImage] = useState<string | null>(null);
     const [generating, setGenerating] = useState(false);
     const [generatingTable, setGeneratingTable] = useState(false);
+    const [breakdownSource, setBreakdownSource] = useState<BreakdownSource>('personal');
     const [showConfirmModal, setShowConfirmModal] = useState(false);
     const [selectedFormDriverIds, setSelectedFormDriverIds] = useState<string[]>(() =>
         rankedFormSeries[0] ? [rankedFormSeries[0].driverId] : [],
@@ -113,6 +118,12 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
     const tableRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const isScrollingToTop = useRef(false);
+    const breakdownDrivers: (DriverRow & { voteCounts?: Record<string, number> })[] = breakdownSource === 'community'
+        ? rankedCommunityBreakdownDrivers : rankedRaceMatrixDrivers;
+    const showCommunityBreakdownStatus = breakdownSource === 'community'
+        && (community.status !== 'ready' || !hasCommunityBreakdownRatings);
+    const canDownloadBreakdown = breakdownSource === 'personal'
+        || (community.status === 'ready' && hasCommunityBreakdownRatings);
     const formSeriesKey = formSeries.map(series => `${series.driverId}:${series.latestConstructorId}:${series.totalRatedRaces}`).join('|');
     const driverRatingRows = rankedAverages.map(driver => ({
         driver,
@@ -272,7 +283,7 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
             });
 
             const link = document.createElement('a');
-            link.download = `f1-race-breakdown-${season}.png`;
+            link.download = `f1-race-breakdown-${season}-${breakdownSource}.png`;
             link.href = dataUrl;
             link.click();
         } catch (error) {
@@ -877,7 +888,7 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
                         transition={{ delay: 0.3 }}
                         className="mt-12"
                     >
-                        <div className="mb-4 flex items-center justify-between border-b border-[var(--border-color)] pb-2">
+                        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border-color)] pb-2">
                             <div className="flex items-center gap-3">
                                 <Table size={16} className="text-[var(--accent-red)]" />
                                 <h3 className="font-display text-2xl text-white uppercase tracking-wider">RACE-BY-RACE BREAKDOWN</h3>
@@ -891,7 +902,7 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
                                         <button
                                             aria-label="Download the race-by-race breakdown table as a PNG image"
                                             onClick={handleDownloadTable}
-                                            disabled={generatingTable}
+                                            disabled={generatingTable || !canDownloadBreakdown}
                                             className="group flex items-center gap-2 px-4 py-1.5 bg-[var(--bg-panel)] border border-[var(--border-color)] hover:border-white transition-all hover:bg-[var(--bg-panel-hover)] disabled:opacity-50"
                                         >
                                             {generatingTable ? (
@@ -915,9 +926,59 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
                             </div>
                         </div>
 
+                        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                            <div role="group" aria-label="Race breakdown rating source" className="inline-flex border border-[var(--border-color)] bg-[var(--bg-darker)] p-1">
+                                <button
+                                    type="button"
+                                    aria-pressed={breakdownSource === 'personal'}
+                                    disabled={generatingTable}
+                                    onClick={() => setBreakdownSource('personal')}
+                                    className={`px-3 py-2 font-ui text-[10px] font-bold uppercase tracking-wider transition-colors disabled:opacity-50 ${breakdownSource === 'personal'
+                                        ? 'bg-[var(--accent-red)] text-white'
+                                        : 'text-[var(--text-secondary)] hover:text-white'}`}
+                                >
+                                    MY RATINGS
+                                </button>
+                                <button
+                                    type="button"
+                                    aria-pressed={breakdownSource === 'community'}
+                                    disabled={generatingTable}
+                                    onClick={() => setBreakdownSource('community')}
+                                    className={`px-3 py-2 font-ui text-[10px] font-bold uppercase tracking-wider transition-colors disabled:opacity-50 ${breakdownSource === 'community'
+                                        ? 'bg-[var(--accent-yellow)] text-black'
+                                        : 'text-[var(--text-secondary)] hover:text-white'}`}
+                                >
+                                    COMMUNITY AVG
+                                </button>
+                            </div>
+                            <span className="font-oxanium text-[9px] uppercase tracking-wider text-[var(--text-muted)]">
+                                {breakdownSource === 'community' ? 'Community vote average per race · AVG of races shown' : 'Your saved race ratings'}
+                            </span>
+                        </div>
+
                         <div ref={tableRef} className="bg-[var(--bg-panel)] border border-[var(--border-color)] overflow-hidden">
-                            <div className="overflow-x-auto">
-                                <table className="w-full min-w-max">
+                            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--border-color)] bg-[var(--bg-darker)] px-3 py-2 font-oxanium text-[9px] uppercase tracking-wider text-[var(--text-muted)]">
+                                <span>{breakdownSource === 'community' ? 'COMMUNITY RACE AVERAGES' : 'MY RACE RATINGS'}</span>
+                                <span>{season} SEASON</span>
+                            </div>
+                            {showCommunityBreakdownStatus && (
+                                <div className="flex min-h-48 flex-col items-center justify-center gap-2 px-4 py-8 text-center" role="status">
+                                    <p className="font-display text-lg uppercase text-white">
+                                        {community.status === 'loading' ? 'LOADING COMMUNITY RATINGS'
+                                            : community.status === 'ready' ? 'NO COMMUNITY RATINGS YET'
+                                                : 'COMMUNITY RATINGS UNAVAILABLE'}
+                                    </p>
+                                    <p className="font-ui text-sm text-[var(--text-secondary)]">
+                                        {community.status === 'ready'
+                                            ? 'No community averages are available for the races and drivers in your breakdown.'
+                                            : community.status === 'loading'
+                                                ? 'Fetching the community averages for this season.'
+                                                : 'Community data could not be loaded right now.'}
+                                    </p>
+                                </div>
+                            )}
+                            <div className={`overflow-x-auto ${showCommunityBreakdownStatus ? 'hidden' : ''}`}>
+                                <table aria-label="Race-by-race breakdown" className="w-full min-w-max">
                                     {/* Header */}
                                     <thead>
                                         <tr className="border-b border-[var(--border-color)]">
@@ -927,7 +988,7 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
                                             <th className="sticky left-12 z-10 bg-[var(--bg-darker)] px-3 py-2 text-left min-w-[140px]">
                                                 <span className="font-oxanium text-[10px] text-[var(--text-muted)] uppercase">DRIVER</span>
                                             </th>
-                                            <th className="sticky left-[188px] z-10 bg-[var(--bg-darker)] px-3 py-2 text-center w-16 border-r border-[var(--border-color)]">
+                                            <th className="sticky left-[188px] z-10 bg-[var(--bg-darker)] px-3 py-2 text-center w-16 border-r border-[var(--border-color)]" title="Average of the scores shown in this row; each race counts equally">
                                                 <span className="font-oxanium text-[10px] text-[var(--accent-yellow)] uppercase">AVG</span>
                                             </th>
                                             {raceMatrix.races.map(race => (
@@ -942,7 +1003,7 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
 
                                     {/* Body */}
                                     <tbody>
-                                        {rankedRaceMatrixDrivers.map((driver, index) => (
+                                        {breakdownDrivers.map((driver, index) => (
                                             <tr
                                                 key={driver.driverId}
                                                 className="border-b border-[var(--border-color)] hover:bg-[var(--bg-panel-hover)] transition-colors"
@@ -970,7 +1031,8 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
                                                 {/* Average */}
                                                 <td className="sticky left-[188px] z-10 px-3 py-2 text-center bg-[var(--bg-darker)] border-r border-[var(--border-color)]">
                                                     <span className="font-oxanium text-sm font-bold text-[var(--accent-yellow)]">
-                                                        {driver.totalAverage.toFixed(1)}
+                                                        {Object.keys(driver.raceRatings).length === 0 ? '—'
+                                                            : breakdownSource === 'community' ? driver.totalAverage.toFixed(2) : driver.totalAverage.toFixed(1)}
                                                     </span>
                                                 </td>
 
@@ -979,29 +1041,17 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
                                                     const rating = driver.raceRatings[race.round];
                                                     const hasRating = rating !== undefined && rating > 0;
 
-                                                    // Gradient color based on rating
-                                                    let ratingColor = 'var(--text-muted)';
-                                                    if (hasRating) {
-                                                        const t = (rating - 0.5) / 9.5;
-                                                        if (t < 0.4) {
-                                                            const localT = t / 0.4;
-                                                            ratingColor = `rgb(225, ${Math.round(6 + localT * 101)}, 0)`;
-                                                        } else if (t < 0.7) {
-                                                            const localT = (t - 0.4) / 0.3;
-                                                            ratingColor = `rgb(${Math.round(225 + localT * 17)}, ${Math.round(107 + localT * 102)}, ${Math.round(localT * 61)})`;
-                                                        } else {
-                                                            const localT = (t - 0.7) / 0.3;
-                                                            ratingColor = `rgb(${Math.round(242 - localT * 242)}, ${Math.round(209 + localT * 46)}, ${Math.round(61 + localT * 75)})`;
-                                                        }
-                                                    }
+                                                    const voteCount = driver.voteCounts?.[race.round];
 
                                                     return (
                                                         <td key={race.round} className="px-2 py-2 text-center">
                                                             <span
                                                                 className="font-oxanium text-sm font-medium"
-                                                                style={{ color: ratingColor }}
+                                                                style={{ color: hasRating ? getRatingColor(rating) : 'var(--text-muted)' }}
+                                                                title={voteCount ? `${voteCount} community ${voteCount === 1 ? 'vote' : 'votes'}` : undefined}
                                                             >
-                                                                {hasRating ? (rating % 1 === 0 ? rating : rating.toFixed(1)) : '-'}
+                                                                {hasRating ? (breakdownSource === 'community' ? rating.toFixed(2)
+                                                                    : rating % 1 === 0 ? rating : rating.toFixed(1)) : '-'}
                                                             </span>
                                                         </td>
                                                     );
