@@ -25,6 +25,7 @@ import { validRatings } from '../utils/ratingData';
 import { CountryFlag } from '../utils/countryFlags';
 import { buildDriverLineDashes } from '../utils/standings';
 import { FormTrackerLines } from './FormTrackerLines';
+import { FormLineSwatch } from './FormLineSwatch';
 
 interface ResultsDashboardProps {
     season: string;
@@ -40,14 +41,6 @@ function getDriverLabel(driverName: string): string {
 function formatRaceDisplayName(raceName: string | null): string {
     if (!raceName) return 'N/A';
     return raceName.replace(' Grand Prix', '').replace(' GP', '');
-}
-
-function FormLineSwatch({ color, dash, height }: { color: string; dash?: string; height: number }) {
-    return (
-        <svg width="4" height={height} className="shrink-0" aria-hidden="true">
-            <line x1="2" x2="2" y1="0" y2={height} stroke={color} strokeWidth="4" strokeDasharray={dash} />
-        </svg>
-    );
 }
 
 export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
