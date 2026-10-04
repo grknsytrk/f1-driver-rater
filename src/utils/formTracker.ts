@@ -29,7 +29,7 @@ function getFormRaceLabel(point: DriverFormPoint): string {
 export function reconcileFormDriverSelection(selectedIds: string[], availableIds: string[]): string[] {
     const available = new Set(availableIds);
     const retained = [...new Set(selectedIds)].filter(id => available.has(id));
-    const next = retained.length > 0 ? retained : availableIds.slice(0, 1);
+    const next = selectedIds.length === 0 ? [] : retained.length > 0 ? retained : availableIds.slice(0, 1);
 
     if (next.length === selectedIds.length && next.every((id, index) => id === selectedIds[index])) {
         return selectedIds;
@@ -40,7 +40,7 @@ export function reconcileFormDriverSelection(selectedIds: string[], availableIds
 
 export function toggleFormDriverSelection(selectedIds: string[], driverId: string): string[] {
     if (selectedIds.includes(driverId)) {
-        return selectedIds.length > 1 ? selectedIds.filter(id => id !== driverId) : selectedIds;
+        return selectedIds.filter(id => id !== driverId);
     }
 
     return [...selectedIds, driverId];

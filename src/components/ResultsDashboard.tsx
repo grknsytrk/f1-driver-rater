@@ -23,6 +23,7 @@ import { buildFormChartData, reconcileFormDriverSelection, toggleFormDriverSelec
 import { getSeasonRatings, getQuickRatings } from '../utils/storage';
 import { validRatings } from '../utils/ratingData';
 import { CountryFlag } from '../utils/countryFlags';
+import { buildDriverLineDashes } from '../utils/standings';
 import { FormTrackerLines } from './FormTrackerLines';
 
 interface ResultsDashboardProps {
@@ -39,6 +40,14 @@ function getDriverLabel(driverName: string): string {
 function formatRaceDisplayName(raceName: string | null): string {
     if (!raceName) return 'N/A';
     return raceName.replace(' Grand Prix', '').replace(' GP', '');
+}
+
+function FormLineSwatch({ color, dash, height }: { color: string; dash?: string; height: number }) {
+    return (
+        <svg width="4" height={height} className="shrink-0" aria-hidden="true">
+            <line x1="2" x2="2" y1="0" y2={height} stroke={color} strokeWidth="4" strokeDasharray={dash} />
+        </svg>
+    );
 }
 
 export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
@@ -167,8 +176,7 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
         ));
     }, [season, rankedFormSeries, formSeriesKey]);
 
-    const selectedFormDrivers = rankedFormSeries.filter(series => selectedFormDriverIds.includes(series.driverId));
-    const visibleFormDrivers = selectedFormDrivers.length > 0 ? selectedFormDrivers : rankedFormSeries.slice(0, 1);
+    const visibleFormDrivers = rankedFormSeries.filter(series => selectedFormDriverIds.includes(series.driverId));
 
     if (averages.length === 0) {
         return (
@@ -339,6 +347,10 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
     const podium = rankedAverages.slice(0, 3);
     const podiumOrder = [1, 0, 2]; // Silver, Gold, Bronze positions
     const formChartData = buildFormChartData(rankedFormSeries);
+    const formLineDashes = buildDriverLineDashes(rankedFormSeries.map(driver => ({
+        driverId: driver.driverId,
+        constructorId: driver.latestConstructorId,
+    })));
 
     return (
         <div className="min-h-screen py-4 md:py-8 px-3 md:px-6">
@@ -646,7 +658,7 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
                         </span>
                     </div>
 
-                    {formSeries.length === 0 || visibleFormDrivers.length === 0 ? (
+                    {formSeries.length === 0 ? (
                         <div className="bg-[var(--bg-panel)] border border-[var(--border-color)] p-6 md:p-8 relative overflow-hidden">
                             <div
                                 className="absolute inset-0 pointer-events-none opacity-5"
@@ -675,20 +687,20 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
                                 <div className="space-y-3">
                                     <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
                                         <p className="font-ui text-sm text-[var(--text-secondary)]">
-                                            Select multiple drivers to compare their race-by-race ratings.
+                                            Select one or more drivers to compare their race-by-race ratings.
                                         </p>
                                         <span className="font-oxanium text-[10px] uppercase tracking-widest text-[var(--text-muted)]">
                                             {visibleFormDrivers.length} SELECTED
                                         </span>
                                     </div>
-                                    <div aria-label="Selected drivers" className="flex gap-3 overflow-x-auto pb-2">
+                                    {visibleFormDrivers.length > 0 && <div aria-label="Selected drivers" className="flex gap-3 overflow-x-auto pb-2">
                                         {visibleFormDrivers.map(driver => {
                                             const color = getTeamColor(driver.latestConstructorId);
                                             return (
                                                 <div key={driver.driverId} className="w-[260px] shrink-0 border border-[var(--border-color)] bg-[var(--bg-darker)] p-3">
                                                     <div className="flex items-start justify-between gap-3">
                                                         <div className="flex min-w-0 items-center gap-2">
-                                                            <div className="h-10 w-1 shrink-0" style={{ backgroundColor: color }} />
+                                                            <FormLineSwatch color={color} dash={formLineDashes.get(driver.driverId)} height={40} />
                                                             <div className="min-w-0">
                                                                 <div className="truncate font-display text-sm uppercase leading-tight text-white">{driver.driverName}</div>
                                                                 <div className="truncate font-oxanium text-[9px] uppercase tracking-wider text-[var(--text-muted)]">
@@ -720,13 +732,13 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
                                                 </div>
                                             );
                                         })}
-                                    </div>
+                                    </div>}
                                 </div>
 
                                 <div>
                                     <div className="mb-2 flex items-center justify-between gap-3">
                                         <span className="font-oxanium text-[10px] uppercase tracking-widest text-[var(--text-muted)]">SELECT DRIVERS</span>
-                                        <span className="font-oxanium text-[9px] uppercase tracking-wider text-[var(--text-muted)]">Click again to remove · keep at least one selected</span>
+                                        <span className="font-oxanium text-[9px] uppercase tracking-wider text-[var(--text-muted)]">Click again to remove</span>
                                     </div>
                                     <div role="group" aria-label="Select drivers to compare in Form Tracker" className="overflow-x-auto pb-2">
                                         <div className="flex min-w-max gap-2">
@@ -748,7 +760,7 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
                                                         style={isSelected ? { borderColor: color } : undefined}
                                                     >
                                                         <div className="flex items-center gap-2">
-                                                            <div className="w-1 h-8 shrink-0" style={{ backgroundColor: color }} />
+                                                            <FormLineSwatch color={color} dash={formLineDashes.get(driver.driverId)} height={32} />
                                                             <div className="min-w-0">
                                                                 <div className="truncate font-display text-sm uppercase leading-none text-white">
                                                                     {getDriverLabel(driver.driverName)}
@@ -765,6 +777,13 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
                                     </div>
                                 </div>
 
+                                {visibleFormDrivers.length === 0 ? (
+                                    <div className="h-[320px] md:h-[420px] flex flex-col items-center justify-center gap-3 text-center" role="status">
+                                        <BarChart3 size={32} className="text-[var(--text-muted)]" />
+                                        <p className="font-display text-lg uppercase text-white">SELECT DRIVERS TO COMPARE</p>
+                                        <p className="font-ui text-sm text-[var(--text-secondary)]">Choose one or more drivers above to see their race-by-race ratings.</p>
+                                    </div>
+                                ) : (
                                 <div className="h-[320px] md:h-[420px]">
                                     <ResponsiveContainer width="100%" height="100%">
                                         <LineChart data={formChartData} margin={{ left: 0, right: 16, top: 20, bottom: 10 }}>
@@ -814,7 +833,7 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
                                                                 {ratings.map(({ driver, racePoint, rating, color }) => (
                                                                     <div key={driver.driverId} className="flex items-center justify-between gap-4 border-t border-white/10 pt-2">
                                                                         <div className="flex min-w-0 items-center gap-2">
-                                                                            <span className="h-5 w-1 shrink-0" style={{ backgroundColor: color }} />
+                                                                            <FormLineSwatch color={color} dash={formLineDashes.get(driver.driverId)} height={20} />
                                                                             <span className="min-w-0">
                                                                                 <span className="block truncate font-display-condensed text-xs uppercase text-white">{driver.driverName}</span>
                                                                                 <span className="block truncate font-oxanium text-[9px] uppercase text-[var(--text-muted)]">
@@ -851,6 +870,7 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
                                         </LineChart>
                                     </ResponsiveContainer>
                                 </div>
+                                )}
                             </div>
                         </div>
                     )}

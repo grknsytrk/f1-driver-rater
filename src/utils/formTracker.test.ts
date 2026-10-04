@@ -29,17 +29,18 @@ function makeSeries(driverId: string, ratings: Array<number | null>): DriverForm
 }
 
 describe('Form Tracker driver selection', () => {
-    it('adds multiple drivers and removes one while keeping at least one selected', () => {
+    it('adds drivers and allows removing the last selected driver', () => {
         expect(toggleFormDriverSelection(['norris'], 'piastri')).toEqual(['norris', 'piastri']);
         expect(toggleFormDriverSelection(['norris', 'piastri'], 'norris')).toEqual(['piastri']);
-        expect(toggleFormDriverSelection(['piastri'], 'piastri')).toEqual(['piastri']);
+        expect(toggleFormDriverSelection(['piastri'], 'piastri')).toEqual([]);
     });
 
-    it('keeps valid selections and falls back to the first available driver', () => {
+    it('keeps an empty selection and falls back when selected drivers disappear', () => {
         const selected = ['norris', 'gone'];
         expect(reconcileFormDriverSelection(selected, ['norris', 'piastri'])).toEqual(['norris']);
         expect(reconcileFormDriverSelection(['gone'], ['norris', 'piastri'])).toEqual(['norris']);
         expect(reconcileFormDriverSelection(['gone'], [])).toEqual([]);
+        expect(reconcileFormDriverSelection([], ['norris', 'piastri'])).toEqual([]);
     });
 });
 
