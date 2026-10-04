@@ -15,7 +15,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { TEAM_COLORS } from '../types';
 import { calculateAverages, clearSeasonRatings, getDriverFormSeries, getRatedRacesCount, getRaceByRaceMatrix, getCountryCode, downloadRatingsAsJson, importRatings, type DriverRow, type RaceColumn } from '../utils/storage';
-import { getRaces, getSeasonDrivers } from '../api/f1Api';
+import { getRaces, getSeasonDrivers, isRaceCompleted } from '../api/f1Api';
 import { useCommunityRatings, useRatingStorage } from '../hooks/useCommunityRatings';
 import { CommunityNotice } from './CommunityRating';
 import { CommunityRatingRows } from './CommunityRatingRows';
@@ -37,9 +37,12 @@ interface ResultsDashboardProps {
 
 type DriverRatingsSortKey = 'myAverage' | 'communityAverage' | 'votes';
 type BreakdownSource = 'personal' | 'community';
-interface CommunityBreakdownMetadata {
+interface BreakdownCalendar {
     season: string;
     races: RaceColumn[];
+}
+interface BreakdownDriverMetadata {
+    season: string;
     drivers: BreakdownDriverIdentity[];
 }
 
@@ -111,7 +114,8 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
     const [generating, setGenerating] = useState(false);
     const [generatingTable, setGeneratingTable] = useState(false);
     const [breakdownSource, setBreakdownSource] = useState<BreakdownSource>('personal');
-    const [communityBreakdownMetadata, setCommunityBreakdownMetadata] = useState<CommunityBreakdownMetadata | null>(null);
+    const [breakdownCalendar, setBreakdownCalendar] = useState<BreakdownCalendar | null>(null);
+    const [breakdownDriverMetadata, setBreakdownDriverMetadata] = useState<BreakdownDriverMetadata | null>(null);
     const [showConfirmModal, setShowConfirmModal] = useState(false);
     const [selectedFormDriverIds, setSelectedFormDriverIds] = useState<string[]>(() =>
         rankedFormSeries[0] ? [rankedFormSeries[0].driverId] : [],
@@ -122,22 +126,24 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
     const tableRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const isScrollingToTop = useRef(false);
-    const activeCommunityMetadata = communityBreakdownMetadata?.season === season ? communityBreakdownMetadata : null;
+    const completedCalendarRaces = breakdownCalendar?.season === season ? breakdownCalendar.races : [];
+    const seasonDriverIdentities = breakdownDriverMetadata?.season === season ? breakdownDriverMetadata.drivers : [];
     const communityBreakdown = buildCommunityBreakdown(
         raceMatrix.races, raceMatrix.drivers, community.ratings,
-        activeCommunityMetadata?.races, activeCommunityMetadata?.drivers,
+        completedCalendarRaces, seasonDriverIdentities,
     );
+    const breakdownRaces = communityBreakdown.races;
+    const votedCommunityRaces = breakdownRaces.filter(race =>
+        communityBreakdown.drivers.some(driver => driver.raceRatings[race.round] !== undefined)).length;
     const rankedCommunityBreakdownDrivers = rankBreakdownDrivers(
-        communityBreakdown.drivers, Math.ceil(communityBreakdown.races.length * 0.5),
+        communityBreakdown.drivers, Math.ceil(votedCommunityRaces * 0.5),
     );
-    const hasCommunityBreakdownRatings = communityBreakdown.races.length > 0;
-    const breakdownRaces = breakdownSource === 'community' ? communityBreakdown.races : raceMatrix.races;
     const breakdownDrivers: (DriverRow & { voteCounts?: Record<string, number> })[] = breakdownSource === 'community'
         ? rankedCommunityBreakdownDrivers : rankedRaceMatrixDrivers;
     const showCommunityBreakdownStatus = breakdownSource === 'community'
-        && (community.status !== 'ready' || !hasCommunityBreakdownRatings);
+        && (community.status !== 'ready' || breakdownRaces.length === 0);
     const canDownloadBreakdown = breakdownSource === 'personal'
-        || (community.status === 'ready' && hasCommunityBreakdownRatings);
+        || (community.status === 'ready' && breakdownRaces.length > 0);
     const formSeriesKey = formSeries.map(series => `${series.driverId}:${series.latestConstructorId}:${series.totalRatedRaces}`).join('|');
     const driverRatingRows = rankedAverages.map(driver => ({
         driver,
@@ -165,19 +171,33 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
     });
 
     useEffect(() => {
-        if (breakdownSource !== 'community' || community.status !== 'ready'
-            || !hasCommunityBreakdownRatings || activeCommunityMetadata) return;
-
+        if (source !== 'race') return;
         let active = true;
-        Promise.all([getRaces(season), getSeasonDrivers(season)]).then(([calendar, drivers]) => {
+        getRaces(season).then(calendar => {
             if (!active) return;
-            setCommunityBreakdownMetadata({
+            setBreakdownCalendar({
                 season,
-                races: calendar.map(race => ({
+                races: calendar.filter(race => isRaceCompleted(race.date)).map(race => ({
                     round: race.round,
                     raceName: race.raceName,
                     countryCode: getCountryCode(race.raceName),
                 })),
+            });
+        }).catch(() => {
+            if (active) setBreakdownCalendar({ season, races: [] });
+        });
+        return () => { active = false; };
+    }, [season, source]);
+
+    useEffect(() => {
+        if (source !== 'race' || breakdownSource !== 'community' || community.status !== 'ready'
+            || breakdownDriverMetadata?.season === season) return;
+
+        let active = true;
+        getSeasonDrivers(season).then(drivers => {
+            if (!active) return;
+            setBreakdownDriverMetadata({
+                season,
                 drivers: drivers.map(driver => ({
                     driverId: driver.driverId,
                     driverName: `${driver.givenName} ${driver.familyName}`,
@@ -186,10 +206,10 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
                 })),
             });
         }).catch(() => {
-            if (active) setCommunityBreakdownMetadata({ season, races: [], drivers: [] });
+            if (active) setBreakdownDriverMetadata({ season, drivers: [] });
         });
         return () => { active = false; };
-    }, [breakdownSource, community.status, hasCommunityBreakdownRatings, activeCommunityMetadata, season]);
+    }, [source, breakdownSource, community.status, breakdownDriverMetadata?.season, season]);
 
     // Track scroll position to show/hide "Top" button
     useEffect(() => {

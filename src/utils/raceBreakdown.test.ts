@@ -13,36 +13,38 @@ const drivers: DriverRow[] = [
 ];
 
 describe('community race breakdown', () => {
-    it('shows all voted races and drivers, including those absent from personal ratings', () => {
+    it('keeps completed races without votes and averages only the rated cells', () => {
         const ratings: CommunityRating[] = [
             { driverId: 'lec', round: '1', averageRating: 6, voteCount: 100 },
             { driverId: 'lec', round: '3', averageRating: 10, voteCount: 1 },
             { driverId: 'lec', round: '4', averageRating: 8, voteCount: 5 },
             { driverId: 'other', round: '3', averageRating: 8, voteCount: 3 },
             { driverId: 'ham', round: '1', averageRating: 4, voteCount: 0 },
+            { driverId: 'lec', round: '6', averageRating: 10, voteCount: 3 },
         ];
         const calendar: RaceColumn[] = [
+            races[0], races[1],
             { round: '3', raceName: 'Japanese', countryCode: 'JP' },
+            { round: '4', raceName: 'Italian', countryCode: 'IT' },
             { round: '5', raceName: 'Bahrain', countryCode: 'BH' },
         ];
 
         const community = buildCommunityBreakdown(races, drivers, ratings, calendar, [
             { driverId: 'other', driverName: 'Other Driver', constructorId: 'mclaren', constructorName: 'McLaren' },
         ]);
-        expect(community.races).toEqual([
-            races[0],
-            calendar[0],
-            { round: '4', raceName: 'Round 4', countryCode: 'XX' },
-        ]);
+        expect(community.races).toEqual(calendar);
         expect(community.drivers[0]).toMatchObject({
             driverId: 'lec', raceRatings: { '1': 6, '3': 10, '4': 8 },
             voteCounts: { '1': 100, '3': 1, '4': 5 }, totalAverage: 8,
         });
-        expect(community.drivers[1]).toMatchObject({
+        expect(community.drivers[1]).toMatchObject({ driverId: 'ham', raceRatings: {}, totalAverage: 0 });
+        expect(community.drivers[2]).toMatchObject({
             driverId: 'other', driverName: 'Other Driver', constructorName: 'McLaren',
             raceRatings: { '3': 8 }, totalAverage: 8,
         });
-        expect(community.drivers).toHaveLength(2);
+        expect(community.drivers).toHaveLength(3);
+        expect(community.drivers[0].raceRatings).not.toHaveProperty('5');
+        expect(community.drivers[0].raceRatings).not.toHaveProperty('6');
         expect(drivers[0].raceRatings).toEqual({ '1': 9, '2': 9 });
     });
 });

@@ -12,18 +12,20 @@ export interface CommunityBreakdown {
     drivers: CommunityBreakdownDriver[];
 }
 
-/** Include every round with community votes, including races the viewer has not rated. */
+/** Use completed calendar races as columns, including rounds with no votes. */
 export function buildCommunityBreakdown(
     personalRaces: RaceColumn[], personalDrivers: DriverRow[], ratings: CommunityRating[],
     calendar: RaceColumn[] = [], seasonDrivers: BreakdownDriverIdentity[] = [],
 ): CommunityBreakdown {
     const byDriver = new Map<string, Map<string, CommunityRating>>();
-    const rounds = new Set<string>();
+    const calendarByRound = new Map(calendar.map(race => [race.round, race]));
+    const rounds = new Set(calendar.length ? calendarByRound.keys() : personalRaces.map(race => race.round));
 
     for (const rating of ratings) {
         if (!rating.round || !/^[1-9][0-9]{0,2}$/.test(rating.round)
             || !Number.isSafeInteger(rating.voteCount) || rating.voteCount <= 0
-            || !Number.isFinite(rating.averageRating) || rating.averageRating < 0.5 || rating.averageRating > 10) continue;
+            || !Number.isFinite(rating.averageRating) || rating.averageRating < 0.5 || rating.averageRating > 10
+            || (calendar.length > 0 && !calendarByRound.has(rating.round))) continue;
         rounds.add(rating.round);
         const byRound = byDriver.get(rating.driverId) ?? new Map<string, CommunityRating>();
         byRound.set(rating.round, rating);
@@ -31,16 +33,16 @@ export function buildCommunityBreakdown(
     }
 
     const personalRaceByRound = new Map(personalRaces.map(race => [race.round, race]));
-    const calendarByRound = new Map(calendar.map(race => [race.round, race]));
     const races = [...rounds].sort((a, b) => Number(a) - Number(b)).map(round =>
         calendarByRound.get(round) ?? personalRaceByRound.get(round)
         ?? { round, raceName: `Round ${round}`, countryCode: 'XX' });
 
     const personalDriverById = new Map(personalDrivers.map(driver => [driver.driverId, driver]));
     const seasonDriverById = new Map(seasonDrivers.map(driver => [driver.driverId, driver]));
-    const drivers = [...byDriver].map(([driverId, byRound]) => {
+    const driverIds = new Set([...personalDriverById.keys(), ...seasonDriverById.keys(), ...byDriver.keys()]);
+    const drivers = [...driverIds].map(driverId => {
         const identity = personalDriverById.get(driverId) ?? seasonDriverById.get(driverId);
-        const entries = [...byRound];
+        const entries = [...(byDriver.get(driverId) ?? [])];
         const raceRatings = Object.fromEntries(entries.map(([round, rating]) => [round, rating.averageRating]));
         const voteCounts = Object.fromEntries(entries.map(([round, rating]) => [round, rating.voteCount]));
         const values = Object.values(raceRatings);
@@ -51,7 +53,7 @@ export function buildCommunityBreakdown(
             constructorName: identity?.constructorName ?? 'Unknown team',
             raceRatings,
             voteCounts,
-            totalAverage: values.reduce((sum, rating) => sum + rating, 0) / values.length,
+            totalAverage: values.length ? values.reduce((sum, rating) => sum + rating, 0) / values.length : 0,
         };
     });
 
