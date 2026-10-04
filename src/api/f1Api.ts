@@ -199,7 +199,7 @@ export async function getSeasons(): Promise<Season[]> {
 // Fetch all races for a season
 export async function getRaces(season: string): Promise<Race[]> {
     try {
-        const response = await api.get(`/${season}.json`);
+        const response = await api.get(`/${season}.json?limit=100`);
         const races = response.data.MRData.RaceTable.Races as Race[];
         return normalizeRaceCalendar(races);
     } catch (error) {

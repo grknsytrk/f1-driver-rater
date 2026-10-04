@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { CommunityRating } from './communityRatings';
 import type { DriverRow, RaceColumn } from './storage';
-import { buildCommunityBreakdownDrivers } from './raceBreakdown';
+import { buildCommunityBreakdown } from './raceBreakdown';
 
 const races: RaceColumn[] = [
     { round: '1', raceName: 'Australian', countryCode: 'AU' },
@@ -13,20 +13,36 @@ const drivers: DriverRow[] = [
 ];
 
 describe('community race breakdown', () => {
-    it('uses per-race community averages with equal race weights and leaves personal data intact', () => {
+    it('shows all voted races and drivers, including those absent from personal ratings', () => {
         const ratings: CommunityRating[] = [
             { driverId: 'lec', round: '1', averageRating: 6, voteCount: 100 },
-            { driverId: 'lec', round: '2', averageRating: 10, voteCount: 1 },
-            { driverId: 'lec', round: '3', averageRating: 2, voteCount: 5 },
-            { driverId: 'other', round: '1', averageRating: 8, voteCount: 3 },
+            { driverId: 'lec', round: '3', averageRating: 10, voteCount: 1 },
+            { driverId: 'lec', round: '4', averageRating: 8, voteCount: 5 },
+            { driverId: 'other', round: '3', averageRating: 8, voteCount: 3 },
             { driverId: 'ham', round: '1', averageRating: 4, voteCount: 0 },
         ];
+        const calendar: RaceColumn[] = [
+            { round: '3', raceName: 'Japanese', countryCode: 'JP' },
+            { round: '5', raceName: 'Bahrain', countryCode: 'BH' },
+        ];
 
-        const community = buildCommunityBreakdownDrivers(races, drivers, ratings);
-        expect(community[0]).toMatchObject({
-            driverId: 'lec', raceRatings: { '1': 6, '2': 10 }, voteCounts: { '1': 100, '2': 1 }, totalAverage: 8,
+        const community = buildCommunityBreakdown(races, drivers, ratings, calendar, [
+            { driverId: 'other', driverName: 'Other Driver', constructorId: 'mclaren', constructorName: 'McLaren' },
+        ]);
+        expect(community.races).toEqual([
+            races[0],
+            calendar[0],
+            { round: '4', raceName: 'Round 4', countryCode: 'XX' },
+        ]);
+        expect(community.drivers[0]).toMatchObject({
+            driverId: 'lec', raceRatings: { '1': 6, '3': 10, '4': 8 },
+            voteCounts: { '1': 100, '3': 1, '4': 5 }, totalAverage: 8,
         });
-        expect(community[1]).toMatchObject({ raceRatings: {}, voteCounts: {}, totalAverage: 0 });
+        expect(community.drivers[1]).toMatchObject({
+            driverId: 'other', driverName: 'Other Driver', constructorName: 'McLaren',
+            raceRatings: { '3': 8 }, totalAverage: 8,
+        });
+        expect(community.drivers).toHaveLength(2);
         expect(drivers[0].raceRatings).toEqual({ '1': 9, '2': 9 });
     });
 });

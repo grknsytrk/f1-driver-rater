@@ -14,7 +14,8 @@ import {
     AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { TEAM_COLORS } from '../types';
-import { calculateAverages, clearSeasonRatings, getDriverFormSeries, getRatedRacesCount, getRaceByRaceMatrix, downloadRatingsAsJson, importRatings, type DriverRow } from '../utils/storage';
+import { calculateAverages, clearSeasonRatings, getDriverFormSeries, getRatedRacesCount, getRaceByRaceMatrix, getCountryCode, downloadRatingsAsJson, importRatings, type DriverRow, type RaceColumn } from '../utils/storage';
+import { getRaces, getSeasonDrivers } from '../api/f1Api';
 import { useCommunityRatings, useRatingStorage } from '../hooks/useCommunityRatings';
 import { CommunityNotice } from './CommunityRating';
 import { CommunityRatingRows } from './CommunityRatingRows';
@@ -26,7 +27,7 @@ import { CountryFlag } from '../utils/countryFlags';
 import { buildDriverLineDashes } from '../utils/standings';
 import { FormTrackerLines } from './FormTrackerLines';
 import { FormLineSwatch } from './FormLineSwatch';
-import { buildCommunityBreakdownDrivers } from '../utils/raceBreakdown';
+import { buildCommunityBreakdown, type BreakdownDriverIdentity } from '../utils/raceBreakdown';
 import { getRatingColor } from '../utils/ratingColor';
 
 interface ResultsDashboardProps {
@@ -36,6 +37,11 @@ interface ResultsDashboardProps {
 
 type DriverRatingsSortKey = 'myAverage' | 'communityAverage' | 'votes';
 type BreakdownSource = 'personal' | 'community';
+interface CommunityBreakdownMetadata {
+    season: string;
+    races: RaceColumn[];
+    drivers: BreakdownDriverIdentity[];
+}
 
 function getDriverLabel(driverName: string): string {
     return driverName.split(' ').pop()?.toUpperCase() || driverName.toUpperCase();
@@ -84,9 +90,6 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
     });
     const raceMatrix = getRaceByRaceMatrix(season);
     const rankedRaceMatrixDrivers = rankBreakdownDrivers(raceMatrix.drivers, minimumRatedRaces);
-    const communityBreakdownDrivers = buildCommunityBreakdownDrivers(raceMatrix.races, raceMatrix.drivers, community.ratings);
-    const rankedCommunityBreakdownDrivers = rankBreakdownDrivers(communityBreakdownDrivers, minimumRatedRaces);
-    const hasCommunityBreakdownRatings = communityBreakdownDrivers.some(driver => Object.keys(driver.raceRatings).length > 0);
     const formSeries = getDriverFormSeries(season);
     const rankedFormSeries = [...formSeries].sort((a, b) => {
         const aQualified = a.totalRatedRaces >= minimumRatedRaces;
@@ -108,6 +111,7 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
     const [generating, setGenerating] = useState(false);
     const [generatingTable, setGeneratingTable] = useState(false);
     const [breakdownSource, setBreakdownSource] = useState<BreakdownSource>('personal');
+    const [communityBreakdownMetadata, setCommunityBreakdownMetadata] = useState<CommunityBreakdownMetadata | null>(null);
     const [showConfirmModal, setShowConfirmModal] = useState(false);
     const [selectedFormDriverIds, setSelectedFormDriverIds] = useState<string[]>(() =>
         rankedFormSeries[0] ? [rankedFormSeries[0].driverId] : [],
@@ -118,6 +122,16 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
     const tableRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const isScrollingToTop = useRef(false);
+    const activeCommunityMetadata = communityBreakdownMetadata?.season === season ? communityBreakdownMetadata : null;
+    const communityBreakdown = buildCommunityBreakdown(
+        raceMatrix.races, raceMatrix.drivers, community.ratings,
+        activeCommunityMetadata?.races, activeCommunityMetadata?.drivers,
+    );
+    const rankedCommunityBreakdownDrivers = rankBreakdownDrivers(
+        communityBreakdown.drivers, Math.ceil(communityBreakdown.races.length * 0.5),
+    );
+    const hasCommunityBreakdownRatings = communityBreakdown.races.length > 0;
+    const breakdownRaces = breakdownSource === 'community' ? communityBreakdown.races : raceMatrix.races;
     const breakdownDrivers: (DriverRow & { voteCounts?: Record<string, number> })[] = breakdownSource === 'community'
         ? rankedCommunityBreakdownDrivers : rankedRaceMatrixDrivers;
     const showCommunityBreakdownStatus = breakdownSource === 'community'
@@ -149,6 +163,33 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
         return b.comparison.myAverage - a.comparison.myAverage
             || a.driver.driverName.localeCompare(b.driver.driverName);
     });
+
+    useEffect(() => {
+        if (breakdownSource !== 'community' || community.status !== 'ready'
+            || !hasCommunityBreakdownRatings || activeCommunityMetadata) return;
+
+        let active = true;
+        Promise.all([getRaces(season), getSeasonDrivers(season)]).then(([calendar, drivers]) => {
+            if (!active) return;
+            setCommunityBreakdownMetadata({
+                season,
+                races: calendar.map(race => ({
+                    round: race.round,
+                    raceName: race.raceName,
+                    countryCode: getCountryCode(race.raceName),
+                })),
+                drivers: drivers.map(driver => ({
+                    driverId: driver.driverId,
+                    driverName: `${driver.givenName} ${driver.familyName}`,
+                    constructorId: driver.constructorId,
+                    constructorName: driver.constructorName,
+                })),
+            });
+        }).catch(() => {
+            if (active) setCommunityBreakdownMetadata({ season, races: [], drivers: [] });
+        });
+        return () => { active = false; };
+    }, [breakdownSource, community.status, hasCommunityBreakdownRatings, activeCommunityMetadata, season]);
 
     // Track scroll position to show/hide "Top" button
     useEffect(() => {
@@ -895,7 +936,7 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
                             </div>
                             <div className="flex items-center gap-4">
                                 <span className="font-oxanium text-[10px] text-[var(--text-muted)] uppercase tracking-widest">
-                                    {raceMatrix.races.length} RACES • {raceMatrix.drivers.length} DRIVERS
+                                    {breakdownRaces.length} RACES • {breakdownDrivers.length} DRIVERS
                                 </span>
                                 <ShadcnTooltip>
                                     <TooltipTrigger asChild>
@@ -970,7 +1011,7 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
                                     </p>
                                     <p className="font-ui text-sm text-[var(--text-secondary)]">
                                         {community.status === 'ready'
-                                            ? 'No community averages are available for the races and drivers in your breakdown.'
+                                            ? 'No community race averages are available for this season.'
                                             : community.status === 'loading'
                                                 ? 'Fetching the community averages for this season.'
                                                 : 'Community data could not be loaded right now.'}
@@ -991,10 +1032,12 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
                                             <th className="sticky left-[188px] z-10 bg-[var(--bg-darker)] px-3 py-2 text-center w-16 border-r border-[var(--border-color)]" title="Average of the scores shown in this row; each race counts equally">
                                                 <span className="font-oxanium text-[10px] text-[var(--accent-yellow)] uppercase">AVG</span>
                                             </th>
-                                            {raceMatrix.races.map(race => (
+                                            {breakdownRaces.map(race => (
                                                 <th key={race.round} className="bg-[var(--bg-darker)] px-2 py-2 text-center min-w-[48px]" title={race.raceName}>
                                                     <div className="flex flex-col items-center gap-1">
-                                                        <CountryFlag country={race.countryCode} size="sm" />
+                                                        {race.countryCode === 'XX'
+                                                            ? <span className="font-oxanium text-[10px] text-[var(--text-muted)]">R{race.round}</span>
+                                                            : <CountryFlag country={race.countryCode} size="sm" />}
                                                     </div>
                                                 </th>
                                             ))}
@@ -1019,7 +1062,7 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
                                                         <div className="w-1 h-6" style={{ backgroundColor: getTeamColor(driver.constructorId) }} />
                                                         <div>
                                                             <div className="font-display text-sm text-white uppercase leading-none">
-                                                                {driver.driverName.split(' ')[1]}
+                                                                {getDriverLabel(driver.driverName)}
                                                             </div>
                                                             <div className="font-oxanium text-[8px] text-[var(--text-muted)] uppercase">
                                                                 {driver.constructorName}
@@ -1037,7 +1080,7 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
                                                 </td>
 
                                                 {/* Race Ratings */}
-                                                {raceMatrix.races.map(race => {
+                                                {breakdownRaces.map(race => {
                                                     const rating = driver.raceRatings[race.round];
                                                     const hasRating = rating !== undefined && rating > 0;
 

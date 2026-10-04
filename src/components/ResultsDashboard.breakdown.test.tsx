@@ -8,6 +8,8 @@ const communityFixture = vi.hoisted(() => ({
     ratings: [
         { driverId: 'lec', round: '1', averageRating: 6, voteCount: 100 },
         { driverId: 'lec', round: '2', averageRating: 10, voteCount: 1 },
+        { driverId: 'lec', round: '3', averageRating: 8, voteCount: 5 },
+        { driverId: 'nor', round: '3', averageRating: 7, voteCount: 10 },
     ],
 }));
 
@@ -20,6 +22,18 @@ vi.mock('recharts', async importOriginal => ({
 vi.mock('../hooks/useCommunityRatings', () => ({
     useRatingStorage: () => '',
     useCommunityRatings: () => ({ status: 'ready', ratings: communityFixture.ratings }),
+}));
+
+vi.mock('../api/f1Api', async importOriginal => ({
+    ...await importOriginal<typeof import('../api/f1Api')>(),
+    getRaces: vi.fn(async () => [
+        { round: '1', raceName: 'Australian Grand Prix' },
+        { round: '2', raceName: 'Chinese Grand Prix' },
+        { round: '3', raceName: 'Japanese Grand Prix' },
+    ]),
+    getSeasonDrivers: vi.fn(async () => [
+        { driverId: 'nor', givenName: 'Lando', familyName: 'Norris', constructorId: 'mclaren', constructorName: 'McLaren' },
+    ]),
 }));
 
 vi.mock('./CommunityRatingRows', () => ({ CommunityRatingRows: () => null }));
@@ -57,6 +71,8 @@ beforeEach(() => {
     communityFixture.ratings = [
         { driverId: 'lec', round: '1', averageRating: 6, voteCount: 100 },
         { driverId: 'lec', round: '2', averageRating: 10, voteCount: 1 },
+        { driverId: 'lec', round: '3', averageRating: 8, voteCount: 5 },
+        { driverId: 'nor', round: '3', averageRating: 7, voteCount: 10 },
     ];
     container = document.createElement('div');
     document.body.append(container);
@@ -73,6 +89,8 @@ describe('race-by-race rating source', () => {
     it('switches cells and row averages between personal ratings and community averages', async () => {
         await act(async () => root.render(<TooltipProvider><ResultsDashboard season="2026" onReset={() => {}} /></TooltipProvider>));
         const rows = () => [...container.querySelectorAll('table[aria-label="Race-by-race breakdown"] tbody tr')];
+        const raceHeaders = () => [...container.querySelectorAll('table[aria-label="Race-by-race breakdown"] thead th')].slice(3);
+        expect(raceHeaders()).toHaveLength(2);
         expect(rows()[0].textContent).toContain('9.0');
         expect(rows()[0].textContent).not.toContain('6.00');
 
@@ -80,14 +98,18 @@ describe('race-by-race rating source', () => {
         const communityButton = [...sourceButtons.querySelectorAll('button')].find(button => button.textContent?.trim() === 'COMMUNITY AVG')!;
         await act(async () => communityButton.click());
         expect(communityButton.getAttribute('aria-pressed')).toBe('true');
+        expect(raceHeaders()).toHaveLength(3);
+        expect(raceHeaders()[2].getAttribute('title')).toBe('Japanese Grand Prix');
         expect(rows()[0].textContent).toContain('8.00');
         expect(rows()[0].textContent).toContain('6.00');
         expect(rows()[0].textContent).toContain('10.00');
-        expect(rows()[1].querySelectorAll('td')[2].textContent).toBe('—');
+        expect(rows()[1].textContent).toContain('NORRIS');
+        expect(rows()[1].querySelectorAll('td')[3].textContent).toBe('-');
         expect(rows()[0].querySelectorAll('td')[3].querySelector('span')?.title).toBe('100 community votes');
 
         const personalButton = [...sourceButtons.querySelectorAll('button')].find(button => button.textContent?.trim() === 'MY RATINGS')!;
         await act(async () => personalButton.click());
+        expect(raceHeaders()).toHaveLength(2);
         expect(rows()[0].textContent).toContain('9.0');
         expect(rows()[0].textContent).not.toContain('6.00');
     });
