@@ -3,6 +3,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AverageRating } from '../types';
 import type { CommunityComparison } from '../utils/communityRatings';
+import { normalizeCommunityDistributions } from '../utils/communityRatingDistribution';
 import { CommunityRatingRows, type CommunityDriverRatingRow } from './CommunityRatingRows';
 
 const hookMock = vi.hoisted(() => ({
@@ -62,12 +63,12 @@ afterEach(async () => {
     vi.unstubAllGlobals();
 });
 
-async function render(rows = [row(norris, 7.9, 5), row(piastri, 8, 4)]) {
+async function render(rows = [row(norris, 7.9, 5), row(piastri, 8, 4)], source: 'race' | 'quick' = 'race') {
     await act(async () => root.render(
         <CommunityRatingRows
             rows={rows}
             season="2025"
-            source="race"
+            source={source}
             communityStatus="ready"
             communityVisible
         />,
@@ -86,7 +87,9 @@ describe('CommunityRatingRows', () => {
         }));
         hookMock.result = {
             status: 'ready',
-            distribution: { driverId: 'norris', voteCount: 5, buckets },
+            distribution: normalizeCommunityDistributions([
+                { driver_id: 'norris', round: '1', vote_count: 5, rating_distribution: buckets },
+            ], 'race')[0],
         };
         await render();
 
@@ -96,6 +99,9 @@ describe('CommunityRatingRows', () => {
         expect(toggle('norris').getAttribute('aria-expanded')).toBe('true');
         expect(container.textContent).toContain('POOLED AVG');
         expect(container.textContent).toContain('CONSENSUS');
+        expect(container.textContent).toContain('AGREEMENT');
+        expect(container.textContent).toContain('100.0');
+        expect(container.textContent).toContain('1/1 RACES ASSESSED');
         expect(container.textContent).toContain('Selected ratings may be included in this community data.');
         expect(container.querySelectorAll('[role="region"]')).toHaveLength(1);
         expect(hookMock.calls.at(-1)).toEqual(['race', '2025', 'norris']);
@@ -112,12 +118,54 @@ describe('CommunityRatingRows', () => {
         expect(container.querySelectorAll('[role="region"]')).toHaveLength(0);
     });
 
-    it('shows early data below five votes and keeps the community opt-in disclosure', async () => {
-        await render([row(norris, 7.9, 4)]);
+    it('shows early data with one vote and does not request a distribution', async () => {
+        await render([row(norris, 7.9, 1)]);
         await act(async () => toggle('norris').click());
-        expect(container.textContent).toContain('Early data · 4/5 votes');
+        expect(container.textContent).toContain('Early data · 1/2 votes');
         expect(container.textContent).not.toContain('POOLED AVG');
         expect(container.textContent).toContain('Selected ratings may be included in this community data.');
+        expect(hookMock.calls.at(-1)).toEqual(['race', '2025', null]);
+    });
+
+    it('assesses two opinions about the same race', async () => {
+        const buckets = Array.from({ length: 20 }, (_, index) => ({ score: (index + 1) / 2, count: index === 15 ? 2 : 0 }));
+        hookMock.result = { status: 'ready', distribution: normalizeCommunityDistributions([
+            { driver_id: 'norris', round: '1', vote_count: 2, rating_distribution: buckets },
+        ], 'race')[0] };
+        await render([row(norris, 7.9, 2)]);
+        await act(async () => toggle('norris').click());
+        expect(container.textContent).toContain('CONSENSUS');
+        expect(container.textContent).toContain('100.0');
+        expect(hookMock.calls.at(-1)).toEqual(['race', '2025', 'norris']);
+    });
+
+    it('shows early data and zero coverage for single votes in multiple races', async () => {
+        const buckets = Array.from({ length: 20 }, (_, index) => ({ score: (index + 1) / 2, count: index === 15 ? 1 : 0 }));
+        hookMock.result = { status: 'ready', distribution: normalizeCommunityDistributions(['1', '2', '3'].map(round => ({
+            driver_id: 'norris', round, vote_count: 1, rating_distribution: buckets,
+        })), 'race')[0] };
+        await render([row(norris, 7.9, 3)]);
+        await act(async () => toggle('norris').click());
+        expect(container.textContent).toContain('EARLY DATA');
+        expect(container.textContent).toContain('0/3 RACES ASSESSED');
+        expect(container.textContent).toContain('POOLED AVG');
+        expect(container.textContent).not.toContain('CONSENSUS');
+    });
+
+    it('shows a zero score and low agreement for two distant Quick Rate votes', async () => {
+        const buckets = Array.from({ length: 20 }, (_, index) => ({
+            score: (index + 1) / 2, count: index === 0 || index === 19 ? 1 : 0,
+        }));
+        hookMock.result = { status: 'ready', distribution: normalizeCommunityDistributions([
+            { driver_id: 'norris', round: null, vote_count: 2, rating_distribution: buckets },
+        ], 'quick')[0] };
+        await render([row(norris, 7.9, 2)], 'quick');
+        await act(async () => toggle('norris').click());
+        expect(container.textContent).toContain('LOW AGREEMENT');
+        expect(container.textContent).toContain('0.0');
+        expect(container.textContent).toContain('Quick Rate votes');
+        expect(container.textContent).not.toContain('RACES ASSESSED');
+        expect(hookMock.calls.at(-1)).toEqual(['quick', '2025', 'norris']);
     });
 
     it('shows a clear empty state when a driver has no community votes', async () => {

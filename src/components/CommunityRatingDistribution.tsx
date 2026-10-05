@@ -10,14 +10,16 @@ import { getRatingColor } from '../utils/ratingColor';
 
 const AGREEMENT_LABELS = {
     consensus: 'CONSENSUS',
+    mostlyAgreed: 'MOSTLY AGREED',
     mixed: 'MIXED',
-    polarizing: 'POLARIZING',
+    lowAgreement: 'LOW AGREEMENT',
 } as const;
 
 const AGREEMENT_COLORS = {
     consensus: 'text-[var(--accent-yellow)] border-[var(--accent-yellow)]/50',
+    mostlyAgreed: 'text-emerald-400 border-emerald-400/50',
     mixed: 'text-white border-white/30',
-    polarizing: 'text-[var(--accent-red)] border-[var(--accent-red)]/50',
+    lowAgreement: 'text-[var(--accent-red)] border-[var(--accent-red)]/50',
 } as const;
 
 interface CommunityRatingDistributionProps {
@@ -94,14 +96,36 @@ export function CommunityRatingDistribution({
                         <div className="mt-1 text-lg leading-none tabular-nums text-white">{distribution.voteCount}</div>
                     </div>
                     <div className="font-oxanium">
-                        <div className="text-[8px] tracking-wide text-[var(--text-muted)]">SPREAD (σ)</div>
-                        <div className="mt-1 text-lg leading-none tabular-nums text-white">{summary.standardDeviation.toFixed(2)}</div>
+                        <div className="text-[8px] tracking-wide text-[var(--text-muted)]">AGREEMENT</div>
+                        <div className="mt-1 text-lg leading-none tabular-nums text-white">
+                            {summary.agreementScore === null ? '—' : <>
+                                {summary.agreementScore.toFixed(1)}
+                                <span className="ml-0.5 text-[10px] text-[var(--text-muted)]">/100</span>
+                            </>}
+                        </div>
+                        {summary.raceCount > 0 && (
+                            <div className="mt-1 text-[8px] text-[var(--text-muted)]">
+                                {summary.assessedRaceCount}/{summary.raceCount} RACES ASSESSED
+                            </div>
+                        )}
                     </div>
                 </div>
-                <span className={`border px-2 py-1 font-oxanium text-[9px] tracking-widest ${AGREEMENT_COLORS[summary.agreement]}`}>
-                    {AGREEMENT_LABELS[summary.agreement]}
+                <span className={`border px-2 py-1 font-oxanium text-[9px] tracking-widest ${summary.agreement
+                    ? AGREEMENT_COLORS[summary.agreement] : 'text-[var(--text-muted)] border-white/30'}`}>
+                    {summary.agreement ? AGREEMENT_LABELS[summary.agreement] : 'EARLY DATA'}
                 </span>
             </div>
+
+            <details className="mb-3 font-oxanium text-[9px] leading-relaxed text-[var(--text-muted)]">
+                <summary className="cursor-pointer hover:text-white">About agreement</summary>
+                <p className="mt-1">
+                    {summary.raceCount > 0
+                        ? 'Agreement compares votes within each race, then gives each assessed race equal weight. Each race needs at least 2 votes.'
+                        : 'Agreement compares Quick Rate votes. At least 2 votes are needed.'}
+                    {' '}Scores up to 1 point apart count as agreement; 3 or more points apart count as disagreement.
+                    {' '}This describes the available votes, including small samples.
+                </p>
+            </details>
 
             <div
                 role="img"

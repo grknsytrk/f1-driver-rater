@@ -4,6 +4,7 @@ import { TEAM_COLORS } from '../types';
 import type { AverageRating } from '../types';
 import { useCommunityRatingDistribution } from '../hooks/useCommunityRatings';
 import type { CommunityComparison, CommunityStatus } from '../utils/communityRatings';
+import { COMMUNITY_DISTRIBUTION_MIN_VOTES } from '../utils/communityRatingDistribution';
 import { getRatingColor } from '../utils/ratingColor';
 import { CommunityRatingDistribution } from './CommunityRatingDistribution';
 
@@ -27,7 +28,8 @@ function getTeamColor(constructorId: string): string {
 export function CommunityRatingRows({ rows, season, source, communityStatus, communityVisible }: CommunityRatingRowsProps) {
     const [expandedDriverId, setExpandedDriverId] = useState<string | null>(null);
     const expandedRow = rows.find(row => row.driver.driverId === expandedDriverId);
-    const distributionDriverId = expandedRow && expandedRow.comparison.voteCount >= 5 ? expandedDriverId : null;
+    const distributionDriverId = expandedRow && expandedRow.comparison.voteCount >= COMMUNITY_DISTRIBUTION_MIN_VOTES
+        ? expandedDriverId : null;
     const distributionState = useCommunityRatingDistribution(source, season, distributionDriverId);
 
     return (

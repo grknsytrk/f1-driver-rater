@@ -3,7 +3,7 @@ import type { AverageRating, SeasonRatings } from '../types';
 import { supabase } from '../lib/supabaseClient';
 import { COMMUNITY_CHANGE_EVENT, ensureGuestUser } from './guestSync';
 import { validRatings, type RatingScope } from './ratingData';
-import { normalizeCommunityDistributionRow, type CommunityRatingDistribution } from './communityRatingDistribution';
+import { normalizeCommunityDistributions, type CommunityRatingDistribution } from './communityRatingDistribution';
 
 export interface CommunityRating {
     driverId: string;
@@ -83,12 +83,11 @@ export function createCommunityClient(client: SupabaseClient | null, ensureUser:
         const request = (async () => {
             await ensureUser();
             if (controller.signal.aborted) throw new Error('Community distribution request timed out');
-            const { data, error } = await client.rpc('get_community_rating_distributions', {
+            const { data, error } = await client.rpc('get_community_rating_distributions_by_round', {
                 p_kind: query.kind, p_season: query.season,
             }).abortSignal(controller.signal);
             if (error) throw error;
-            return ((data as unknown[] | null) ?? []).map(normalizeCommunityDistributionRow)
-                .filter((row): row is CommunityRatingDistribution => row !== null);
+            return normalizeCommunityDistributions(data ?? [], query.kind);
         })();
         const entry = { query, expires: Infinity, promise: Promise.resolve([] as CommunityRatingDistribution[]) };
         entry.promise = Promise.race([request, deadline]).then(distributions => {
