@@ -9,6 +9,24 @@
       "file": "lawson-red-bull.png",
       "source": "https://www.redbullracing.com/int-en/team",
       "originalImage": "https://www.redbullracing.com/_next/image?q=75&url=%2F_next%2Fstatic%2Fmedia%2Fliam-lawson.c7767b46.png&w=640"
+    },
+    {
+      "driverId": "tsunoda",
+      "name": "Yuki Tsunoda",
+      "constructorId": "rb",
+      "raceSuitSeason": "2025",
+      "file": "tsunoda-racing-bulls.webp",
+      "source": "https://www.formula1.com/en/drivers/yuki-tsunoda",
+      "originalImage": "https://media.formula1.com/image/upload/c_fill,w_440/q_auto/v1740000000/common/f1/2025/racingbulls/yuktsu01/2025racingbullsyuktsu01right.webp"
+    },
+    {
+      "driverId": "tsunoda",
+      "name": "Yuki Tsunoda",
+      "constructorId": "red_bull",
+      "raceSuitSeason": "2025",
+      "file": "tsunoda-red-bull.webp",
+      "source": "https://www.formula1.com/en/drivers/yuki-tsunoda",
+      "originalImage": "https://media.formula1.com/image/upload/c_fill,w_440/q_auto/v1740000000/common/f1/2025/redbullracing/yuktsu01/2025redbullracingyuktsu01right.webp"
     }
   ]
 }

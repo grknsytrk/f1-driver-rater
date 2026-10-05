@@ -28,6 +28,10 @@ const TEAM_PORTRAIT_VARIANTS: Record<string, Record<string, string>> = {
     lawson: {
         red_bull: '/images/drivers/team-variants/lawson-red-bull.png',
     },
+    tsunoda: {
+        rb: '/images/drivers/team-variants/tsunoda-racing-bulls.webp',
+        red_bull: '/images/drivers/team-variants/tsunoda-red-bull.webp',
+    },
 };
 
 export function getDriverPortrait(season: string, driverId: string, constructorId: string): string | null {
