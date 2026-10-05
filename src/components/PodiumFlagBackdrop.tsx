@@ -44,7 +44,7 @@ export function PodiumFlagBackdrop({ nationality }: PodiumFlagBackdropProps) {
                         left: `${index / STRIP_COUNT * 100}%`,
                         '--wave-delay': `${-index * 0.12}s`,
                         '--wave-lift': 3 + progress * 15,
-                        '--wave-lean': `${2 + progress * 4}deg`,
+                        '--wave-lean': `${2.5 + progress * 5}deg`,
                     } as CSSProperties;
 
                     return (

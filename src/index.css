@@ -614,7 +614,7 @@ h6 {
 ────────────────────────────────────────────────────────────────────────── */
 
 .podium-flag {
-  --wave-unit: 1px;
+  --wave-unit: 1.25px;
   position: absolute;
   inset: 0 -5%;
   overflow: hidden;
@@ -704,12 +704,12 @@ h6 {
   0%, 100% { opacity: 0.18; }
   25% { opacity: 0; }
   50% { opacity: 0.18; }
-  75% { opacity: 0.48; }
+  75% { opacity: 0.55; }
 }
 
 @media (max-width: 767px) {
   .podium-flag {
-    --wave-unit: 0.4px;
+    --wave-unit: 0.5px;
     inset: 0 -12%;
   }
 }
