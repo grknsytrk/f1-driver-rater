@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, type CSSProperties } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence, useAnimation } from 'framer-motion';
 import { toPng } from 'html-to-image';
@@ -12,6 +12,8 @@ import { TEAM_COLORS } from '../types';
 import { TeamVersus } from './TeamVersus';
 import { VersusModeToggle } from './VersusModeToggle';
 import type { VersusMode } from './VersusModeToggle';
+import { DriverBattlePortrait } from './DriverBattlePortrait';
+import { getDriverPortrait } from '../utils/driverPortraits';
 
 interface TeammateWarsProps {
     season: string;
@@ -522,6 +524,8 @@ export function TeammateWars({ season }: TeammateWarsProps) {
                     const [indexA, indexB] = selections[teamId] || [0, 1];
                     const driverA = allTeamDrivers[indexA];
                     const driverB = allTeamDrivers[indexB];
+                    const portraitA = getDriverPortrait(season, driverA.driverId, teamId);
+                    const portraitB = getDriverPortrait(season, driverB.driverId, teamId);
                     const driverAFamilyName = getDriverFamilyName(driverA.driverName);
                     const driverAGivenName = getDriverGivenName(driverA.driverName);
                     const driverBFamilyName = getDriverFamilyName(driverB.driverName);
@@ -560,6 +564,7 @@ export function TeammateWars({ season }: TeammateWarsProps) {
                     return (
                         <motion.div
                             key={teamId}
+                            data-team={teamId}
                             initial={{ opacity: 0, y: 20 }}
                             animate={{ opacity: 1, y: 0 }}
                             whileHover={{
@@ -650,11 +655,17 @@ export function TeammateWars({ season }: TeammateWarsProps) {
                             </div>
 
                             {/* Battle Arena */}
-                            <div className="relative flex items-center justify-between gap-2 p-4 md:gap-4 md:p-6">
+                            <div
+                                className="h2h-battle relative flex items-center justify-between gap-2 p-4 md:gap-4 md:p-6"
+                                data-portraits={Boolean(portraitA || portraitB)}
+                                style={{ '--battle-color': teamColor } as CSSProperties}
+                            >
+                                {portraitA && <DriverBattlePortrait key={portraitA} src={portraitA} side="left" />}
+                                {portraitB && <DriverBattlePortrait key={portraitB} src={portraitB} side="right" />}
                                 <div className="pointer-events-none absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 select-none font-display text-[72px] text-white/[0.02] md:text-[100px]">VS</div>
 
                                 {/* Driver A */}
-                                <div className="relative flex min-w-0 flex-1 flex-col items-center px-1 text-center">
+                                <div className="h2h-battle__driver relative flex min-w-0 flex-1 flex-col items-center px-1 text-center" data-side="left" data-portrait={Boolean(portraitA)}>
                                     {hasMoreDrivers && (
                                         <SwapButton
                                             onClick={(e) => { e.stopPropagation(); cycleDriver(teamId, 0, allTeamDrivers.length); }}
@@ -677,7 +688,7 @@ export function TeammateWars({ season }: TeammateWarsProps) {
                                             </motion.span>
                                         </AnimatePresence>
                                     </div>
-                                    <div className={`mb-1 w-full max-w-full truncate px-1 font-display text-base leading-[0.95] uppercase tracking-tight sm:text-xl ${
+                                    <div className={`h2h-battle__name mb-1 w-full max-w-full truncate px-1 font-display text-base leading-[0.95] uppercase tracking-tight sm:text-xl ${
                                         standingsByDriverId[driverA.driverId]?.position === "1"
                                             ? 'text-[var(--accent-yellow)] opacity-75'
                                             : ''
@@ -690,7 +701,7 @@ export function TeammateWars({ season }: TeammateWarsProps) {
                                 </div>
 
                                 {/* Progress Bar */}
-                                <div className="h-16 w-1 bg-[var(--border-color)] relative rounded-full overflow-hidden">
+                                <div className="z-10 h-16 w-1 shrink-0 bg-[var(--border-color)] relative rounded-full overflow-hidden">
                                     <motion.div
                                         initial={{ height: '50%' }}
                                         animate={{ 
@@ -703,7 +714,7 @@ export function TeammateWars({ season }: TeammateWarsProps) {
                                 </div>
 
                                 {/* Driver B */}
-                                <div className="relative flex min-w-0 flex-1 flex-col items-center px-1 text-center">
+                                <div className="h2h-battle__driver relative flex min-w-0 flex-1 flex-col items-center px-1 text-center" data-side="right" data-portrait={Boolean(portraitB)}>
                                     {hasMoreDrivers && (
                                         <SwapButton
                                             onClick={(e) => { e.stopPropagation(); cycleDriver(teamId, 1, allTeamDrivers.length); }}
@@ -726,7 +737,7 @@ export function TeammateWars({ season }: TeammateWarsProps) {
                                             </motion.span>
                                         </AnimatePresence>
                                     </div>
-                                    <div className={`mb-1 w-full max-w-full truncate px-1 font-display text-base leading-[0.95] uppercase tracking-tight sm:text-xl ${
+                                    <div className={`h2h-battle__name mb-1 w-full max-w-full truncate px-1 font-display text-base leading-[0.95] uppercase tracking-tight sm:text-xl ${
                                         standingsByDriverId[driverB.driverId]?.position === "1"
                                             ? 'text-[var(--accent-yellow)] opacity-75'
                                             : ''

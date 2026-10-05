@@ -609,6 +609,85 @@ h6 {
   }
 }
 
+/* Teammate battle portraits */
+.h2h-battle {
+  --portrait-width: clamp(76px, 25%, 132px);
+  isolation: isolate;
+  overflow: hidden;
+}
+
+.h2h-battle[data-portraits="true"] {
+  min-height: 184px;
+}
+
+.h2h-battle[data-portraits="true"]::before,
+.h2h-battle[data-portraits="true"]::after {
+  content: "";
+  position: absolute;
+  top: 24%;
+  bottom: -20%;
+  width: 22%;
+  background: var(--battle-color);
+  filter: blur(30px);
+  opacity: 0.08;
+  pointer-events: none;
+  z-index: -1;
+}
+
+.h2h-battle::before { left: 0; }
+.h2h-battle::after { right: 0; }
+
+.h2h-battle__portrait {
+  position: absolute;
+  top: 10px;
+  bottom: -10px;
+  width: var(--portrait-width);
+  pointer-events: none;
+}
+
+.h2h-battle__portrait[data-side="left"] {
+  left: -4px;
+  mask-image: linear-gradient(to right, #000 62%, transparent 100%);
+}
+
+.h2h-battle__portrait[data-side="right"] {
+  right: -4px;
+  mask-image: linear-gradient(to left, #000 62%, transparent 100%);
+}
+
+.h2h-battle__portrait img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center top;
+  filter: saturate(0.7) brightness(0.8) contrast(1.05);
+  mask-image: linear-gradient(to bottom, #000 68%, transparent 100%);
+}
+
+.h2h-battle__driver {
+  z-index: 1;
+}
+
+.h2h-battle__driver[data-portrait="true"][data-side="left"] {
+  padding-left: calc(var(--portrait-width) * 0.45);
+}
+
+.h2h-battle__driver[data-portrait="true"][data-side="right"] {
+  padding-right: calc(var(--portrait-width) * 0.45);
+}
+
+.h2h-battle__driver[data-portrait="true"] .h2h-battle__name {
+  font-family: 'Formula1', 'Titillium Web', sans-serif;
+  font-size: clamp(0.75rem, 1.4vw, 1.125rem);
+}
+
+@media (min-width: 768px) {
+  .h2h-battle[data-portraits="true"] {
+    min-height: 208px;
+  }
+}
+
 /* ─────────────────────────────────────────────────────────────────────────
    MOBILE: Results Dashboard
 ────────────────────────────────────────────────────────────────────────── */
