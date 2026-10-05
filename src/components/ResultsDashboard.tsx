@@ -29,6 +29,7 @@ import { FormTrackerLines } from './FormTrackerLines';
 import { FormLineSwatch } from './FormLineSwatch';
 import { buildCommunityBreakdown, type BreakdownDriverIdentity } from '../utils/raceBreakdown';
 import { getRatingColor } from '../utils/ratingColor';
+import { PodiumFlagBackdrop } from './PodiumFlagBackdrop';
 
 interface ResultsDashboardProps {
     season: string;
@@ -41,9 +42,9 @@ interface BreakdownCalendar {
     season: string;
     races: RaceColumn[];
 }
-interface BreakdownDriverMetadata {
+interface SeasonDriverMetadata {
     season: string;
-    drivers: BreakdownDriverIdentity[];
+    drivers: Array<BreakdownDriverIdentity & { nationality?: string }>;
 }
 
 function getDriverLabel(driverName: string): string {
@@ -115,7 +116,7 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
     const [generatingTable, setGeneratingTable] = useState(false);
     const [breakdownSource, setBreakdownSource] = useState<BreakdownSource>('personal');
     const [breakdownCalendar, setBreakdownCalendar] = useState<BreakdownCalendar | null>(null);
-    const [breakdownDriverMetadata, setBreakdownDriverMetadata] = useState<BreakdownDriverMetadata | null>(null);
+    const [seasonDriverMetadata, setSeasonDriverMetadata] = useState<SeasonDriverMetadata | null>(null);
     const [showConfirmModal, setShowConfirmModal] = useState(false);
     const [selectedFormDriverIds, setSelectedFormDriverIds] = useState<string[]>(() =>
         rankedFormSeries[0] ? [rankedFormSeries[0].driverId] : [],
@@ -127,7 +128,8 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const isScrollingToTop = useRef(false);
     const completedCalendarRaces = breakdownCalendar?.season === season ? breakdownCalendar.races : [];
-    const seasonDriverIdentities = breakdownDriverMetadata?.season === season ? breakdownDriverMetadata.drivers : [];
+    const seasonDriverIdentities = seasonDriverMetadata?.season === season ? seasonDriverMetadata.drivers : [];
+    const hasRatings = rankedAverages.length > 0;
     const communityBreakdown = buildCommunityBreakdown(
         raceMatrix.races, raceMatrix.drivers, community.ratings,
         completedCalendarRaces, seasonDriverIdentities,
@@ -190,26 +192,26 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
     }, [season, source]);
 
     useEffect(() => {
-        if (source !== 'race' || breakdownSource !== 'community' || community.status !== 'ready'
-            || breakdownDriverMetadata?.season === season) return;
+        if (!hasRatings || seasonDriverMetadata?.season === season) return;
 
         let active = true;
         getSeasonDrivers(season).then(drivers => {
             if (!active) return;
-            setBreakdownDriverMetadata({
+            setSeasonDriverMetadata({
                 season,
                 drivers: drivers.map(driver => ({
                     driverId: driver.driverId,
                     driverName: `${driver.givenName} ${driver.familyName}`,
+                    nationality: driver.nationality,
                     constructorId: driver.constructorId,
                     constructorName: driver.constructorName,
                 })),
             });
         }).catch(() => {
-            if (active) setBreakdownDriverMetadata({ season, drivers: [] });
+            if (active) setSeasonDriverMetadata({ season, drivers: [] });
         });
         return () => { active = false; };
-    }, [source, breakdownSource, community.status, breakdownDriverMetadata?.season, season]);
+    }, [hasRatings, seasonDriverMetadata?.season, season]);
 
     // Track scroll position to show/hide "Top" button
     useEffect(() => {
@@ -410,6 +412,7 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
 
     // Podium (top 3)
     const podium = rankedAverages.slice(0, 3);
+    const winnerNationality = seasonDriverIdentities.find(driver => driver.driverId === podium[0]?.driverId)?.nationality;
     const podiumOrder = [1, 0, 2]; // Silver, Gold, Bronze positions
     const formChartData = buildFormChartData(rankedFormSeries);
     const formLineDashes = buildDriverLineDashes(rankedFormSeries.map(driver => ({
@@ -532,8 +535,9 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
                 </motion.div>
 
                 {/* 2. SECTION: PODIUM (TECHNICAL BLOCKS) */}
-                <div className="pt-4 md:pt-8 pb-8 md:pb-16 overflow-hidden">
-                    <div className="flex items-end justify-center gap-1 md:gap-8">
+                <div className="podium-stage relative isolate pt-4 md:pt-8 pb-8 md:pb-16 overflow-hidden">
+                    {winnerNationality && <PodiumFlagBackdrop key={winnerNationality} nationality={winnerNationality} />}
+                    <div className="relative z-10 flex items-end justify-center gap-1 md:gap-8">
                         {podiumOrder.map((pos, visualIndex) => {
                             if (!podium[pos]) return null;
                             const driver = podium[pos];

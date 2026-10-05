@@ -455,6 +455,7 @@ export async function getSeasonDrivers(season: string): Promise<Array<{
     driverId: string;
     givenName: string;
     familyName: string;
+    nationality?: string;
     constructorId: string;
     constructorName: string;
 }>> {
@@ -465,6 +466,7 @@ export async function getSeasonDrivers(season: string): Promise<Array<{
             driverId: standing.Driver.driverId,
             givenName: standing.Driver.givenName,
             familyName: standing.Driver.familyName,
+            nationality: standing.Driver.nationality,
             constructorId: standing.Constructors?.[0]?.constructorId || 'unknown',
             constructorName: standing.Constructors?.[0]?.name || 'Unknown',
         }));
