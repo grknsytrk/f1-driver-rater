@@ -1,0 +1,14 @@
+{
+  "retrievedOn": "2026-10-05",
+  "portraits": [
+    {
+      "driverId": "lawson",
+      "name": "Liam Lawson",
+      "constructorId": "red_bull",
+      "raceSuitSeason": "2025",
+      "file": "lawson-red-bull.png",
+      "source": "https://www.redbullracing.com/int-en/team",
+      "originalImage": "https://www.redbullracing.com/_next/image?q=75&url=%2F_next%2Fstatic%2Fmedia%2Fliam-lawson.c7767b46.png&w=640"
+    }
+  ]
+}
