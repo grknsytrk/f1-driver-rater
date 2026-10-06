@@ -356,6 +356,25 @@ h6 {
   animation: slide-up 0.4s var(--ease-telemetry) forwards;
 }
 
+/* Teammate battle cards start hidden before the browser's first paint, then stagger in. */
+.teammate-wars-card-enter {
+  opacity: 1;
+  animation: teammate-wars-card-enter 360ms cubic-bezier(0.2, 0.8, 0.2, 1)
+    var(--card-entry-delay, 0ms) backwards;
+}
+
+@keyframes teammate-wars-card-enter {
+  from {
+    opacity: 0;
+    translate: -8px 10px;
+  }
+
+  to {
+    opacity: 1;
+    translate: 0 0;
+  }
+}
+
 @keyframes slide-up {
   from {
     opacity: 0;
@@ -797,6 +816,11 @@ h6 {
   .podium-flag,
   .podium-flag__strip,
   .podium-flag__fold {
+    animation: none;
+  }
+
+  .teammate-wars-card-enter {
+    opacity: 1;
     animation: none;
   }
 

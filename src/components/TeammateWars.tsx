@@ -372,7 +372,7 @@ export function TeammateWars({ season }: TeammateWarsProps) {
     }
 
     // Show loading state while fetching data
-    if (loading && sortedTeamIds.length === 0) {
+    if (loading) {
         return (
             <div className="flex flex-col items-center justify-center min-h-[50vh] text-center p-8">
                 <Loader2 size={48} className="text-[var(--accent-red)] mb-4 animate-spin" />
@@ -518,7 +518,7 @@ export function TeammateWars({ season }: TeammateWarsProps) {
 
             {/* Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {sortedTeamIds.map((teamId) => {
+                {sortedTeamIds.map((teamId, index) => {
                     const allTeamDrivers = getSortedTeamDrivers(teamId);
 
                     const [indexA, indexB] = selections[teamId] || [0, 1];
@@ -565,8 +565,6 @@ export function TeammateWars({ season }: TeammateWarsProps) {
                         <motion.div
                             key={teamId}
                             data-team={teamId}
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
                             whileHover={{
                                 scale: expandedTeamId === teamId ? 1 : 1.02,
                                 boxShadow: `0 0 20px ${teamColor}33`,
@@ -574,7 +572,8 @@ export function TeammateWars({ season }: TeammateWarsProps) {
                             }}
                             transition={{ duration: 0.3 }}
                             onClick={() => setExpandedTeamId(expandedTeamId === teamId ? null : teamId)}
-                            className="bg-[var(--bg-panel)] border border-[var(--border-color)] overflow-visible group transition-all cursor-pointer relative"
+                            style={{ '--card-entry-delay': `${index * 65}ms` } as CSSProperties}
+                            className="teammate-wars-card-enter bg-[var(--bg-panel)] border border-[var(--border-color)] overflow-visible group transition-all cursor-pointer relative"
                         >
                             {/* Team Header */}
                             <div className="h-1 w-full" style={{ backgroundColor: teamColor }} />
