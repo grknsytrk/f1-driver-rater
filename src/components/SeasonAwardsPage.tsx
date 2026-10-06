@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
     Activity,
@@ -6,15 +6,15 @@ import {
     Crown,
     Flame,
     Loader2,
-    Lock,
     Radar,
     Rocket,
     TrendingDown,
     TrendingUp,
 } from 'lucide-react';
 import { TEAM_COLORS } from '../types';
-import { useSeasonProgress } from '../hooks/useSeasonProgress';
-import { getSeasonAwards, type SeasonAward, type SeasonAwardId } from '../utils/storage';
+import { getAllSeasonResults, type SeasonRaceResult } from '../api/f1Api';
+import { useCommunityRatings } from '../hooks/useCommunityRatings';
+import { buildCommunitySeasonAwards, type SeasonAward, type SeasonAwardId } from '../utils/seasonAwards';
 
 interface SeasonAwardsPageProps {
     season: string;
@@ -33,80 +33,80 @@ const AWARD_CONFIG: Record<SeasonAwardId, AwardConfig> = {
     season_mvp: {
         label: 'Season MVP',
         eyebrow: 'Top overall average',
-        description: 'Highest season average across drivers with at least three rated races.',
-        telemetryNote: 'Built from the strongest season-long average in your completed race log.',
+        description: 'Highest season average across drivers with at least three community-rated races.',
+        telemetryNote: 'Built from race-by-race community averages across the season.',
         accentColor: '#F4C542',
         Icon: Crown,
     },
     consistency_king: {
         label: 'Consistency King',
         eyebrow: 'Lowest variance',
-        description: 'Most stable race-by-race output across at least four rated races.',
-        telemetryNote: 'Rewards the smoothest rating curve once enough races are on the board.',
+        description: 'Most stable race-by-race community average across at least four races.',
+        telemetryNote: 'Rewards the smoothest community rating curve across the season.',
         accentColor: '#C6CCD5',
         Icon: Radar,
     },
     peak_performance: {
         label: 'Peak Performance',
         eyebrow: 'Best single race',
-        description: 'Highest one-race score you handed out all season.',
-        telemetryNote: 'Captures the single most explosive rating spike in your season data.',
+        description: 'Highest single-race community average of the season.',
+        telemetryNote: 'Captures the strongest community-rated race of the season.',
         accentColor: '#FF7A00',
         Icon: Flame,
     },
     form_surge: {
         label: 'Form Surge',
         eyebrow: 'Strongest climb',
-        description: 'Biggest improvement from first rated race to latest rated race.',
-        telemetryNote: 'Compares each driver’s latest form against where their season started.',
+        description: 'Biggest rise from the first community-rated race to the latest.',
+        telemetryNote: 'Compares each driver’s latest community average with their season start.',
         accentColor: '#00D084',
         Icon: TrendingUp,
     },
     toughest_slide: {
         label: 'Toughest Slide',
         eyebrow: 'Sharpest drop',
-        description: 'Biggest regression from first rated race to latest rated race.',
-        telemetryNote: 'Tracks the steepest drop-off between the opening and latest rated runs.',
+        description: 'Biggest drop from the first community-rated race to the latest.',
+        telemetryNote: 'Tracks the steepest fall in community averages across the season.',
         accentColor: '#FF4D4F',
         Icon: TrendingDown,
     },
     hot_start: {
         label: 'Hot Start',
         eyebrow: 'Opening three',
-        description: 'Best average across the first three races you rated for that driver.',
-        telemetryNote: 'Looks only at the opening three rated appearances for each driver.',
+        description: 'Best average across each driver’s first three community-rated races.',
+        telemetryNote: 'Looks at each driver’s first three races with community ratings.',
         accentColor: '#FF6B35',
         Icon: Rocket,
     },
     strong_finish: {
         label: 'Strong Finish',
         eyebrow: 'Closing three',
-        description: 'Best average across the latest three races you rated for that driver.',
-        telemetryNote: 'Looks only at the latest three rated appearances for each driver.',
+        description: 'Best average across each driver’s latest three community-rated races.',
+        telemetryNote: 'Looks at each driver’s latest three races with community ratings.',
         accentColor: '#38BDF8',
         Icon: Activity,
     },
     garage_boss: {
         label: 'Garage Boss',
         eyebrow: 'Teammate domination',
-        description: 'Largest sustained average gap over a teammate across shared rated races.',
-        telemetryNote: 'Built from direct same-team duels in your own race log.',
+        description: 'Largest average gap over a teammate across at least three shared community-rated races.',
+        telemetryNote: 'Built from direct same-team comparisons using community averages.',
         accentColor: '#A855F7',
         Icon: Award,
     },
     best_team_pairing: {
         label: 'Best Team Pairing',
         eyebrow: 'Strongest duo',
-        description: 'Highest combined two-driver level for a team’s main pairing.',
-        telemetryNote: 'Uses each team’s primary two-driver pairing from your rated season data.',
+        description: 'Highest combined average for the two most community-rated drivers at a team.',
+        telemetryNote: 'Team stints follow the constructor listed in each race result.',
         accentColor: '#00D084',
         Icon: Crown,
     },
     most_balanced_lineup: {
         label: 'Most Balanced Lineup',
         eyebrow: 'Closest duo',
-        description: 'Smallest gap between a team’s top two rated drivers.',
-        telemetryNote: 'Rewards garages where both sides of the lineup stayed nearly level.',
+        description: 'Smallest average gap between a team’s two most community-rated drivers.',
+        telemetryNote: 'Rewards teams whose leading pair stayed close in community ratings.',
         accentColor: '#F97316',
         Icon: Radar,
     },
@@ -114,7 +114,7 @@ const AWARD_CONFIG: Record<SeasonAwardId, AwardConfig> = {
         label: 'Late Season Charge',
         eyebrow: 'Closing team run',
         description: 'Best team average across the latest three completed races.',
-        telemetryNote: 'Measures which garage peaked hardest in the closing stretch.',
+        telemetryNote: 'Measures team averages in the final three completed race rounds.',
         accentColor: '#22D3EE',
         Icon: TrendingUp,
     },
@@ -212,7 +212,7 @@ function AwardSection({ award, index }: { award: SeasonAward; index: number }) {
                                     <div className="relative min-w-0">
                                         <div className="min-w-0">
                                             <div className="font-oxanium text-[10px] uppercase tracking-[0.22em]" style={{ color: config.accentColor }}>
-                                                Winner Locked
+                                                Community Leader
                                             </div>
                                             <div className="mt-3 flex min-w-0 items-center gap-3">
                                                 <div className="h-12 w-1.5 flex-shrink-0" style={{ backgroundColor: getTeamColor(winner.constructorId) }} />
@@ -260,7 +260,7 @@ function AwardSection({ award, index }: { award: SeasonAward; index: number }) {
                                     </div>
 
                                     <div className="font-oxanium text-[10px] uppercase tracking-[0.22em]" style={{ color: config.accentColor }}>
-                                        Personal season awards
+                                        Community season awards
                                     </div>
                                 </div>
                             </div>
@@ -268,13 +268,13 @@ function AwardSection({ award, index }: { award: SeasonAward; index: number }) {
                             <div className="relative p-6 md:p-8">
                                 <div className="border border-dashed border-[var(--border-color)] bg-[var(--bg-darker)] p-6 md:p-8">
                                     <div className="font-oxanium text-[10px] uppercase tracking-[0.22em]" style={{ color: config.accentColor }}>
-                                        Awaiting more telemetry
+                                        Awaiting community data
                                     </div>
                                     <div className="mt-3 font-display text-2xl text-white uppercase leading-tight md:text-4xl">
-                                        Not enough race-by-race data yet for {config.label.toUpperCase()}.
+                                        Not enough community race ratings yet for {config.label.toUpperCase()}.
                                     </div>
                                     <p className="mt-4 max-w-2xl font-ui text-sm leading-relaxed text-[var(--text-secondary)] md:text-base">
-                                        Keep rating completed races. This award unlocks automatically once enough races are in your personal data set.
+                                        This award appears when its community rating and race thresholds are met.
                                     </p>
                                 </div>
                             </div>
@@ -286,120 +286,114 @@ function AwardSection({ award, index }: { award: SeasonAward; index: number }) {
     );
 }
 
-export function SeasonAwardsPage({ season }: SeasonAwardsPageProps) {
-    const { progress, loading } = useSeasonProgress(season);
-    const awardsSummary = useMemo(() => getSeasonAwards(season), [season]);
+function AwardsStatus({ title, description }: { title: string; description: string }) {
+    return (
+        <div className="flex min-h-[60vh] items-center justify-center px-4 py-10">
+            <motion.div
+                initial={{ opacity: 0, y: 24 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="w-full max-w-3xl border border-[var(--border-color)] border-t-2 border-t-[var(--accent-red)] bg-[var(--bg-panel)] p-6 md:p-10"
+                role="status"
+            >
+                <div className="font-oxanium text-xs uppercase tracking-[0.26em] text-[var(--accent-red)]">
+                    Season Awards
+                </div>
+                <h1 className="mt-4 font-display text-4xl leading-none text-white uppercase tracking-tight md:text-6xl">
+                    {title}
+                </h1>
+                <p className="mt-5 max-w-2xl font-ui text-sm leading-relaxed text-[var(--text-secondary)] md:text-lg">
+                    {description}
+                </p>
+            </motion.div>
+        </div>
+    );
+}
 
-    if (!progress || loading) {
-        return (
-            <div className="flex min-h-[60vh] items-center justify-center">
-                <div className="flex flex-col items-center gap-4 border border-[var(--border-color)] bg-[var(--bg-panel)] px-8 py-10">
-                    <Loader2 size={28} className="animate-spin text-[var(--accent-red)]" />
-                    <div className="font-oxanium text-xs uppercase tracking-[0.25em] text-[var(--text-muted)]">
-                        Loading season awards
-                    </div>
+function AwardsLoading() {
+    return (
+        <div className="flex min-h-[60vh] items-center justify-center">
+            <div className="flex flex-col items-center gap-4 border border-[var(--border-color)] bg-[var(--bg-panel)] px-8 py-10" role="status">
+                <Loader2 size={28} className="animate-spin text-[var(--accent-red)]" />
+                <div className="font-oxanium text-xs uppercase tracking-[0.25em] text-[var(--text-muted)]">
+                    Loading community awards
                 </div>
             </div>
-        );
-    }
+        </div>
+    );
+}
 
-    const readyAwardsCount = awardsSummary.awards.filter((award) => award.status === 'ready').length;
+export function SeasonAwardsPage({ season }: SeasonAwardsPageProps) {
+    const community = useCommunityRatings('race', season);
+    const [resultsState, setResultsState] = useState<{
+        season: string;
+        status: 'loading' | 'ready' | 'unavailable';
+        results: SeasonRaceResult[];
+    }>({ season: '', status: 'loading', results: [] });
 
-    if (!progress.unlocked) {
+    useEffect(() => {
+        let active = true;
+        void getAllSeasonResults(season, { throwOnError: true })
+            .then(results => {
+                if (active) setResultsState({ season, status: 'ready', results });
+            })
+            .catch(() => {
+                if (active) setResultsState({ season, status: 'unavailable', results: [] });
+            });
+        return () => { active = false; };
+    }, [season]);
+
+    const raceResults = useMemo(
+        () => resultsState.season === season ? resultsState.results : [],
+        [resultsState, season]
+    );
+    const awardsSummary = useMemo(
+        () => buildCommunitySeasonAwards(season, raceResults, community.ratings),
+        [season, raceResults, community.ratings]
+    );
+
+    if (community.status === 'loading') return <AwardsLoading />;
+
+    if (community.status === 'disabled') {
         return (
-            <div className="min-h-[70vh] py-8 md:py-12">
-                <motion.div
-                    initial={{ opacity: 0, y: 24 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="mx-auto max-w-5xl space-y-8"
-                >
-                    <div className="space-y-4 border-l-4 border-[var(--accent-red)] pl-4 md:pl-6">
-                        <div className="font-oxanium text-xs uppercase tracking-[0.26em] text-[var(--accent-red)]">
-                            Season Awards
-                        </div>
-                        <h2 className="font-display text-4xl leading-none text-white uppercase tracking-tight md:text-7xl">
-                            {season} Wrapped
-                        </h2>
-                        <p className="max-w-2xl font-ui text-sm leading-relaxed text-[var(--text-secondary)] md:text-lg">
-                            This page unlocks when every completed race in the {season} calendar has been rated by you.
-                        </p>
-                    </div>
-
-                    <div className="overflow-hidden border border-[var(--border-color)] bg-[var(--bg-panel)]">
-                        <div className="grid gap-0 lg:grid-cols-[1.1fr_0.9fr]">
-                            <div className="border-b border-[var(--border-color)] p-6 md:p-8 lg:border-b-0 lg:border-r">
-                                <div className="flex items-center gap-3">
-                                    <div className="flex h-12 w-12 items-center justify-center border border-[var(--border-color)] bg-[var(--bg-darker)] text-[var(--accent-yellow)]">
-                                        <Lock size={20} />
-                                    </div>
-                                    <div>
-                                        <div className="font-oxanium text-[10px] uppercase tracking-[0.22em] text-[var(--accent-yellow)]">
-                                            Locked telemetry
-                                        </div>
-                                        <div className="font-display text-2xl text-white uppercase md:text-4xl">
-                                            Finish the grid
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div className="mt-8 space-y-4">
-                                    <div className="flex items-end justify-between gap-4">
-                                        <div>
-                                            <div className="font-oxanium text-[10px] uppercase tracking-[0.2em] text-[var(--text-muted)]">
-                                                Completed races rated
-                                            </div>
-                                            <div className="mt-2 font-display text-5xl text-white uppercase leading-none md:text-7xl">
-                                                {progress.ratedCount}/{progress.completedCount}
-                                            </div>
-                                        </div>
-                                        <div className="font-oxanium text-[10px] uppercase tracking-[0.2em] text-[var(--text-secondary)]">
-                                            {progress.remainingCount} remaining
-                                        </div>
-                                    </div>
-
-                                    <div className="h-2 w-full bg-[var(--bg-darker)]">
-                                        <motion.div
-                                            initial={{ width: 0 }}
-                                            animate={{ width: `${progress.progressPercent}%` }}
-                                            transition={{ duration: 0.6, ease: 'easeOut' }}
-                                            className="h-full bg-[var(--accent-red)]"
-                                        />
-                                    </div>
-
-                                    <p className="font-ui text-sm leading-relaxed text-[var(--text-secondary)] md:text-base">
-                                        {progress.hasCompletedRaces
-                                            ? `Rate the remaining completed races to unlock all seven personal season awards.`
-                                            : `No races from the ${season} calendar have been completed yet, so awards telemetry is still waiting for the season to start.`}
-                                    </p>
-                                </div>
-                            </div>
-
-                            <div className="bg-[var(--bg-darker)] p-6 md:p-8">
-                                <div className="font-oxanium text-[10px] uppercase tracking-[0.22em] text-[var(--text-muted)]">
-                                    Preview
-                                </div>
-                                <div className="mt-4 space-y-3">
-                                    {Object.values(AWARD_CONFIG).map((award, index) => (
-                                        <div key={award.label} className="flex items-center justify-between border border-[var(--border-color)] bg-[var(--bg-panel)] px-4 py-3">
-                                            <div className="flex items-center gap-3">
-                                                <award.Icon size={16} style={{ color: award.accentColor }} />
-                                                <span className="font-display text-lg text-white uppercase tracking-tight">
-                                                    {award.label}
-                                                </span>
-                                            </div>
-                                            <span className="font-oxanium text-[10px] uppercase tracking-[0.2em] text-[var(--text-muted)]">
-                                                {String(index + 1).padStart(2, '0')}
-                                            </span>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </motion.div>
-            </div>
+            <AwardsStatus
+                title="Community ratings unavailable"
+                description="Season Awards are calculated from community race ratings, which are not configured for this site right now. Personal ratings are not used as a substitute."
+            />
         );
     }
+
+    if (community.status === 'unavailable') {
+        return (
+            <AwardsStatus
+                title="Community ratings could not load"
+                description="The community rating service could not be reached. Season Awards will appear when race-by-race community ratings are available."
+            />
+        );
+    }
+
+    if (resultsState.season !== season || resultsState.status === 'loading') return <AwardsLoading />;
+
+    if (resultsState.status === 'unavailable') {
+        return (
+            <AwardsStatus
+                title="Race data unavailable"
+                description="The season race results could not be loaded, so community ratings cannot be matched to their race and team context."
+            />
+        );
+    }
+
+    if (awardsSummary.ratedRaceCount === 0) {
+        return (
+            <AwardsStatus
+                title="Waiting for community ratings"
+                description={awardsSummary.completedRaceCount > 0
+                    ? 'No community race ratings are available for completed ' + season + ' races yet. The awards board will appear when at least one race rating can be matched to its race result.'
+                    : 'The ' + season + ' community awards will appear after a race is completed and race-by-race community ratings are available.'}
+            />
+        );
+    }
+
+    const readyAwardsCount = awardsSummary.awards.filter(award => award.status === 'ready').length;
 
     return (
         <div className="min-h-screen py-6 md:py-10">
@@ -424,13 +418,13 @@ export function SeasonAwardsPage({ season }: SeasonAwardsPageProps) {
                                 {season} Wrapped
                             </h1>
                             <p className="mt-4 max-w-2xl font-ui text-sm leading-relaxed text-[var(--text-secondary)] md:text-lg">
-                                Every completed race in the {season} calendar is logged. Here is the personal season awards board generated from your own race-by-race driver ratings.
+                                The community awards board is generated from race-by-race community averages. Every race with at least one valid community rating contributes equally to season averages.
                             </p>
                         </div>
 
                         <div className="mt-8 grid gap-4 md:grid-cols-3">
-                            <HeroStat label="Completed race log" value={`${progress.ratedCount}/${progress.completedCount}`} accentColor="#E10600" />
-                            <HeroStat label="Drivers tracked" value={String(awardsSummary.driverCount)} accentColor="#F4C542" />
+                            <HeroStat label="Community-rated races" value={awardsSummary.ratedRaceCount + '/' + awardsSummary.completedRaceCount} accentColor="#E10600" />
+                            <HeroStat label="Drivers rated by community" value={String(awardsSummary.driverCount)} accentColor="#F4C542" />
                             <HeroStat label="Awards ready" value={String(readyAwardsCount)} accentColor="#38BDF8" />
                         </div>
                     </div>

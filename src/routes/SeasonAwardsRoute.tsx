@@ -18,7 +18,7 @@ export default function SeasonAwardsRoute() {
         >
             <SEOHead
                 title={`Season Awards - F1 ${season}`}
-                description={`View your personal F1 ${season} season awards and wrapped-style summary.`}
+                description={`View the community-rated F1 ${season} Season Awards and wrapped-style summary.`}
                 path={`/${season}/awards`}
                 noindex
             />

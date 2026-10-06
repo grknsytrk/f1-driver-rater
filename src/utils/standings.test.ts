@@ -40,6 +40,8 @@ describe('driver tracker labels', () => {
 function makeRaceResult(overrides: Partial<SeasonRaceResult>): SeasonRaceResult {
     return {
         round: '1',
+        raceName: 'Bahrain Grand Prix',
+        date: '2024-03-02',
         driverId: 'max_verstappen',
         driverName: 'Max Verstappen',
         constructorId: 'red_bull',

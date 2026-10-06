@@ -14,6 +14,8 @@ import {
 function race(round: string, driverId: string, constructorId: string, position: number | null): SeasonRaceResult {
     return {
         round,
+        raceName: 'Test Grand Prix',
+        date: '2024-03-02',
         driverId,
         driverName: driverId.toUpperCase(),
         constructorId,

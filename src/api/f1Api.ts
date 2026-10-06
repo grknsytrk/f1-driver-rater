@@ -683,6 +683,8 @@ export async function getDriverSeasonStats(season: string): Promise<DriverSeason
 // Get all race results for a season (for H2H calculations and standings race-by-race)
 export interface SeasonRaceResult {
     round: string;
+    raceName: string;
+    date: string;
     driverId: string;
     driverName: string;
     constructorId: string;
@@ -707,6 +709,8 @@ export async function getAllSeasonResults(season: string, options: { throwOnErro
 
                 results.push({
                     round: race.round,
+                    raceName: race.raceName ?? `Round ${race.round}`,
+                    date: race.date,
                     driverId: result.Driver.driverId,
                     driverName: `${result.Driver.givenName} ${result.Driver.familyName}`,
                     constructorId: result.Constructor.constructorId,

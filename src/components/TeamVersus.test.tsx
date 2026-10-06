@@ -7,7 +7,7 @@ import type { AverageRating } from '../types';
 import { TeamVersus } from './TeamVersus';
 
 function race(round: string, driverId: string, constructorId: string, constructorName: string, position: number | null): SeasonRaceResult {
-    return { round, driverId, driverName: `Given ${driverId}`, constructorId, constructorName, position, points: 0, status: 'Finished' };
+    return { round, raceName: 'Test Grand Prix', date: '2024-03-02', driverId, driverName: `Given ${driverId}`, constructorId, constructorName, position, points: 0, status: 'Finished' };
 }
 
 const raceResults: SeasonRaceResult[] = [

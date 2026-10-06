@@ -31,13 +31,49 @@ import {
 import QuickRateRoute from './routes/QuickRateRoute';
 import RaceRatingRoute from './routes/RaceRatingRoute';
 import { fetchWithMinDelay } from './utils/delay';
-import { useSeasonProgress } from './hooks/useSeasonProgress';
+import { useCommunityRatings } from './hooks/useCommunityRatings';
 import { initializeGuestSync } from './utils/guestSync';
 import { LOCAL_RATINGS_EVENT } from './utils/ratingData';
 import type { Season, Race } from './types';
 
 // Minimum loading time in ms for better UX
 const MIN_LOADING_TIME = 800;
+
+function SeasonAwardsAction({ season, onNavigate, onPreload }: {
+  season: string;
+  onNavigate: () => void;
+  onPreload: () => void;
+}) {
+  const community = useCommunityRatings('race', season);
+  const communityRatedRaceCount = community.status === 'ready'
+    ? new Set(community.ratings.filter(rating => rating.round && rating.voteCount > 0).map(rating => rating.round)).size
+    : 0;
+
+  return (
+    <motion.button
+      initial={{ opacity: 0, scale: 0.95 }}
+      animate={{ opacity: 1, scale: 1 }}
+      onClick={onNavigate}
+      onMouseEnter={onPreload}
+      onFocus={onPreload}
+      className="group relative flex w-full items-center justify-center gap-2 px-2 md:px-4 py-2 md:py-1.5 bg-[var(--bg-panel)] border border-[var(--border-color)] hover:border-[var(--accent-yellow)] transition-all min-h-[44px] md:min-w-0 md:w-auto md:min-h-0"
+      title={communityRatedRaceCount > 0
+        ? 'Season Awards · ' + communityRatedRaceCount + ' community-rated races'
+        : 'Season Awards'}
+      aria-label={communityRatedRaceCount > 0
+        ? 'Season Awards, ' + communityRatedRaceCount + ' community-rated races'
+        : 'Season Awards'}
+    >
+      <Award size={16} className="text-[var(--text-secondary)] group-hover:text-[var(--accent-yellow)]" />
+      <span className="hidden md:inline font-ui font-bold text-xs text-white uppercase tracking-wider">Season Awards</span>
+      {communityRatedRaceCount > 0 && (
+        <span className="absolute -top-1 -right-1 rounded-full bg-[var(--bg-darker)] px-1.5 py-0.5 font-oxanium text-[8px] leading-none uppercase tracking-wide text-[var(--text-muted)] md:static md:rounded-none md:bg-transparent md:px-0 md:py-0 md:text-[10px]">
+          {communityRatedRaceCount}
+        </span>
+      )}
+    </motion.button>
+  );
+}
 
 // Season Page Component
 function SeasonPage() {
@@ -222,7 +258,6 @@ function App() {
   const showSeasonActions = Boolean(
     currentSeason && !isResultsPage && !isQuickRatePage && !isRacePage && !isTeammateWarsPage && !isStandingsPage && !isAwardsPage
   );
-  const { progress: awardsProgress, loading: awardsProgressLoading } = useSeasonProgress(currentSeason ?? undefined, showSeasonActions);
   const mobileActionGridClass = showResultsButton ? 'grid-cols-5' : 'grid-cols-4';
 
   function primeRoute(preload: () => void) {
@@ -354,30 +389,11 @@ function App() {
                 <span className="hidden md:inline font-ui font-bold text-xs text-white uppercase tracking-wider">Standings</span>
               </motion.button>
 
-              <motion.button
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                onClick={() => navigate(`/${currentSeason}/awards`)}
-                {...primeRoute(preloadAwardsRoute)}
-                className={`group relative flex w-full items-center justify-center gap-2 px-2 md:px-4 py-2 md:py-1.5 border transition-all min-h-[44px] md:min-w-0 md:w-auto md:min-h-0 ${
-                  awardsProgress?.unlocked
-                    ? 'bg-[var(--accent-red)]/10 border-[var(--accent-red)]/40 hover:border-[var(--accent-red)]'
-                    : 'bg-[var(--bg-panel)] border-[var(--border-color)] hover:border-[var(--accent-yellow)]'
-                }`}
-                title="Season Awards"
-              >
-                <Award size={16} className={awardsProgress?.unlocked ? 'text-[var(--accent-red)]' : 'text-[var(--text-secondary)] group-hover:text-[var(--accent-yellow)]'} />
-                <span className="hidden md:inline font-ui font-bold text-xs text-white uppercase tracking-wider">
-                  {awardsProgress?.unlocked ? 'Season Awards' : 'Awards'}
-                </span>
-                {!awardsProgressLoading && awardsProgress && !awardsProgress.unlocked && (
-                  <span className={`absolute -top-1 -right-1 rounded-full px-1.5 py-0.5 font-oxanium text-[8px] leading-none uppercase tracking-wide md:static md:rounded-none md:px-0 md:py-0 md:text-[10px] ${
-                    'bg-[var(--bg-darker)] text-[var(--text-muted)] md:bg-transparent'
-                  }`}>
-                    {`${awardsProgress.ratedCount}/${awardsProgress.completedCount}`}
-                  </span>
-                )}
-              </motion.button>
+              <SeasonAwardsAction
+                season={currentSeason!}
+                onNavigate={() => navigate(`/${currentSeason}/awards`)}
+                onPreload={preloadAwardsRoute}
+              />
 
               {/* Teammate Wars Button */}
               <motion.button
