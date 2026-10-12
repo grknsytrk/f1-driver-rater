@@ -394,11 +394,12 @@ function collectPerformancePairStats(
     return [...stats.values()];
 }
 
-function selectBestTeamPair(stats: PerformancePairStats[]): AwardCandidate[] {
+function selectBestTeamPair(stats: PerformancePairStats[], completedRaceCount: number): AwardCandidate[] {
+    const minimumSharedTopTenRounds = Math.ceil(completedRaceCount / 2);
     const candidates = stats.flatMap(pair => {
         const sharedTopTenRounds = [...pair.doubleTopTenRaceRounds]
             .filter(round => pair.raceGapByRound.has(round) && pair.qualifyingGapByRound.has(round));
-        if (sharedTopTenRounds.length === 0) return [];
+        if (sharedTopTenRounds.length < minimumSharedTopTenRounds) return [];
         const average = (values: number[]) => values.reduce((sum, value) => sum + value, 0) / values.length;
         const averageRaceGap = average(sharedTopTenRounds.map(round => pair.raceGapByRound.get(round)!));
         const averageQualifyingGap = average(sharedTopTenRounds.map(round => pair.qualifyingGapByRound.get(round)!));
@@ -416,7 +417,7 @@ function selectBestTeamPair(stats: PerformancePairStats[]): AwardCandidate[] {
                 pair,
                 averageCombinedGap,
                 `Δ ${formatNumber(averageCombinedGap, 3)}s AVG GAP`,
-                `Both teammates finished and qualified in the top 10 in ${sharedTopTenRounds.length} shared Grand Prix. Average race-time gap ${formatNumber(averageRaceGap, 3)}s; average qualifying gap ${formatNumber(averageQualifyingGap, 3)}s.`,
+                `Both teammates finished and qualified in the top 10 in ${sharedTopTenRounds.length} of ${completedRaceCount} completed GP weekends (minimum ${minimumSharedTopTenRounds}). Average race-time gap ${formatNumber(averageRaceGap, 3)}s; average qualifying gap ${formatNumber(averageQualifyingGap, 3)}s.`,
             ))
         .sort((a, b) => a.subjectName.localeCompare(b.subjectName)
             || a.secondaryLabel.localeCompare(b.secondaryLabel));
@@ -633,7 +634,7 @@ export function buildSeasonAwards(
         )), 'asc');
 
     const performancePairStats = collectPerformancePairStats(races, qualifyingResults);
-    const bestTeamPairing = selectBestTeamPair(performancePairStats);
+    const bestTeamPairing = selectBestTeamPair(performancePairStats, races.length);
 
     const completedRounds = races.map(race => race.round);
     const pointsStreaks = new Map<string, { driverName: string; constructorId: string; constructorName: string; best: number }>();
