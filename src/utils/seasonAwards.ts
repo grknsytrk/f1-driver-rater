@@ -206,6 +206,52 @@ function selectByMetric(candidates: AwardCandidate[], direction: 'asc' | 'desc' 
             || a.secondaryLabel.localeCompare(b.secondaryLabel));
 }
 
+function selectPeakPerformance(
+    races: SeasonRace[], driverSeriesById: Map<string, DriverSeries>,
+): AwardCandidate[] {
+    const candidates = races.flatMap(race => {
+        const ratings = [...race.ratingsByDriver.values()];
+        return ratings.flatMap(point => {
+            const series = driverSeriesById.get(point.driverId);
+            const result = race.resultsByDriver.get(point.driverId);
+            if (!series || !result) return [];
+
+            const otherRatings = ratings.filter(other => other.driverId !== point.driverId);
+            const averageGap = otherRatings.length
+                ? otherRatings.reduce((sum, other) => sum + point.rating - other.rating, 0) / otherRatings.length
+                : null;
+            const detail = averageGap === null
+                ? formatRaceName(race.raceName)
+                : `${formatRaceName(race.raceName)} · +${formatNumber(averageGap)} AVG GAP`;
+
+            return [{
+                winner: createDriverWinner(
+                    series, point.rating, `${formatRating(point.rating)} RATING`, detail,
+                    { id: result.constructorId, name: result.constructorName },
+                ),
+                rating: point.rating,
+                averageGap,
+                roundNumber: race.roundNumber,
+            }];
+        });
+    });
+    if (candidates.length === 0) return [];
+
+    const highestRating = Math.max(...candidates.map(candidate => candidate.rating));
+    const tiedAtPeak = candidates.filter(candidate => Math.abs(candidate.rating - highestRating) <= TIE_EPSILON);
+    const candidatesWithComparableGap = tiedAtPeak.filter(candidate => candidate.averageGap !== null);
+    const tieBreakPool = candidatesWithComparableGap.length > 0 ? candidatesWithComparableGap : tiedAtPeak;
+    const highestGap = Math.max(...tieBreakPool.map(candidate => candidate.averageGap ?? -Infinity));
+    const finalCandidates = tieBreakPool.filter(candidate => candidate.averageGap === null
+        ? highestGap === -Infinity
+        : Math.abs(candidate.averageGap - highestGap) <= TIE_EPSILON);
+    finalCandidates.sort((a, b) => a.winner.subjectName.localeCompare(b.winner.subjectName)
+        || (a.winner.driverId ?? '').localeCompare(b.winner.driverId ?? '')
+        || a.roundNumber - b.roundNumber);
+
+    return finalCandidates[0] ? [finalCandidates[0].winner] : [];
+}
+
 function createAward(
     id: SeasonAwardId,
     group: SeasonAwardGroup,
@@ -487,28 +533,7 @@ export function buildSeasonAwards(
             );
         }), 'asc');
 
-    const peakCandidates = selectByMetric(races.flatMap(race => [...race.ratingsByDriver.values()].map(point => {
-        const series = driverSeriesById.get(point.driverId);
-        const result = race.resultsByDriver.get(point.driverId);
-        if (!series || !result) return null;
-        return createDriverWinner(
-            series, point.rating, `${formatRating(point.rating)} RATING`, formatRaceName(race.raceName),
-            { id: result.constructorId, name: result.constructorName },
-        );
-    }).filter((winner): winner is AwardCandidate => winner !== null)));
-    const peakByDriver = new Map<string, AwardCandidate>();
-    for (const candidate of peakCandidates) {
-        const driverId = candidate.driverId;
-        if (!driverId) continue;
-        const existing = peakByDriver.get(driverId);
-        if (existing) {
-            const raceNames = new Set([...existing.detail.split(' · '), candidate.detail]);
-            existing.detail = [...raceNames].join(' · ');
-        } else {
-            peakByDriver.set(driverId, candidate);
-        }
-    }
-    const peakPerformance = [...peakByDriver.values()];
+    const peakPerformance = selectPeakPerformance(races, driverSeriesById);
 
     const improvementCandidates = driverSeries.filter(series => series.points.length >= 6).map(series => {
         const firstThree = series.points.slice(0, 3);

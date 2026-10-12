@@ -67,10 +67,10 @@ const AWARD_CONFIG: Record<SeasonAwardId, AwardConfig> = {
     peak_performance: {
         label: 'Peak Performance',
         eyebrow: 'Best single race',
-        description: 'The highest community average given to a driver in one Grand Prix.',
+        description: 'The highest community average for one Grand Prix; tied ratings go to the driver with the largest average gap over other rated drivers in that race.',
         source: 'Community race averages',
-        metric: 'Single Grand Prix average rating.',
-        direction: 'Higher wins; ties share the award.',
+        metric: 'Single Grand Prix average rating; tie-break: average rating gap over the other rated drivers in that race.',
+        direction: 'Higher wins; if both metrics tie, one driver is selected by name order.',
         accentColor: '#FF7A00',
         Icon: Flame,
     },
