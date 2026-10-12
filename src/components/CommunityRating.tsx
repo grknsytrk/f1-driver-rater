@@ -1,17 +1,14 @@
 import { useEffect, useState } from 'react';
-import { RefreshCw, ShieldAlert } from 'lucide-react';
 import type { CommunityRating, CommunityStatus } from '../utils/communityRatings';
 import {
     GUEST_SYNC_ISSUE_EVENT,
     getGuestSyncIssue,
-    initializeGuestSync,
     type GuestSyncIssue,
 } from '../utils/guestSync';
 import { getRatingColor } from '../utils/ratingColor';
 
 export function CommunityNotice({ status, legacy = false }: { status: CommunityStatus; legacy?: boolean }) {
     const [issue, setIssue] = useState<GuestSyncIssue>(getGuestSyncIssue);
-    const [retrying, setRetrying] = useState(false);
 
     useEffect(() => {
         const handleIssue = (event: Event) => {
@@ -21,17 +18,8 @@ export function CommunityNotice({ status, legacy = false }: { status: CommunityS
         return () => window.removeEventListener(GUEST_SYNC_ISSUE_EVENT, handleIssue);
     }, []);
 
-    async function retrySync() {
-        setRetrying(true);
-        try {
-            await initializeGuestSync();
-        } finally {
-            setRetrying(false);
-        }
-    }
-
     const rateLimited = issue === 'anonymous-rate-limited';
-    const showRateLimitCard = rateLimited || (retrying && status === 'unavailable');
+    const showRateLimitCard = rateLimited;
 
     return (
         <div className="space-y-1 font-oxanium text-[10px] leading-relaxed text-[var(--text-muted)]">
@@ -43,28 +31,15 @@ export function CommunityNotice({ status, legacy = false }: { status: CommunityS
                 >
                     <div className="flex items-start gap-3">
                         <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center border border-[var(--accent-yellow)]/30 bg-[var(--bg-darker)] text-[var(--accent-yellow)]">
-                            <ShieldAlert size={15} aria-hidden="true" />
+                            <span aria-hidden="true" className="font-display text-xl font-bold leading-none">!</span>
                         </span>
                         <div className="min-w-0 flex-1">
                             <h3 className="font-display text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--accent-yellow)] md:text-xs">
-                                {retrying ? 'SYNCING YOUR RATINGS' : 'KEEPING COMMUNITY RATINGS FAIR'}
+                                KEEPING COMMUNITY RATINGS FAIR
                             </h3>
                             <p className="mt-1 font-oxanium text-[10px] leading-relaxed text-[var(--text-secondary)] md:text-xs">
-                                {retrying
-                                    ? 'Please wait while we try again.'
-                                    : 'We’ve received too many rating attempts from this internet connection. To keep community ratings fair, new ratings are temporarily limited. Your ratings are saved on this device.'}
+                                We’ve received too many rating attempts from this internet connection. To keep community ratings fair, new ratings are temporarily limited. Your ratings are saved on this device. Please try again later.
                             </p>
-                            {!retrying && (
-                                <button
-                                    type="button"
-                                    onClick={() => void retrySync()}
-                                    className="mt-3 inline-flex items-center gap-2 border border-[var(--accent-yellow)]/50 px-3 py-2 font-oxanium text-[9px] font-bold uppercase tracking-[0.14em] text-[var(--accent-yellow)] transition-colors hover:bg-[var(--accent-yellow)]/10 hover:text-white disabled:cursor-wait disabled:opacity-60"
-                                    disabled={retrying}
-                                >
-                                    <RefreshCw size={12} aria-hidden="true" />
-                                    TRY AGAIN
-                                </button>
-                            )}
                         </div>
                     </div>
                 </section>
