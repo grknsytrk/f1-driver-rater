@@ -13,7 +13,8 @@ export type SeasonAwardId =
     | 'most_balanced_lineup'
     | 'best_team_pairing'
     | 'longest_points_streak'
-    | 'classified_finish_rate'
+    | 'race_comeback'
+    | 'qualifying_pace'
     | 'late_season_team_form';
 
 export type SeasonAwardGroup = 'community' | 'track';
@@ -677,38 +678,113 @@ export function buildSeasonAwards(
             );
         }));
 
-    const finishRateStats = new Map<string, {
-        driverName: string; constructorId: string; constructorName: string; starts: number; classified: number;
+    const minimumSeasonRaceCount = Math.max(1, Math.ceil(races.length / 2));
+    const raceComebackStats = new Map<string, {
+        driverName: string;
+        constructorId: string;
+        constructorName: string;
+        totalPlacesGained: number;
+        validRaceCount: number;
     }>();
     for (const race of races) {
         for (const result of race.resultsByDriver.values()) {
-            if (result.started === false) continue;
-            const current = finishRateStats.get(result.driverId) ?? {
+            const gridPosition = result.gridPosition;
+            if (result.started === false || result.position === null || !Number.isFinite(result.position)
+                || result.position < 1 || typeof gridPosition !== 'number' || !Number.isFinite(gridPosition)
+                || gridPosition < 1) continue;
+            const current = raceComebackStats.get(result.driverId) ?? {
                 driverName: result.driverName,
                 constructorId: result.constructorId,
                 constructorName: result.constructorName,
-                starts: 0,
-                classified: 0,
+                totalPlacesGained: 0,
+                validRaceCount: 0,
             };
-            current.starts += 1;
-            if (result.position !== null && Number.isFinite(result.position)) current.classified += 1;
-            finishRateStats.set(result.driverId, current);
+            current.totalPlacesGained += gridPosition - result.position;
+            current.validRaceCount += 1;
+            raceComebackStats.set(result.driverId, current);
         }
     }
-    const classifiedFinishRate = selectByMetric([...finishRateStats.entries()]
-        .filter(([, stats]) => stats.starts > 0)
+    const eligibleRaceComebacks = [...raceComebackStats.entries()]
+        .filter(([, stats]) => stats.validRaceCount >= minimumSeasonRaceCount);
+    const raceComeback = selectByMetric(eligibleRaceComebacks
+        .map(([driverId, stats]) => ({
+            driverId,
+            stats,
+            averagePlacesGained: stats.totalPlacesGained / stats.validRaceCount,
+        }))
+        .filter(candidate => candidate.averagePlacesGained > TIE_EPSILON)
+        .map(({ driverId, stats, averagePlacesGained }) => {
+            const series = driverSeriesById.get(driverId) ?? {
+                driverId, driverName: stats.driverName, latestConstructorId: stats.constructorId,
+                latestConstructorName: stats.constructorName, seasonAverage: 0, points: [],
+            };
+            return createDriverWinner(
+                series,
+                averagePlacesGained,
+                `+${formatNumber(averagePlacesGained, 1)} PLACES / GP`,
+                `Average grid-to-finish gain across ${stats.validRaceCount} of ${races.length} GP results (minimum ${minimumSeasonRaceCount}); pit-lane and unclassified results are omitted.`,
+                { id: stats.constructorId, name: stats.constructorName },
+            );
+        }));
+    const raceComebackEmptyStatus = eligibleRaceComebacks.length > 0
+        ? 'no-positive-movement'
+        : 'insufficient-data';
+
+    const qualifyingByRound = new Map<string, Map<string, SeasonQualifyingResult>>();
+    for (const result of qualifyingResults) {
+        if (!Number.isFinite(result.position) || result.position < 1
+            || typeof result.bestTimeSeconds !== 'number' || !Number.isFinite(result.bestTimeSeconds)
+            || result.bestTimeSeconds <= 0) continue;
+        const round = normalizeRound(result.round);
+        const byDriver = qualifyingByRound.get(round) ?? new Map<string, SeasonQualifyingResult>();
+        const current = byDriver.get(result.driverId);
+        if (!current || result.position < current.position) byDriver.set(result.driverId, result);
+        qualifyingByRound.set(round, byDriver);
+    }
+    const qualifyingPaceStats = new Map<string, {
+        driverName: string;
+        constructorId: string;
+        constructorName: string;
+        totalGapPercent: number;
+        qualifyingRaceCount: number;
+    }>();
+    for (const byDriver of qualifyingByRound.values()) {
+        const poleTime = [...byDriver.values()].find(result => result.position === 1)?.bestTimeSeconds;
+        if (typeof poleTime !== 'number' || !Number.isFinite(poleTime) || poleTime <= 0) continue;
+        for (const result of byDriver.values()) {
+            if (typeof result.bestTimeSeconds !== 'number') continue;
+            const gapPercent = Math.max(0, ((result.bestTimeSeconds / poleTime) - 1) * 100);
+            if (!Number.isFinite(gapPercent)) continue;
+            const current = qualifyingPaceStats.get(result.driverId) ?? {
+                driverName: result.driverName,
+                constructorId: result.constructorId,
+                constructorName: result.constructorName,
+                totalGapPercent: 0,
+                qualifyingRaceCount: 0,
+            };
+            current.totalGapPercent += gapPercent;
+            current.qualifyingRaceCount += 1;
+            current.constructorId = result.constructorId;
+            current.constructorName = result.constructorName;
+            qualifyingPaceStats.set(result.driverId, current);
+        }
+    }
+    const qualifyingPace = selectByMetric([...qualifyingPaceStats.entries()]
+        .filter(([, stats]) => stats.qualifyingRaceCount >= minimumSeasonRaceCount)
         .map(([driverId, stats]) => {
             const series = driverSeriesById.get(driverId) ?? {
                 driverId, driverName: stats.driverName, latestConstructorId: stats.constructorId,
                 latestConstructorName: stats.constructorName, seasonAverage: 0, points: [],
             };
-            const rate = stats.classified / stats.starts;
+            const averageGapPercent = stats.totalGapPercent / stats.qualifyingRaceCount;
             return createDriverWinner(
-                series, rate, `${formatNumber(rate * 100, 1)}%`,
-                `${stats.classified} classified finishes from ${stats.starts} recorded Grand Prix starts; this reflects driver and car performance together.`,
+                series,
+                averageGapPercent,
+                `${formatNumber(averageGapPercent, 3)}% FROM POLE`,
+                `Average percentage gap from the pole time across ${stats.qualifyingRaceCount} of ${races.length} GP qualifying sessions (minimum ${minimumSeasonRaceCount}).`,
                 { id: stats.constructorId, name: stats.constructorName },
             );
-        }));
+        }), 'asc');
 
     const finalThirdCount = Math.ceil(races.length / 3);
     const finalThirdRounds = new Set(races.slice(-finalThirdCount).map(race => race.round));
@@ -757,7 +833,8 @@ export function buildSeasonAwards(
             createAward('most_balanced_lineup', 'community', balancedLineup),
             createAward('best_team_pairing', 'track', bestTeamPairing),
             createAward('longest_points_streak', 'track', longestPointsStreak),
-            createAward('classified_finish_rate', 'track', classifiedFinishRate),
+            createAward('race_comeback', 'track', raceComeback, raceComebackEmptyStatus),
+            createAward('qualifying_pace', 'track', qualifyingPace),
             createAward('late_season_team_form', 'track', lateSeasonTeamForm),
         ],
     };

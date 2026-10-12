@@ -691,6 +691,8 @@ export interface SeasonRaceResult {
     driverName: string;
     constructorId: string;
     constructorName: string;
+    /** Official starting-grid position; 0 can represent a pit-lane start. */
+    gridPosition?: number | null;
     position: number | null; // null = DNF/DSQ
     points: number;
     status: string;
@@ -743,6 +745,7 @@ export async function getAllSeasonResults(season: string, options: { throwOnErro
             raceEntries.forEach((result: RaceResult) => {
                 const isClassified = isClassifiedRaceResult(result);
                 const parsedPosition = Number.parseInt(result.position, 10);
+                const parsedGridPosition = Number.parseInt(result.grid, 10);
 
                 results.push({
                     round: race.round,
@@ -752,6 +755,7 @@ export async function getAllSeasonResults(season: string, options: { throwOnErro
                     driverName: `${result.Driver.givenName} ${result.Driver.familyName}`,
                     constructorId: result.Constructor.constructorId,
                     constructorName: result.Constructor.name,
+                    gridPosition: Number.isFinite(parsedGridPosition) ? parsedGridPosition : null,
                     position: isClassified && Number.isFinite(parsedPosition) ? parsedPosition : null,
                     points: parseFloat(result.points) || 0,
                     status: result.status,

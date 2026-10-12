@@ -232,18 +232,19 @@ describe('buildSeasonAwards', () => {
 
         expect(awards.get('season_mvp')?.winners.map(winner => winner.driverId).sort()).toEqual(['alpha', 'gamma']);
         expect(awards.get('consistency_king')?.winners.map(winner => winner.driverId).sort()).toEqual(['alpha', 'gamma']);
-        expect(awards.get('peak_performance')?.winners.map(winner => winner.driverId).sort()).toEqual(['alpha', 'gamma']);
+        expect(awards.get('peak_performance')?.winners.map(winner => winner.driverId)).toEqual(['alpha']);
         expect(awards.get('most_improved')?.winners.map(winner => winner.driverId).sort()).toEqual(['alpha', 'beta', 'delta', 'gamma']);
         expect(awards.get('most_polarizing')?.winners.map(winner => winner.driverId).sort()).toEqual(['alpha', 'gamma']);
         expect(awards.get('garage_boss')?.winners.map(winner => winner.driverId).sort()).toEqual(['alpha', 'gamma']);
         expect(awards.get('most_balanced_lineup')?.winners).toHaveLength(2);
         expect(awards.get('best_team_pairing')?.winners).toHaveLength(2);
         expect(awards.get('longest_points_streak')?.winners).toHaveLength(4);
-        expect(awards.get('classified_finish_rate')?.winners).toHaveLength(4);
+        expect(awards.get('race_comeback')?.status).toBe('insufficient-data');
+        expect(awards.get('qualifying_pace')?.winners.map(winner => winner.driverId).sort()).toEqual(['alpha', 'gamma']);
         expect(awards.get('late_season_team_form')?.winners).toHaveLength(2);
     });
 
-    it('requires both teammates to be top ten and minimizes their average race and qualifying gap', () => {
+    it('requires at least half-season top tens and minimizes the average race and qualifying gap', () => {
         const fastPair = pairSeason('mercedes', 'a', 'b', [1, 2, 3, 4], 4, 0.2);
         const widerPair = pairSeason('red_bull', 'c', 'd', [1, 2, 3], 0.1, 0.1);
         const oneTopTenWeekend = pairSeason('haas', 'e', 'f', [1], 0.01, 0.01);
@@ -252,8 +253,8 @@ describe('buildSeasonAwards', () => {
             [...fastPair.qualifying, ...widerPair.qualifying, ...oneTopTenWeekend.qualifying],
         )).get('best_team_pairing');
 
-        expect(award?.winners.map(winner => winner.constructorId)).toEqual(['haas']);
-        expect(award?.winners[0].metricValue).toBeCloseTo(0.01);
+        expect(award?.winners.map(winner => winner.constructorId)).toEqual(['red_bull']);
+        expect(award?.winners[0].metricValue).toBeCloseTo(0.1);
     });
 
     it('combines race-time and qualifying gaps and shares exact pairing ties', () => {
@@ -297,20 +298,51 @@ describe('buildSeasonAwards', () => {
         expect(award?.winners[0].metricValue).toBe(4);
     });
 
-    it('calculates classified finish rate from actual starts and excludes unclassified finishes', () => {
+    it('calculates comeback from valid results, shares ties, and requires a positive season gain', () => {
         const results = [
-            raceResult(1, 'perfect', 'mercedes', { position: 8 }),
-            raceResult(2, 'perfect', 'mercedes', { position: 12 }),
-            raceResult(3, 'perfect', 'mercedes', { position: null, status: 'Engine' }),
-            raceResult(4, 'perfect', 'mercedes', { position: null, status: 'Did not start', started: false }),
-            raceResult(1, 'fragile', 'red_bull', { position: 9 }),
-            raceResult(2, 'fragile', 'red_bull', { position: null, status: 'Retired' }),
+            raceResult(1, 'steady', 'mercedes', { gridPosition: 10, position: 8 }),
+            raceResult(2, 'steady', 'mercedes', { gridPosition: 12, position: 12 }),
+            raceResult(3, 'steady', 'mercedes', { gridPosition: 14, position: null, status: 'Engine' }),
+            raceResult(4, 'steady', 'mercedes', { gridPosition: 17, position: null, status: 'Did not start', started: false }),
+            raceResult(1, 'equal', 'red_bull', { gridPosition: 9, position: 8 }),
+            raceResult(2, 'equal', 'red_bull', { gridPosition: 11, position: 10 }),
+            raceResult(1, 'short_sample', 'red_bull', { gridPosition: 12, position: 9 }),
+            raceResult(2, 'short_sample', 'red_bull', { gridPosition: 15, position: null, status: 'Retired' }),
         ];
-        const award = awardMap(buildSeasonAwards('2024', results, [])).get('classified_finish_rate');
+        const award = awardMap(buildSeasonAwards('2024', results, [])).get('race_comeback');
 
-        expect(award?.winners.map(winner => winner.driverId)).toEqual(['perfect']);
-        expect(award?.winners[0].metricValue).toBeCloseTo(2 / 3);
-        expect(award?.winners[0].detail).toContain('2 classified finishes from 3 recorded Grand Prix starts');
+        expect(award?.winners.map(winner => winner.driverId).sort()).toEqual(['equal', 'steady']);
+        expect(award?.winners[0].metricValue).toBe(1);
+        expect(award?.winners[0].detail).toContain('2 of 4 GP results');
+
+        const noGain = awardMap(buildSeasonAwards('2024', [
+            raceResult(1, 'falling', 'haas', { gridPosition: 10, position: 11 }),
+            raceResult(2, 'falling', 'haas', { gridPosition: 11, position: 12 }),
+        ], [])).get('race_comeback');
+        expect(noGain?.status).toBe('no-positive-movement');
+        expect(noGain?.winners).toEqual([]);
+    });
+
+    it('ranks qualifying pace by average percentage gap to pole across enough sessions', () => {
+        const results: SeasonRaceResult[] = [];
+        const qualifyingResults: SeasonQualifyingResult[] = [];
+        for (let round = 1; round <= 4; round += 1) {
+            results.push(
+                raceResult(round, 'alpha', 'mercedes'),
+                raceResult(round, 'beta', 'red_bull'),
+                raceResult(round, 'gamma', 'haas'),
+            );
+            const alphaIsPole = round <= 2;
+            qualifyingResults.push(
+                { ...qualifying(round, 'alpha', 'mercedes', alphaIsPole ? 90 : 90.3), position: alphaIsPole ? 1 : 3 },
+                { ...qualifying(round, 'beta', 'red_bull', alphaIsPole ? 90.1 : 90), position: alphaIsPole ? 2 : 1 },
+                { ...qualifying(round, 'gamma', 'haas', 90.2), position: 3 },
+            );
+        }
+        const award = awardMap(buildSeasonAwards('2024', results, [], [], qualifyingResults)).get('qualifying_pace');
+
+        expect(award?.winners.map(winner => winner.driverId)).toEqual(['beta']);
+        expect(award?.winners[0].metricValue).toBeCloseTo(((90.1 / 90) - 1) * 100 / 2);
     });
 
     it('sums the changing driver lineups into late-season team points per Grand Prix', () => {

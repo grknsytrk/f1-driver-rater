@@ -134,13 +134,23 @@ const AWARD_CONFIG: Record<SeasonAwardId, AwardConfig> = {
         accentColor: '#38BDF8',
         Icon: Rocket,
     },
-    classified_finish_rate: {
-        label: 'Classified Finish Rate',
-        eyebrow: 'Most classified starts',
-        description: 'A classified finish rate reflects both the driver and the car, not driver performance alone.',
+    race_comeback: {
+        label: 'Race Comeback',
+        eyebrow: 'Average places gained',
+        description: 'Rewards drivers who make up the most positions between their official starting grid slot and classified finish.',
         source: 'Official Grand Prix results',
-        metric: 'Classified finishes divided by recorded race starts; DNS and non-starters are excluded from starts.',
-        direction: 'Higher percentage wins; ties share the award.',
+        metric: 'Average grid position minus finish position; at least half of completed Grand Prix races must have a valid grid slot and classified finish.',
+        direction: 'Higher positive gain wins; ties share the award.',
+        accentColor: '#00D084',
+        Icon: Rocket,
+    },
+    qualifying_pace: {
+        label: 'Qualifying Pace',
+        eyebrow: 'Closest to pole time',
+        description: 'Measures how close each driver’s fastest recorded qualifying lap is to the pole lap across the season.',
+        source: 'Official Grand Prix qualifying times',
+        metric: 'Mean percentage gap to the pole time in each Grand Prix qualifying session; at least half of completed sessions are required.',
+        direction: 'Lower gap wins; ties share the award.',
         accentColor: '#F4C542',
         Icon: Gauge,
     },
@@ -204,7 +214,9 @@ function AwardSection({
             : availability === 'unavailable'
                 ? 'The required data source could not be reached.'
                 : award.status === 'no-positive-movement'
-                    ? 'There was no positive change between the first and final three rated races this season.'
+                    ? award.id === 'race_comeback'
+                        ? 'No eligible driver averaged a positive gain from grid to finish this season.'
+                        : 'There was no positive change between the first and final three rated races this season.'
                     : 'There is not enough eligible data for this award yet.';
 
     return (
@@ -393,7 +405,7 @@ export function SeasonAwardsPage({ season }: SeasonAwardsPageProps) {
     }
 
     const availabilityFor = (award: SeasonAward): Availability => {
-        if (award.id === 'best_team_pairing') {
+        if (award.id === 'best_team_pairing' || award.id === 'qualifying_pace') {
             return qualifyingState.season === season ? qualifyingState.status : 'loading';
         }
         if (award.group === 'track') return 'ready';
