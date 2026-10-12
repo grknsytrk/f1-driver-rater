@@ -1,5 +1,6 @@
 import axios from 'axios';
 import type { Season, Race, RaceResult, Driver, Constructor } from '../types';
+import { parseF1TimeSeconds } from '../utils/f1Time';
 
 // Jolpica API - Ergast successor
 const API_BASE = 'https://api.jolpi.ca/ergast/f1';
@@ -329,7 +330,8 @@ function createRaceRecapEntry(driver: Driver, constructor: Constructor): RaceRec
 }
 
 function isClassifiedRaceResult(result: RaceResult): boolean {
-    return !UNCLASSIFIED_POSITION_TEXT.has(result.positionText);
+    return !UNCLASSIFIED_POSITION_TEXT.has(result.positionText)
+        && Number.isFinite(Number.parseInt(result.position, 10));
 }
 
 function mapRaceResultToDriverCard(result: RaceResult, index: number): RaceDriverCard {
@@ -692,6 +694,38 @@ export interface SeasonRaceResult {
     position: number | null; // null = DNF/DSQ
     points: number;
     status: string;
+    started?: boolean;
+    /** Official time gap to the race winner, when the API publishes a numeric gap. */
+    raceTimeGapSeconds?: number | null;
+}
+
+function getWinnerElapsedSeconds(results: RaceResult[]): number | null {
+    const winner = results.find(result => Number.parseInt(result.position, 10) === 1);
+    if (!winner) return null;
+    const millis = winner.Time?.millis ? Number(winner.Time.millis) : Number.NaN;
+    if (Number.isFinite(millis) && millis >= 0) return millis / 1000;
+    return parseF1TimeSeconds(winner.Time?.time);
+}
+
+function getRaceTimeGapSeconds(result: RaceResult, winnerElapsedSeconds: number | null): number | null {
+    const ownMillis = result.Time?.millis ? Number(result.Time.millis) : Number.NaN;
+    if (Number.isFinite(ownMillis) && ownMillis >= 0 && winnerElapsedSeconds !== null) {
+        return Math.max(0, ownMillis / 1000 - winnerElapsedSeconds);
+    }
+
+    if (Number.parseInt(result.position, 10) === 1) return 0;
+
+    const officialTime = result.Time?.time?.trim();
+    if (!officialTime) return null;
+    if (officialTime.startsWith('+')) return parseF1TimeSeconds(officialTime.slice(1));
+
+    const ownElapsedSeconds = parseF1TimeSeconds(officialTime);
+    if (ownElapsedSeconds === null || winnerElapsedSeconds === null) return null;
+    return Math.max(0, ownElapsedSeconds - winnerElapsedSeconds);
+}
+
+function didStartRace(result: RaceResult): boolean {
+    return !/^(did not start|did not qualify|not started|withdrawn|dns)\b/i.test(result.status.trim());
 }
 
 export async function getAllSeasonResults(season: string, options: { throwOnError?: boolean } = {}): Promise<SeasonRaceResult[]> {
@@ -704,8 +738,11 @@ export async function getAllSeasonResults(season: string, options: { throwOnErro
         const normalizedRaces = applyCanonicalRounds(allRaces, calendar);
 
         normalizedRaces.forEach((race: JolpicaRaceRecord) => {
-            race.Results?.forEach((result: RaceResult) => {
+            const raceEntries = race.Results ?? [];
+            const winnerElapsedSeconds = getWinnerElapsedSeconds(raceEntries);
+            raceEntries.forEach((result: RaceResult) => {
                 const isClassified = isClassifiedRaceResult(result);
+                const parsedPosition = Number.parseInt(result.position, 10);
 
                 results.push({
                     round: race.round,
@@ -715,9 +752,11 @@ export async function getAllSeasonResults(season: string, options: { throwOnErro
                     driverName: `${result.Driver.givenName} ${result.Driver.familyName}`,
                     constructorId: result.Constructor.constructorId,
                     constructorName: result.Constructor.name,
-                    position: isClassified ? parseInt(result.position) : null,
+                    position: isClassified && Number.isFinite(parsedPosition) ? parsedPosition : null,
                     points: parseFloat(result.points) || 0,
-                    status: result.status
+                    status: result.status,
+                    started: didStartRace(result),
+                    raceTimeGapSeconds: getRaceTimeGapSeconds(result, winnerElapsedSeconds),
                 });
             });
         });
@@ -791,9 +830,12 @@ export interface SeasonQualifyingResult {
     constructorId: string;
     constructorName: string;
     position: number;
+    bestTimeSeconds?: number | null;
 }
 
-export async function getAllSeasonQualifying(season: string): Promise<SeasonQualifyingResult[]> {
+export async function getAllSeasonQualifying(
+    season: string, options: { throwOnError?: boolean } = {},
+): Promise<SeasonQualifyingResult[]> {
     try {
         const [allQualifying, calendar] = await Promise.all([
             fetchAllPaginated(`/${season}/qualifying.json`),
@@ -810,14 +852,18 @@ export async function getAllSeasonQualifying(season: string): Promise<SeasonQual
                     driverName: `${result.Driver.givenName} ${result.Driver.familyName}`,
                     constructorId: result.Constructor.constructorId,
                     constructorName: result.Constructor.name,
-                    position: parseInt(result.position)
+                    position: parseInt(result.position),
+                    bestTimeSeconds: [result.Q1, result.Q2, result.Q3]
+                        .map(time => parseF1TimeSeconds(time))
+                        .filter((time): time is number => time !== null)
+                        .reduce<number | null>((best, time) => best === null || time < best ? time : best, null),
                 });
             });
         });
 
         return results;
     } catch (error) {
-        if (error instanceof RateLimitError) {
+        if (options.throwOnError || error instanceof RateLimitError) {
             // Let the UI decide how to render "unavailable" vs "0 sessions"
             throw error;
         }

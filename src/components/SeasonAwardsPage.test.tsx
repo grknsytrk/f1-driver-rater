@@ -8,6 +8,10 @@ const pageMocks = vi.hoisted(() => ({
         status: 'loading' as 'loading' | 'ready' | 'disabled' | 'unavailable',
         ratings: [] as { driverId: string; round?: string; averageRating: number; voteCount: number }[],
     },
+    distributions: {
+        status: 'loading' as 'loading' | 'ready' | 'disabled' | 'unavailable',
+        distributions: [] as unknown[],
+    },
     results: [] as {
         round: string;
         raceName: string;
@@ -19,18 +23,22 @@ const pageMocks = vi.hoisted(() => ({
         position: number | null;
         points: number;
         status: string;
+        started: boolean;
+        raceTimeGapSeconds: number | null;
     }[],
     resultsUnavailable: false,
 }));
 
 vi.mock('../hooks/useCommunityRatings', () => ({
     useCommunityRatings: () => pageMocks.community,
+    useCommunityRatingDistributions: () => pageMocks.distributions,
 }));
 
 vi.mock('../api/f1Api', () => ({
     getAllSeasonResults: () => pageMocks.resultsUnavailable
         ? Promise.reject(new Error('Results unavailable'))
         : Promise.resolve(pageMocks.results),
+    getAllSeasonQualifying: () => Promise.resolve([]),
 }));
 
 let container: HTMLDivElement;
@@ -40,14 +48,14 @@ const results = [
     {
         round: '1', raceName: 'Bahrain Grand Prix', date: '2024-03-02', driverId: 'max_verstappen',
         driverName: 'Max Verstappen', constructorId: 'red_bull', constructorName: 'Red Bull',
-        position: 1, points: 25, status: 'Finished',
+        position: 1, points: 25, status: 'Finished', started: true, raceTimeGapSeconds: 0,
     },
 ];
 
 beforeEach(() => {
     vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
-    localStorage.clear();
     pageMocks.community = { status: 'loading', ratings: [] };
+    pageMocks.distributions = { status: 'loading', distributions: [] };
     pageMocks.results = results;
     pageMocks.resultsUnavailable = false;
     container = document.createElement('div');
@@ -65,58 +73,60 @@ async function renderAwards() {
     await act(async () => {
         root.render(<SeasonAwardsPage season="2024" />);
         await Promise.resolve();
+        await Promise.resolve();
+        await Promise.resolve();
     });
 }
 
-describe('SeasonAwardsPage community states', () => {
-    it('shows a loading state while community ratings are loading', async () => {
+describe('SeasonAwardsPage', () => {
+    it('shows per-award loading while community metrics are loading', async () => {
         await renderAwards();
 
-        expect(container.textContent).toContain('Loading community awards');
+        expect(container.textContent).toContain('Loading this award’s data');
+        expect(container.textContent).toContain('On-Track Performance');
     });
 
-    it.each(['disabled', 'unavailable'] as const)('explains when community ratings are %s without using local ratings', async status => {
-        pageMocks.community = { status, ratings: [] };
-        localStorage.setItem('f1_pilot_ratings', JSON.stringify({ '2024': { localOnly: 10 } }));
-
-        await renderAwards();
-
-        expect(container.textContent).toContain(status === 'disabled' ? 'Community ratings unavailable' : 'Community ratings could not load');
-        expect(container.textContent).not.toContain('Local Only');
-        expect(container.textContent).not.toContain('Finish the grid');
-    });
-
-    it('waits for a community rating when the query is empty', async () => {
-        pageMocks.community = { status: 'ready', ratings: [] };
+    it('keeps on-track awards visible when community ratings are disabled', async () => {
+        pageMocks.community = { status: 'disabled', ratings: [] };
+        pageMocks.distributions = { status: 'disabled', distributions: [] };
 
         await renderAwards();
 
-        expect(container.textContent).toContain('Waiting for community ratings');
-        expect(container.textContent).not.toContain('Finish the grid');
+        expect(container.textContent).toContain('Community Opinion');
+        expect(container.textContent).toContain('On-Track Performance');
+        expect(container.textContent).toContain('Classified Finish Rate');
+        expect(container.textContent).toContain('Community rating data is not configured');
     });
 
-    it('opens on partial community data and shows awards that meet their own thresholds', async () => {
+    it('shows methodology and opens on partial community data', async () => {
         pageMocks.community = {
             status: 'ready',
             ratings: [{ driverId: 'max_verstappen', round: '1', averageRating: 9.5, voteCount: 1 }],
         };
+        pageMocks.distributions = { status: 'ready', distributions: [] };
 
         await renderAwards();
 
         expect(container.textContent).toContain('2024 Wrapped');
-        expect(container.textContent).toContain('1/1');
-        expect(container.textContent).toContain('Drivers rated by community');
-        expect(container.textContent).toContain('Awards ready');
+        expect(container.textContent).toContain('Community-rated GPs');
+        expect(container.textContent).toContain('Data source');
+        expect(container.textContent).toContain('Winner rule');
         expect(container.textContent).toContain('MaxVerstappen');
-        expect(container.textContent).toContain('Community season awards');
         expect(container.textContent).not.toContain('personal season awards');
     });
 
-    it('shows a data-unavailable state if season race results fail to load', async () => {
-        pageMocks.community = {
-            status: 'ready',
-            ratings: [{ driverId: 'max_verstappen', round: '1', averageRating: 9.5, voteCount: 1 }],
-        };
+    it('renders an explicit empty state when community data has no ratings', async () => {
+        pageMocks.community = { status: 'ready', ratings: [] };
+        pageMocks.distributions = { status: 'ready', distributions: [] };
+
+        await renderAwards();
+
+        expect(container.textContent).toContain('Community MVP');
+        expect(container.textContent).toContain('not enough eligible data');
+        expect(container.textContent).toContain('On-Track Performance');
+    });
+
+    it('shows a data-unavailable state if official race results fail to load', async () => {
         pageMocks.resultsUnavailable = true;
 
         await renderAwards();

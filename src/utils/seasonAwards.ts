@@ -1,18 +1,23 @@
-import type { SeasonRaceResult } from '../api/f1Api';
+import type { SeasonQualifyingResult, SeasonRaceResult } from '../api/f1Api';
+import type { CommunityRatingDistribution } from './communityRatingDistribution';
+import { summarizeCommunityDistribution } from './communityRatingDistribution';
 import type { CommunityRating } from './communityRatings';
 
 export type SeasonAwardId =
     | 'season_mvp'
     | 'consistency_king'
     | 'peak_performance'
-    | 'form_surge'
-    | 'toughest_slide'
-    | 'hot_start'
-    | 'strong_finish'
+    | 'most_improved'
+    | 'most_polarizing'
     | 'garage_boss'
-    | 'best_team_pairing'
     | 'most_balanced_lineup'
-    | 'late_season_charge';
+    | 'best_team_pairing'
+    | 'longest_points_streak'
+    | 'classified_finish_rate'
+    | 'late_season_team_form';
+
+export type SeasonAwardGroup = 'community' | 'track';
+export type SeasonAwardStatus = 'ready' | 'insufficient-data' | 'no-positive-movement';
 
 export interface SeasonAwardWinner {
     subjectType: 'driver' | 'team';
@@ -29,8 +34,9 @@ export interface SeasonAwardWinner {
 
 export interface SeasonAward {
     id: SeasonAwardId;
-    status: 'ready' | 'insufficient-data';
-    winner: SeasonAwardWinner | null;
+    group: SeasonAwardGroup;
+    status: SeasonAwardStatus;
+    winners: SeasonAwardWinner[];
 }
 
 export interface SeasonAwardsSummary {
@@ -41,9 +47,7 @@ export interface SeasonAwardsSummary {
     awards: SeasonAward[];
 }
 
-interface AwardCandidate extends SeasonAwardWinner {
-    tiebreakScore: number;
-}
+type AwardCandidate = SeasonAwardWinner;
 
 interface AwardPoint {
     driverId: string;
@@ -51,7 +55,6 @@ interface AwardPoint {
     round: string;
     roundNumber: number;
     raceName: string;
-    date: string;
     rating: number;
     constructorId: string;
     constructorName: string;
@@ -66,136 +69,327 @@ interface DriverSeries {
     points: AwardPoint[];
 }
 
-interface RatedRace {
+interface SeasonRace {
     round: string;
     roundNumber: number;
     raceName: string;
-    date: string;
     resultsByDriver: Map<string, SeasonRaceResult>;
-    ratings: AwardPoint[];
+    ratingsByDriver: Map<string, AwardPoint>;
 }
 
-interface TeamDriverStats {
-    driverId: string;
-    driverName: string;
+interface TeamPairIdentity {
+    key: string;
     constructorId: string;
     constructorName: string;
-    totalRatedRaces: number;
-    averageRating: number;
+    driverAId: string;
+    driverAName: string;
+    driverBId: string;
+    driverBName: string;
 }
+
+interface CommunityPairStats extends TeamPairIdentity {
+    sharedRatedRaces: number;
+    totalRatingGap: number;
+    totalPairRating: number;
+}
+
+interface PerformancePairStats extends TeamPairIdentity {
+    sharedStarts: number;
+    doubleTopFiveFinishes: number;
+    raceGapSamples: number;
+    totalRaceGap: number;
+    qualifyingGapSamples: number;
+    totalQualifyingGap: number;
+}
+
+const TIE_EPSILON = 1e-6;
+const COMMUNITY_MIN_RACES = 3;
+const PAIR_MIN_SHARED_RACES = 3;
 
 function normalizeRound(round: string): string {
-    const roundNumber = Number.parseInt(round, 10);
-    return Number.isFinite(roundNumber) ? String(roundNumber) : round;
+    const parsed = Number.parseInt(round, 10);
+    return Number.isFinite(parsed) ? String(parsed) : round;
 }
 
-function formatAverage(value: number): string {
-    return value.toFixed(2);
+function formatNumber(value: number, decimals = 2): string {
+    return value.toFixed(decimals);
 }
 
 function formatRating(value: number): string {
     return value % 1 === 0 ? value.toFixed(0) : value.toFixed(1);
 }
 
-function formatRaceLabel(raceName: string): string {
-    return raceName.replace(' Grand Prix', ' GP');
+function formatRaceName(name: string): string {
+    return name.replace(' Grand Prix', ' GP');
 }
 
-function buildDriverAwardWinner(
+function median(values: number[]): number {
+    const sorted = [...values].sort((a, b) => a - b);
+    const middle = Math.floor(sorted.length / 2);
+    return sorted.length % 2 === 0
+        ? (sorted[middle - 1] + sorted[middle]) / 2
+        : sorted[middle];
+}
+
+function standardDeviation(values: number[]): number {
+    const average = values.reduce((sum, value) => sum + value, 0) / values.length;
+    return Math.sqrt(values.reduce((sum, value) => sum + (value - average) ** 2, 0) / values.length);
+}
+
+function createDriverWinner(
     series: DriverSeries,
     metricValue: number,
     metricDisplay: string,
     detail: string,
-    constructor = { id: series.latestConstructorId, name: series.latestConstructorName },
-    secondaryLabel = constructor.name
+    team = { id: series.latestConstructorId, name: series.latestConstructorName },
+    secondaryLabel = team.name,
 ): AwardCandidate {
     return {
         subjectType: 'driver',
         subjectName: series.driverName,
         secondaryLabel,
-        constructorId: constructor.id,
-        constructorName: constructor.name,
+        constructorId: team.id,
+        constructorName: team.name,
         metricValue,
         metricDisplay,
         detail,
         driverId: series.driverId,
         driverName: series.driverName,
-        tiebreakScore: series.seasonAverage,
     };
 }
 
-function buildTeamAwardWinner(
-    constructorId: string,
-    constructorName: string,
-    secondaryLabel: string,
+function createTeamWinner(
+    pair: TeamPairIdentity,
     metricValue: number,
     metricDisplay: string,
     detail: string,
-    tiebreakScore: number
+): AwardCandidate {
+    return {
+        subjectType: 'team',
+        subjectName: pair.constructorName,
+        secondaryLabel: `${pair.driverAName} + ${pair.driverBName}`,
+        constructorId: pair.constructorId,
+        constructorName: pair.constructorName,
+        metricValue,
+        metricDisplay,
+        detail,
+    };
+}
+
+function createConstructorWinner(
+    constructorId: string,
+    constructorName: string,
+    metricValue: number,
+    metricDisplay: string,
+    detail: string,
 ): AwardCandidate {
     return {
         subjectType: 'team',
         subjectName: constructorName,
-        secondaryLabel,
+        secondaryLabel: constructorName,
         constructorId,
         constructorName,
         metricValue,
         metricDisplay,
         detail,
-        tiebreakScore,
     };
 }
 
-function pickAwardWinner(candidates: AwardCandidate[], direction: 'desc' | 'asc' = 'desc'): SeasonAwardWinner | null {
-    if (candidates.length === 0) return null;
+function selectByMetric(candidates: AwardCandidate[], direction: 'asc' | 'desc' = 'desc'): AwardCandidate[] {
+    if (candidates.length === 0) return [];
+    const bestValue = candidates.reduce((best, candidate) => direction === 'desc'
+        ? Math.max(best, candidate.metricValue)
+        : Math.min(best, candidate.metricValue), direction === 'desc' ? -Infinity : Infinity);
+    return candidates
+        .filter(candidate => Math.abs(candidate.metricValue - bestValue) <= TIE_EPSILON)
+        .sort((a, b) => a.subjectName.localeCompare(b.subjectName)
+            || a.secondaryLabel.localeCompare(b.secondaryLabel));
+}
 
-    const sorted = [...candidates].sort((a, b) => {
-        if (a.metricValue !== b.metricValue) {
-            return direction === 'desc' ? b.metricValue - a.metricValue : a.metricValue - b.metricValue;
-        }
-        if (a.tiebreakScore !== b.tiebreakScore) return b.tiebreakScore - a.tiebreakScore;
-        return a.subjectName.localeCompare(b.subjectName);
-    });
-    const [winner] = sorted;
+function createAward(
+    id: SeasonAwardId,
+    group: SeasonAwardGroup,
+    winners: AwardCandidate[],
+    emptyStatus: SeasonAwardStatus = 'insufficient-data',
+): SeasonAward {
     return {
-        subjectType: winner.subjectType,
-        subjectName: winner.subjectName,
-        secondaryLabel: winner.secondaryLabel,
-        constructorId: winner.constructorId,
-        constructorName: winner.constructorName,
-        metricValue: winner.metricValue,
-        metricDisplay: winner.metricDisplay,
-        detail: winner.detail,
-        driverId: winner.driverId,
-        driverName: winner.driverName,
+        id,
+        group,
+        status: winners.length > 0 ? 'ready' : emptyStatus,
+        winners,
     };
 }
 
-function createAward(id: SeasonAwardId, winner: SeasonAwardWinner | null): SeasonAward {
-    return { id, status: winner ? 'ready' : 'insufficient-data', winner };
+function makePairIdentity(
+    constructorId: string,
+    constructorName: string,
+    driverAId: string,
+    driverAName: string,
+    driverBId: string,
+    driverBName: string,
+): TeamPairIdentity {
+    const [firstId, firstName, secondId, secondName] = driverAId.localeCompare(driverBId) <= 0
+        ? [driverAId, driverAName, driverBId, driverBName]
+        : [driverBId, driverBName, driverAId, driverAName];
+    return {
+        key: `${constructorId}:${firstId}:${secondId}`,
+        constructorId,
+        constructorName,
+        driverAId: firstId,
+        driverAName: firstName,
+        driverBId: secondId,
+        driverBName: secondName,
+    };
 }
 
-function calculateStandardDeviation(values: number[]): number {
-    const mean = values.reduce((sum, value) => sum + value, 0) / values.length;
-    const variance = values.reduce((sum, value) => sum + ((value - mean) ** 2), 0) / values.length;
-    return Math.sqrt(variance);
+function pairMapKey(constructorId: string, driverAId: string, driverBId: string): string {
+    const [firstId, secondId] = driverAId.localeCompare(driverBId) <= 0
+        ? [driverAId, driverBId]
+        : [driverBId, driverAId];
+    return `${constructorId}:${firstId}:${secondId}`;
 }
 
-function getPrimaryPair(drivers: readonly TeamDriverStats[]): TeamDriverStats[] {
-    return [...drivers]
-        .sort((a, b) => b.totalRatedRaces - a.totalRatedRaces
-            || b.averageRating - a.averageRating
-            || a.driverName.localeCompare(b.driverName))
-        .slice(0, 2);
+function getExactlyTwoDrivers<T extends { driverId: string }>(drivers: T[]): [T, T] | null {
+    const unique = [...new Map(drivers.map(driver => [driver.driverId, driver])).values()];
+    return unique.length === 2 ? [unique[0], unique[1]] : null;
 }
 
-/** Builds season awards exclusively from race-level community averages. */
-export function buildCommunitySeasonAwards(
+function collectCommunityPairStats(races: SeasonRace[]): CommunityPairStats[] {
+    const stats = new Map<string, CommunityPairStats>();
+    for (const race of races) {
+        const ratingsByTeam = new Map<string, AwardPoint[]>();
+        for (const rating of race.ratingsByDriver.values()) {
+            const teamRatings = ratingsByTeam.get(rating.constructorId) ?? [];
+            teamRatings.push(rating);
+            ratingsByTeam.set(rating.constructorId, teamRatings);
+        }
+        for (const [constructorId, teamRatings] of ratingsByTeam) {
+            const pair = getExactlyTwoDrivers(teamRatings);
+            if (!pair) continue;
+            const [first, second] = pair;
+            const identity = makePairIdentity(
+                constructorId, first.constructorName, first.driverId, first.driverName, second.driverId, second.driverName,
+            );
+            const current = stats.get(identity.key) ?? {
+                ...identity, sharedRatedRaces: 0, totalRatingGap: 0, totalPairRating: 0,
+            };
+            current.sharedRatedRaces += 1;
+            current.totalRatingGap += Math.abs(first.rating - second.rating);
+            current.totalPairRating += (first.rating + second.rating) / 2;
+            stats.set(identity.key, current);
+        }
+    }
+    return [...stats.values()];
+}
+
+function collectPerformancePairStats(
+    races: SeasonRace[], qualifyingResults: SeasonQualifyingResult[],
+): PerformancePairStats[] {
+    const stats = new Map<string, PerformancePairStats>();
+    for (const race of races) {
+        const resultsByTeam = new Map<string, SeasonRaceResult[]>();
+        for (const result of race.resultsByDriver.values()) {
+            const teamResults = resultsByTeam.get(result.constructorId) ?? [];
+            teamResults.push(result);
+            resultsByTeam.set(result.constructorId, teamResults);
+        }
+        for (const [constructorId, teamResults] of resultsByTeam) {
+            const pair = getExactlyTwoDrivers(teamResults);
+            if (!pair || pair.some(result => result.started === false)) continue;
+            const [first, second] = pair;
+            const identity = makePairIdentity(
+                constructorId, first.constructorName, first.driverId, first.driverName, second.driverId, second.driverName,
+            );
+            const current = stats.get(identity.key) ?? {
+                ...identity,
+                sharedStarts: 0,
+                doubleTopFiveFinishes: 0,
+                raceGapSamples: 0,
+                totalRaceGap: 0,
+                qualifyingGapSamples: 0,
+                totalQualifyingGap: 0,
+            };
+            current.sharedStarts += 1;
+            if (first.position !== null && first.position <= 5 && second.position !== null && second.position <= 5) {
+                current.doubleTopFiveFinishes += 1;
+                if (typeof first.raceTimeGapSeconds === 'number' && typeof second.raceTimeGapSeconds === 'number') {
+                    current.raceGapSamples += 1;
+                    current.totalRaceGap += Math.abs(first.raceTimeGapSeconds - second.raceTimeGapSeconds);
+                }
+            }
+            stats.set(identity.key, current);
+        }
+    }
+
+    const qualifyingByRoundAndTeam = new Map<string, SeasonQualifyingResult[]>();
+    for (const result of qualifyingResults) {
+        const key = `${normalizeRound(result.round)}:${result.constructorId}`;
+        const teamResults = qualifyingByRoundAndTeam.get(key) ?? [];
+        teamResults.push(result);
+        qualifyingByRoundAndTeam.set(key, teamResults);
+    }
+    for (const [scope, teamResults] of qualifyingByRoundAndTeam) {
+        const pair = getExactlyTwoDrivers(teamResults);
+        if (!pair) continue;
+        const [round, constructorId] = scope.split(':');
+        const [first, second] = pair;
+        if (typeof first.bestTimeSeconds !== 'number' || typeof second.bestTimeSeconds !== 'number') continue;
+        const key = pairMapKey(constructorId, first.driverId, second.driverId);
+        const candidate = stats.get(key);
+        if (!candidate) continue;
+        // Do not count a qualifying session as part of a pairing that was not on the race grid together.
+        const race = races.find(item => item.round === normalizeRound(round));
+        const racePair = race && getExactlyTwoDrivers([...race.resultsByDriver.values()]
+            .filter(result => result.constructorId === constructorId && result.started !== false));
+        if (!racePair || pairMapKey(constructorId, racePair[0].driverId, racePair[1].driverId) !== key) continue;
+        candidate.qualifyingGapSamples += 1;
+        candidate.totalQualifyingGap += Math.abs(first.bestTimeSeconds - second.bestTimeSeconds);
+    }
+    return [...stats.values()];
+}
+
+function selectBestTeamPair(stats: PerformancePairStats[]): AwardCandidate[] {
+    const candidates = stats.filter(pair => pair.sharedStarts >= PAIR_MIN_SHARED_RACES
+        && pair.doubleTopFiveFinishes >= 2
+        && pair.doubleTopFiveFinishes * 2 >= pair.sharedStarts
+        && pair.raceGapSamples >= 2
+        && pair.qualifyingGapSamples >= PAIR_MIN_SHARED_RACES);
+    if (candidates.length === 0) return [];
+
+    const smallestRaceGap = Math.min(...candidates.map(pair => pair.totalRaceGap / pair.raceGapSamples));
+    const raceGapCandidates = candidates.filter(pair =>
+        Math.abs(pair.totalRaceGap / pair.raceGapSamples - smallestRaceGap) <= TIE_EPSILON);
+    const smallestQualifyingGap = Math.min(...raceGapCandidates.map(pair =>
+        pair.totalQualifyingGap / pair.qualifyingGapSamples));
+    const qualifyingGapCandidates = raceGapCandidates.filter(pair =>
+        Math.abs(pair.totalQualifyingGap / pair.qualifyingGapSamples - smallestQualifyingGap) <= TIE_EPSILON);
+    const mostTopFiveFinishes = Math.max(...qualifyingGapCandidates.map(pair => pair.doubleTopFiveFinishes));
+
+    return qualifyingGapCandidates
+        .filter(pair => pair.doubleTopFiveFinishes === mostTopFiveFinishes)
+        .map(pair => {
+            const averageRaceGap = pair.totalRaceGap / pair.raceGapSamples;
+            const averageQualifyingGap = pair.totalQualifyingGap / pair.qualifyingGapSamples;
+            return createTeamWinner(
+                pair,
+                averageRaceGap,
+                `Δ ${formatNumber(averageRaceGap, 3)}s RACE GAP`,
+                `${pair.doubleTopFiveFinishes}/${pair.sharedStarts} shared starts; average race gap ${formatNumber(averageRaceGap, 3)}s over ${pair.raceGapSamples} timed top-5 races; average qualifying gap ${formatNumber(averageQualifyingGap, 3)}s over ${pair.qualifyingGapSamples} sessions.`,
+            );
+        })
+        .sort((a, b) => a.subjectName.localeCompare(b.subjectName)
+            || a.secondaryLabel.localeCompare(b.secondaryLabel));
+}
+
+/** Builds the community and official-results Season Awards for a Grand Prix season. */
+export function buildSeasonAwards(
     season: string,
     raceResults: SeasonRaceResult[],
-    communityRatings: CommunityRating[]
+    communityRatings: CommunityRating[],
+    communityDistributions: CommunityRatingDistribution[] = [],
+    qualifyingResults: SeasonQualifyingResult[] = [],
 ): SeasonAwardsSummary {
-    const racesByRound = new Map<string, RatedRace>();
+    const racesByRound = new Map<string, SeasonRace>();
     for (const result of raceResults) {
         const round = normalizeRound(result.round);
         let race = racesByRound.get(round);
@@ -204,313 +398,346 @@ export function buildCommunitySeasonAwards(
                 round,
                 roundNumber: Number.parseInt(round, 10),
                 raceName: result.raceName,
-                date: result.date,
                 resultsByDriver: new Map(),
-                ratings: [],
+                ratingsByDriver: new Map(),
             };
             racesByRound.set(round, race);
         }
         if (!race.resultsByDriver.has(result.driverId)) race.resultsByDriver.set(result.driverId, result);
     }
+    const races = [...racesByRound.values()].sort((a, b) => a.roundNumber - b.roundNumber);
 
-    const sortedRaces = [...racesByRound.values()].sort((a, b) => a.roundNumber - b.roundNumber);
-    const communityRatingKeys = new Set<string>();
-    for (const communityRating of communityRatings) {
-        const roundValue = communityRating.round;
-        if (!roundValue || !Number.isFinite(communityRating.averageRating)
-            || communityRating.averageRating < 0.5 || communityRating.averageRating > 10
-            || !Number.isSafeInteger(communityRating.voteCount) || communityRating.voteCount < 1) continue;
-
-        const round = normalizeRound(roundValue);
+    const seenRatingScopes = new Set<string>();
+    for (const rating of communityRatings) {
+        const ratingRound = rating.round;
+        if (!ratingRound || !Number.isFinite(rating.averageRating) || rating.averageRating < 0.5
+            || rating.averageRating > 10 || !Number.isSafeInteger(rating.voteCount) || rating.voteCount < 1) continue;
+        const round = normalizeRound(ratingRound);
         const race = racesByRound.get(round);
-        const result = race?.resultsByDriver.get(communityRating.driverId);
+        const result = race?.resultsByDriver.get(rating.driverId);
         if (!race || !result) continue;
-
-        const key = `${round}:${communityRating.driverId}`;
-        if (communityRatingKeys.has(key)) continue;
-        communityRatingKeys.add(key);
-        race.ratings.push({
+        const scope = `${round}:${rating.driverId}`;
+        if (seenRatingScopes.has(scope)) continue;
+        seenRatingScopes.add(scope);
+        race.ratingsByDriver.set(rating.driverId, {
             driverId: result.driverId,
             driverName: result.driverName,
             round,
             roundNumber: race.roundNumber,
             raceName: race.raceName,
-            date: race.date,
-            rating: communityRating.averageRating,
+            rating: rating.averageRating,
             constructorId: result.constructorId,
             constructorName: result.constructorName,
         });
     }
 
-    for (const race of sortedRaces) race.ratings.sort((a, b) => a.driverName.localeCompare(b.driverName));
-
     const driversById = new Map<string, DriverSeries>();
-    const teamDriversByConstructor = new Map<string, Map<string, TeamDriverStats>>();
-    for (const race of sortedRaces) {
-        for (const rating of race.ratings) {
-            const result = race.resultsByDriver.get(rating.driverId);
+    const profilesById = new Map<string, { driverName: string; constructorId: string; constructorName: string }>();
+    for (const race of races) {
+        for (const result of race.resultsByDriver.values()) {
+            profilesById.set(result.driverId, {
+                driverName: result.driverName,
+                constructorId: result.constructorId,
+                constructorName: result.constructorName,
+            });
+        }
+        for (const point of race.ratingsByDriver.values()) {
+            const result = race.resultsByDriver.get(point.driverId);
             if (!result) continue;
-            let series = driversById.get(result.driverId);
-            if (!series) {
-                series = {
-                    driverId: result.driverId,
-                    driverName: result.driverName,
-                    latestConstructorId: result.constructorId,
-                    latestConstructorName: result.constructorName,
-                    seasonAverage: 0,
-                    points: [],
-                };
-                driversById.set(result.driverId, series);
-            }
+            const series = driversById.get(result.driverId) ?? {
+                driverId: result.driverId,
+                driverName: result.driverName,
+                latestConstructorId: result.constructorId,
+                latestConstructorName: result.constructorName,
+                seasonAverage: 0,
+                points: [],
+            };
             series.driverName = result.driverName;
             series.latestConstructorId = result.constructorId;
             series.latestConstructorName = result.constructorName;
-            series.points.push({ ...rating, driverId: result.driverId, driverName: result.driverName });
-
-            const teamDrivers = teamDriversByConstructor.get(result.constructorId) ?? new Map<string, TeamDriverStats>();
-            let teamDriver = teamDrivers.get(result.driverId);
-            if (!teamDriver) {
-                teamDriver = {
-                    driverId: result.driverId,
-                    driverName: result.driverName,
-                    constructorId: result.constructorId,
-                    constructorName: result.constructorName,
-                    totalRatedRaces: 0,
-                    averageRating: 0,
-                };
-                teamDrivers.set(result.driverId, teamDriver);
-                teamDriversByConstructor.set(result.constructorId, teamDrivers);
-            }
-            teamDriver.totalRatedRaces += 1;
-            teamDriver.averageRating += rating.rating;
+            series.points.push(point);
+            driversById.set(result.driverId, series);
         }
     }
-
     for (const series of driversById.values()) {
         series.points.sort((a, b) => a.roundNumber - b.roundNumber);
-        series.seasonAverage = Number((series.points.reduce((sum, point) => sum + point.rating, 0) / series.points.length).toFixed(2));
-    }
-    for (const teamDrivers of teamDriversByConstructor.values()) {
-        for (const driver of teamDrivers.values()) driver.averageRating /= driver.totalRatedRaces;
+        series.seasonAverage = series.points.reduce((sum, point) => sum + point.rating, 0) / series.points.length;
     }
 
-    const formSeries = [...driversById.values()];
-    const formSeriesByDriver = new Map(formSeries.map(series => [series.driverId, series]));
-    const ratedRaces = sortedRaces.filter(race => race.ratings.length > 0);
+    const driverSeries = [...driversById.values()];
+    const driverSeriesById = new Map(driverSeries.map(series => [series.driverId, series]));
+    const ratedRaces = races.filter(race => race.ratingsByDriver.size > 0);
 
-    const mvpWinner = pickAwardWinner(formSeries
-        .filter(series => series.points.length >= 3)
-        .map(series => buildDriverAwardWinner(
-            series, series.seasonAverage, `${formatAverage(series.seasonAverage)} AVG`, `${series.points.length} community-rated races`
+    const seasonMvp = selectByMetric(driverSeries
+        .filter(series => series.points.length >= COMMUNITY_MIN_RACES)
+        .map(series => createDriverWinner(
+            series, series.seasonAverage, `${formatNumber(series.seasonAverage)} AVG`,
+            `${series.points.length} community-rated Grand Prix races.`,
         )));
 
-    const consistencyWinner = pickAwardWinner(formSeries
-        .filter(series => series.points.length >= 4)
+    const eligibleConsistency = driverSeries.filter(series => series.points.length >= COMMUNITY_MIN_RACES);
+    const driverMedian = driverSeries.length ? median(driverSeries.map(series => series.seasonAverage)) : null;
+    const consistency = driverMedian === null ? [] : selectByMetric(eligibleConsistency
+        .filter(series => series.seasonAverage >= driverMedian)
         .map(series => {
-            const deviation = calculateStandardDeviation(series.points.map(point => point.rating));
-            return buildDriverAwardWinner(
-                series, deviation, `σ ${deviation.toFixed(2)}`, `${formatAverage(series.seasonAverage)} season avg`
+            const deviation = standardDeviation(series.points.map(point => point.rating));
+            return createDriverWinner(
+                series, deviation, `σ ${formatNumber(deviation)}`,
+                `${formatNumber(series.seasonAverage)} season average across ${series.points.length} races.`,
             );
         }), 'asc');
 
-    const peakPerformanceWinner = pickAwardWinner(sortedRaces.flatMap(race => race.ratings.map(rating => {
-        const series = formSeriesByDriver.get(rating.driverId);
-        const result = race.resultsByDriver.get(rating.driverId);
+    const peakCandidates = selectByMetric(races.flatMap(race => [...race.ratingsByDriver.values()].map(point => {
+        const series = driverSeriesById.get(point.driverId);
+        const result = race.resultsByDriver.get(point.driverId);
         if (!series || !result) return null;
-        return buildDriverAwardWinner(
-            series,
-            rating.rating,
-            `${formatRating(rating.rating)} RATING`,
-            formatRaceLabel(race.raceName),
+        return createDriverWinner(
+            series, point.rating, `${formatRating(point.rating)} RATING`, formatRaceName(race.raceName),
             { id: result.constructorId, name: result.constructorName },
         );
-    }).filter((candidate): candidate is AwardCandidate => candidate !== null)));
-
-    const formSurgeWinner = pickAwardWinner(formSeries.flatMap(series => {
-        if (series.points.length < 3) return [];
-        const firstPoint = series.points[0];
-        const lastPoint = series.points[series.points.length - 1];
-        const surge = lastPoint.rating - firstPoint.rating;
-        if (surge <= 0) return [];
-        return [buildDriverAwardWinner(
-            series, surge, `+${formatRating(surge)}`,
-            `${formatRaceLabel(firstPoint.raceName)} -> ${formatRaceLabel(lastPoint.raceName)}`
-        )];
-    }));
-
-    const toughestSlideWinner = pickAwardWinner(formSeries.flatMap(series => {
-        if (series.points.length < 3) return [];
-        const firstPoint = series.points[0];
-        const lastPoint = series.points[series.points.length - 1];
-        const slide = firstPoint.rating - lastPoint.rating;
-        if (slide <= 0) return [];
-        return [buildDriverAwardWinner(
-            series, slide, `-${formatRating(slide)}`,
-            `${formatRaceLabel(firstPoint.raceName)} -> ${formatRaceLabel(lastPoint.raceName)}`
-        )];
-    }));
-
-    const hotStartWinner = pickAwardWinner(formSeries
-        .filter(series => series.points.length >= 3)
-        .map(series => {
-            const firstThree = series.points.slice(0, 3);
-            const average = firstThree.reduce((sum, point) => sum + point.rating, 0) / firstThree.length;
-            return buildDriverAwardWinner(series, average, `${formatAverage(average)} AVG`, 'First 3 community-rated races');
-        }));
-
-    const strongFinishWinner = pickAwardWinner(formSeries
-        .filter(series => series.points.length >= 3)
-        .map(series => {
-            const lastThree = series.points.slice(-3);
-            const average = lastThree.reduce((sum, point) => sum + point.rating, 0) / lastThree.length;
-            return buildDriverAwardWinner(series, average, `${formatAverage(average)} AVG`, 'Last 3 community-rated races');
-        }));
-
-    const teammateDuelMap = new Map<string, {
-        driverId: string;
-        driverName: string;
-        constructorId: string;
-        constructorName: string;
-        wins: number;
-        losses: number;
-        ties: number;
-        sharedRaces: number;
-        totalGap: number;
-        teammateNames: Set<string>;
-    }>();
-    for (const race of sortedRaces) {
-        const raceTeams = new Map<string, AwardPoint[]>();
-        for (const rating of race.ratings) {
-            const teamRatings = raceTeams.get(rating.constructorId) ?? [];
-            teamRatings.push(rating);
-            raceTeams.set(rating.constructorId, teamRatings);
-        }
-        for (const [constructorId, teamRatings] of raceTeams) {
-            if (teamRatings.length !== 2) continue;
-            const [driverA, driverB] = teamRatings;
-            for (const [driver, teammate] of [[driverA, driverB], [driverB, driverA]] as const) {
-                const result = race.resultsByDriver.get(driver.driverId);
-                if (!result) continue;
-                const key = `${driver.driverId}_${constructorId}`;
-                const duel = teammateDuelMap.get(key) ?? {
-                    driverId: driver.driverId,
-                    driverName: result.driverName,
-                    constructorId,
-                    constructorName: result.constructorName,
-                    wins: 0,
-                    losses: 0,
-                    ties: 0,
-                    sharedRaces: 0,
-                    totalGap: 0,
-                    teammateNames: new Set<string>(),
-                };
-                duel.sharedRaces += 1;
-                duel.totalGap += driver.rating - teammate.rating;
-                duel.teammateNames.add(race.resultsByDriver.get(teammate.driverId)?.driverName ?? teammate.driverId);
-                if (driver.rating > teammate.rating) duel.wins += 1;
-                else if (driver.rating < teammate.rating) duel.losses += 1;
-                else duel.ties += 1;
-                teammateDuelMap.set(key, duel);
-            }
+    }).filter((winner): winner is AwardCandidate => winner !== null)));
+    const peakByDriver = new Map<string, AwardCandidate>();
+    for (const candidate of peakCandidates) {
+        const driverId = candidate.driverId;
+        if (!driverId) continue;
+        const existing = peakByDriver.get(driverId);
+        if (existing) {
+            const raceNames = new Set([...existing.detail.split(' · '), candidate.detail]);
+            existing.detail = [...raceNames].join(' · ');
+        } else {
+            peakByDriver.set(driverId, candidate);
         }
     }
+    const peakPerformance = [...peakByDriver.values()];
 
-    const garageBossWinner = pickAwardWinner([...teammateDuelMap.values()].flatMap(duel => {
-        if (duel.sharedRaces < 3) return [];
-        const averageGap = duel.totalGap / duel.sharedRaces;
-        if (averageGap <= 0) return [];
-        const series = formSeriesByDriver.get(duel.driverId);
-        if (!series) return [];
-        const teammateLabel = duel.teammateNames.size === 1
-            ? `vs ${[...duel.teammateNames][0]}`
-            : `${duel.sharedRaces} shared team races`;
-        return [buildDriverAwardWinner(
-            series,
-            averageGap,
-            `+${formatAverage(averageGap)} AVG GAP`,
-            `${duel.wins}-${duel.losses}${duel.ties > 0 ? `-${duel.ties}` : ''} ${teammateLabel}`,
-            { id: duel.constructorId, name: duel.constructorName },
-        )];
-    }));
+    const improvementCandidates = driverSeries.filter(series => series.points.length >= 6).map(series => {
+        const firstThree = series.points.slice(0, 3);
+        const lastThree = series.points.slice(-3);
+        const average = (points: AwardPoint[]) => points.reduce((sum, point) => sum + point.rating, 0) / points.length;
+        const change = average(lastThree) - average(firstThree);
+        return createDriverWinner(
+            series, change, `${change > 0 ? '+' : ''}${formatRating(change)}`,
+            `First 3 rated races ${formatNumber(average(firstThree))}; final 3 ${formatNumber(average(lastThree))}.`,
+        );
+    });
+    const positiveImprovements = improvementCandidates.filter(candidate => candidate.metricValue > TIE_EPSILON);
+    const mostImproved = selectByMetric(positiveImprovements);
+    const improvedStatus: SeasonAwardStatus = improvementCandidates.length > 0 && positiveImprovements.length === 0
+        ? 'no-positive-movement' : 'insufficient-data';
 
-    const teamEntries = [...teamDriversByConstructor.entries()].map(([constructorId, driverMap]) => [
-        constructorId,
-        [...driverMap.values()],
-    ] as const);
-
-    const bestTeamPairingWinner = pickAwardWinner(teamEntries.flatMap(([constructorId, drivers]) => {
-        if (drivers.length < 2) return [];
-        const pair = getPrimaryPair(drivers);
-        if (pair.length < 2) return [];
-        const average = (pair[0].averageRating + pair[1].averageRating) / 2;
-        return [buildTeamAwardWinner(
-            constructorId,
-            pair[0].constructorName,
-            `${pair[0].driverName} + ${pair[1].driverName}`,
-            average,
-            `${formatAverage(average)} PAIR AVG`,
-            `${pair[0].totalRatedRaces}/${pair[1].totalRatedRaces} races rated with team`,
-            average,
-        )];
-    }));
-
-    const mostBalancedLineupWinner = pickAwardWinner(teamEntries.flatMap(([constructorId, drivers]) => {
-        if (drivers.length < 2) return [];
-        const pair = getPrimaryPair(drivers);
-        if (pair.length < 2) return [];
-        const gap = Math.abs(pair[0].averageRating - pair[1].averageRating);
-        const average = (pair[0].averageRating + pair[1].averageRating) / 2;
-        return [buildTeamAwardWinner(
-            constructorId,
-            pair[0].constructorName,
-            `${pair[0].driverName} + ${pair[1].driverName}`,
-            gap,
-            `Δ ${formatAverage(gap)}`,
-            `Pair average ${formatAverage(average)}`,
-            average,
+    const mostPolarizing = selectByMetric(communityDistributions.flatMap(distribution => {
+        const summary = summarizeCommunityDistribution(distribution);
+        const profile = profilesById.get(distribution.driverId);
+        if (!summary || summary.agreementScore === null || !profile) return [];
+        const series = driverSeriesById.get(distribution.driverId) ?? {
+            driverId: distribution.driverId,
+            driverName: profile.driverName,
+            latestConstructorId: profile.constructorId,
+            latestConstructorName: profile.constructorName,
+            seasonAverage: 0,
+            points: [],
+        };
+        return [createDriverWinner(
+            series, summary.agreementScore, `${formatNumber(summary.agreementScore)}% AGREEMENT`,
+            `${summary.assessedRaceCount} Grand Prix rating distributions assessed; lower agreement means opinions diverged, not that the driver scored poorly.`,
         )];
     }), 'asc');
 
-    const lateSeasonChargeWinner = pickAwardWinner(teamEntries.flatMap(([constructorId, drivers]) => {
-        if (drivers.length < 2 || sortedRaces.length < 3) return [];
-        const closingRaces = sortedRaces.slice(-3);
-        const closingTeamAverages = closingRaces.flatMap(race => {
-            const teamRatings = race.ratings.filter(rating => rating.constructorId === constructorId);
-            return teamRatings.length
-                ? [teamRatings.reduce((sum, rating) => sum + rating.rating, 0) / teamRatings.length]
-                : [];
-        });
-        if (closingTeamAverages.length < 3) return [];
-        const closingAverage = closingTeamAverages.reduce((sum, value) => sum + value, 0) / closingTeamAverages.length;
-        const pair = getPrimaryPair(drivers);
-        return [buildTeamAwardWinner(
-            constructorId,
-            pair[0].constructorName,
-            `${pair[0].driverName} + ${pair[1].driverName}`,
-            closingAverage,
-            `${formatAverage(closingAverage)} CLOSE AVG`,
-            'Last 3 completed races',
-            closingAverage,
+    const garageStats = new Map<string, {
+        driverId: string; constructorId: string; constructorName: string; totalGap: number;
+        sharedRaces: number; wins: number; losses: number; ties: number; teammateNames: Set<string>;
+    }>();
+    for (const race of ratedRaces) {
+        const ratingsByTeam = new Map<string, AwardPoint[]>();
+        for (const point of race.ratingsByDriver.values()) {
+            const teamRatings = ratingsByTeam.get(point.constructorId) ?? [];
+            teamRatings.push(point);
+            ratingsByTeam.set(point.constructorId, teamRatings);
+        }
+        for (const [constructorId, teamRatings] of ratingsByTeam) {
+            const pair = getExactlyTwoDrivers(teamRatings);
+            if (!pair) continue;
+            const [first, second] = pair;
+            for (const [driver, teammate] of [[first, second], [second, first]] as const) {
+                const key = `${constructorId}:${driver.driverId}`;
+                const current = garageStats.get(key) ?? {
+                    driverId: driver.driverId,
+                    constructorId,
+                    constructorName: driver.constructorName,
+                    totalGap: 0,
+                    sharedRaces: 0,
+                    wins: 0,
+                    losses: 0,
+                    ties: 0,
+                    teammateNames: new Set<string>(),
+                };
+                const gap = driver.rating - teammate.rating;
+                current.totalGap += gap;
+                current.sharedRaces += 1;
+                if (gap > TIE_EPSILON) current.wins += 1;
+                else if (gap < -TIE_EPSILON) current.losses += 1;
+                else current.ties += 1;
+                current.teammateNames.add(teammate.driverName);
+                garageStats.set(key, current);
+            }
+        }
+    }
+    const garageBoss = selectByMetric([...garageStats.values()].flatMap(stats => {
+        const series = driverSeriesById.get(stats.driverId);
+        if (!series || stats.sharedRaces < COMMUNITY_MIN_RACES) return [];
+        const averageGap = stats.totalGap / stats.sharedRaces;
+        if (averageGap <= TIE_EPSILON) return [];
+        const teammateLabel = stats.teammateNames.size === 1
+            ? `vs ${[...stats.teammateNames][0]}`
+            : `${stats.sharedRaces} shared team races`;
+        return [createDriverWinner(
+            series, averageGap, `+${formatNumber(averageGap)} AVG GAP`,
+            `${stats.wins}-${stats.losses}${stats.ties > 0 ? `-${stats.ties}` : ''} ${teammateLabel}.`,
+            { id: stats.constructorId, name: stats.constructorName },
         )];
     }));
+
+    const communityPairStats = collectCommunityPairStats(ratedRaces)
+        .filter(pair => pair.sharedRatedRaces >= PAIR_MIN_SHARED_RACES)
+        .map(pair => ({
+            pair,
+            averageGap: pair.totalRatingGap / pair.sharedRatedRaces,
+            averageRating: pair.totalPairRating / pair.sharedRatedRaces,
+        }));
+    const pairMedian = communityPairStats.length ? median(communityPairStats.map(item => item.averageRating)) : null;
+    const balancedLineup = pairMedian === null ? [] : selectByMetric(communityPairStats
+        .filter(item => item.averageRating >= pairMedian)
+        .map(item => createTeamWinner(
+            item.pair, item.averageGap, `Δ ${formatNumber(item.averageGap)} RATING`,
+            `Pair average ${formatNumber(item.averageRating)} across ${item.pair.sharedRatedRaces} shared rated races.`,
+        )), 'asc');
+
+    const performancePairStats = collectPerformancePairStats(races, qualifyingResults);
+    const bestTeamPairing = selectBestTeamPair(performancePairStats);
+
+    const completedRounds = races.map(race => race.round);
+    const pointsStreaks = new Map<string, { driverName: string; constructorId: string; constructorName: string; best: number }>();
+    const latestResultByDriver = new Map<string, SeasonRaceResult>();
+    for (const race of races) {
+        for (const result of race.resultsByDriver.values()) latestResultByDriver.set(result.driverId, result);
+    }
+    const driversWithResults = [...latestResultByDriver.keys()];
+    for (const driverId of driversWithResults) {
+        let currentStreak = 0;
+        let bestStreak = 0;
+        for (const round of completedRounds) {
+            const result = racesByRound.get(round)?.resultsByDriver.get(driverId);
+            if (result && result.started !== false && result.points > 0) {
+                currentStreak += 1;
+                bestStreak = Math.max(bestStreak, currentStreak);
+            } else {
+                currentStreak = 0;
+            }
+        }
+        const latest = latestResultByDriver.get(driverId)!;
+        pointsStreaks.set(driverId, {
+            driverName: latest.driverName,
+            constructorId: latest.constructorId,
+            constructorName: latest.constructorName,
+            best: bestStreak,
+        });
+    }
+    const longestPointsStreak = selectByMetric([...pointsStreaks.entries()]
+        .filter(([, stats]) => stats.best > 0)
+        .map(([driverId, stats]) => {
+            const series = driverSeriesById.get(driverId) ?? {
+                driverId, driverName: stats.driverName, latestConstructorId: stats.constructorId,
+                latestConstructorName: stats.constructorName, seasonAverage: 0, points: [],
+            };
+            return createDriverWinner(
+                series, stats.best, `${stats.best} RACE STREAK`,
+                'Consecutive Grand Prix races with at least one championship point.',
+                { id: stats.constructorId, name: stats.constructorName },
+            );
+        }));
+
+    const finishRateStats = new Map<string, {
+        driverName: string; constructorId: string; constructorName: string; starts: number; classified: number;
+    }>();
+    for (const race of races) {
+        for (const result of race.resultsByDriver.values()) {
+            if (result.started === false) continue;
+            const current = finishRateStats.get(result.driverId) ?? {
+                driverName: result.driverName,
+                constructorId: result.constructorId,
+                constructorName: result.constructorName,
+                starts: 0,
+                classified: 0,
+            };
+            current.starts += 1;
+            if (result.position !== null && Number.isFinite(result.position)) current.classified += 1;
+            finishRateStats.set(result.driverId, current);
+        }
+    }
+    const classifiedFinishRate = selectByMetric([...finishRateStats.entries()]
+        .filter(([, stats]) => stats.starts > 0)
+        .map(([driverId, stats]) => {
+            const series = driverSeriesById.get(driverId) ?? {
+                driverId, driverName: stats.driverName, latestConstructorId: stats.constructorId,
+                latestConstructorName: stats.constructorName, seasonAverage: 0, points: [],
+            };
+            const rate = stats.classified / stats.starts;
+            return createDriverWinner(
+                series, rate, `${formatNumber(rate * 100, 1)}%`,
+                `${stats.classified} classified finishes from ${stats.starts} recorded Grand Prix starts; this reflects driver and car performance together.`,
+                { id: stats.constructorId, name: stats.constructorName },
+            );
+        }));
+
+    const finalThirdCount = Math.ceil(races.length / 3);
+    const finalThirdRounds = new Set(races.slice(-finalThirdCount).map(race => race.round));
+    const lateTeamPoints = new Map<string, {
+        constructorName: string; totalPoints: number; raceCount: number;
+    }>();
+    for (const race of races) {
+        if (!finalThirdRounds.has(race.round)) continue;
+        const pointsByTeam = new Map<string, { constructorName: string; points: number }>();
+        for (const result of race.resultsByDriver.values()) {
+            const team = pointsByTeam.get(result.constructorId) ?? { constructorName: result.constructorName, points: 0 };
+            team.points += result.points;
+            pointsByTeam.set(result.constructorId, team);
+        }
+        for (const [constructorId, team] of pointsByTeam) {
+            const totals = lateTeamPoints.get(constructorId) ?? {
+                constructorName: team.constructorName, totalPoints: 0, raceCount: 0,
+            };
+            totals.totalPoints += team.points;
+            totals.raceCount += 1;
+            lateTeamPoints.set(constructorId, totals);
+        }
+    }
+    const lateSeasonTeamForm = selectByMetric([...lateTeamPoints.entries()]
+        .filter(([, stats]) => stats.raceCount > 0)
+        .map(([constructorId, stats]) => createConstructorWinner(
+            constructorId,
+            stats.constructorName,
+            stats.totalPoints / stats.raceCount,
+            `${formatNumber(stats.totalPoints / stats.raceCount, 1)} PTS / GP`,
+            `${formatNumber(stats.totalPoints, 1)} team points across ${stats.raceCount} Grand Prix races in the season’s final third.`,
+        )));
 
     return {
         season,
         ratedRaceCount: ratedRaces.length,
-        completedRaceCount: sortedRaces.length,
+        completedRaceCount: races.length,
         driverCount: driversById.size,
         awards: [
-            createAward('season_mvp', mvpWinner),
-            createAward('consistency_king', consistencyWinner),
-            createAward('peak_performance', peakPerformanceWinner),
-            createAward('form_surge', formSurgeWinner),
-            createAward('toughest_slide', toughestSlideWinner),
-            createAward('hot_start', hotStartWinner),
-            createAward('strong_finish', strongFinishWinner),
-            createAward('garage_boss', garageBossWinner),
-            createAward('best_team_pairing', bestTeamPairingWinner),
-            createAward('most_balanced_lineup', mostBalancedLineupWinner),
-            createAward('late_season_charge', lateSeasonChargeWinner),
+            createAward('season_mvp', 'community', seasonMvp),
+            createAward('consistency_king', 'community', consistency),
+            createAward('peak_performance', 'community', peakPerformance),
+            createAward('most_improved', 'community', mostImproved, improvedStatus),
+            createAward('most_polarizing', 'community', mostPolarizing),
+            createAward('garage_boss', 'community', garageBoss),
+            createAward('most_balanced_lineup', 'community', balancedLineup),
+            createAward('best_team_pairing', 'track', bestTeamPairing),
+            createAward('longest_points_streak', 'track', longestPointsStreak),
+            createAward('classified_finish_rate', 'track', classifiedFinishRate),
+            createAward('late_season_team_form', 'track', lateSeasonTeamForm),
         ],
     };
 }

@@ -65,16 +65,20 @@ export interface CommunityDistributionState {
     status: CommunityDistributionStatus;
     distribution: CommunityRatingDistribution | null;
 }
+export interface CommunityDistributionsState {
+    status: CommunityDistributionStatus;
+    distributions: CommunityRatingDistribution[];
+}
 
-export function useCommunityRatingDistribution(
-    kind: CommunityDistributionQuery['kind'], season: string, driverId: string | null,
-): CommunityDistributionState {
-    const key = JSON.stringify([kind, season, driverId ?? '']);
-    const [result, setResult] = useState<{ key: string; state: CommunityDistributionState } | null>(null);
+export function useCommunityRatingDistributions(
+    kind: CommunityDistributionQuery['kind'], season: string, enabled = true,
+): CommunityDistributionsState {
+    const key = JSON.stringify([kind, season]);
+    const [result, setResult] = useState<{ key: string; state: CommunityDistributionsState } | null>(null);
     useEffect(() => {
-        if (!driverId) return;
+        if (!enabled) return;
         if (!communityClient.configured) {
-            setResult({ key, state: { status: 'disabled', distribution: null } });
+            setResult({ key, state: { status: 'disabled', distributions: [] } });
             return;
         }
         const query: CommunityDistributionQuery = { kind, season };
@@ -84,17 +88,15 @@ export function useCommunityRatingDistribution(
             const request = ++revision;
             await Promise.resolve();
             if (!active || request !== revision) return;
-            setResult({ key, state: { status: 'loading', distribution: null } });
+            setResult({ key, state: { status: 'loading', distributions: [] } });
             try {
                 const distributions = await communityClient.loadDistribution(query);
                 if (active && request === revision) {
-                    setResult({ key, state: {
-                        status: 'ready', distribution: distributions.find(item => item.driverId === driverId) ?? null,
-                    } });
+                    setResult({ key, state: { status: 'ready', distributions } });
                 }
             } catch {
                 if (active && request === revision) {
-                    setResult({ key, state: { status: 'unavailable', distribution: null } });
+                    setResult({ key, state: { status: 'unavailable', distributions: [] } });
                 }
             }
         }
@@ -116,9 +118,20 @@ export function useCommunityRatingDistribution(
             window.removeEventListener('online', onOnline);
             window.removeEventListener(GUEST_SYNC_ISSUE_EVENT, onGuestSyncIssue);
         };
-    }, [key, kind, season, driverId]);
+    }, [key, kind, season, enabled]);
 
+    if (!enabled) return { status: 'idle', distributions: [] };
+    if (!communityClient.configured) return { status: 'disabled', distributions: [] };
+    return result?.key === key ? result.state : { status: 'loading', distributions: [] };
+}
+
+export function useCommunityRatingDistribution(
+    kind: CommunityDistributionQuery['kind'], season: string, driverId: string | null,
+): CommunityDistributionState {
+    const state = useCommunityRatingDistributions(kind, season, driverId !== null);
     if (!driverId) return { status: 'idle', distribution: null };
-    if (!communityClient.configured) return { status: 'disabled', distribution: null };
-    return result?.key === key ? result.state : { status: 'loading', distribution: null };
+    return {
+        status: state.status,
+        distribution: state.distributions.find(item => item.driverId === driverId) ?? null,
+    };
 }

@@ -143,13 +143,11 @@ export function TeamVersus({
     qualiStatus,
     toggle,
 }: TeamVersusProps) {
-    const ratingStorageSnapshot = useRatingStorage();
-    const communitySource = useMemo(() => {
-        const personalRaces = getSeasonRatings(season);
-        return personalRaces?.races.some(race => race.completed && validRatings(race.ratings).length > 0)
-            ? 'race' as const
-            : 'quick' as const;
-    }, [season, ratingStorageSnapshot]);
+    useRatingStorage();
+    const personalRaces = getSeasonRatings(season);
+    const communitySource = personalRaces?.races.some(race => race.completed && validRatings(race.ratings).length > 0)
+        ? 'race' as const
+        : 'quick' as const;
     const community = useCommunityRatings(communitySource, season);
     const [searchParams, setSearchParams] = useSearchParams();
     const { exportAsImage, isExporting } = useExportImage();

@@ -5,16 +5,26 @@ import {
     Award,
     Crown,
     Flame,
+    Gauge,
     Loader2,
     Radar,
     Rocket,
-    TrendingDown,
     TrendingUp,
 } from 'lucide-react';
 import { TEAM_COLORS } from '../types';
-import { getAllSeasonResults, type SeasonRaceResult } from '../api/f1Api';
-import { useCommunityRatings } from '../hooks/useCommunityRatings';
-import { buildCommunitySeasonAwards, type SeasonAward, type SeasonAwardId } from '../utils/seasonAwards';
+import {
+    getAllSeasonQualifying,
+    getAllSeasonResults,
+    type SeasonQualifyingResult,
+    type SeasonRaceResult,
+} from '../api/f1Api';
+import { useCommunityRatingDistributions, useCommunityRatings } from '../hooks/useCommunityRatings';
+import {
+    buildSeasonAwards,
+    type SeasonAward,
+    type SeasonAwardGroup,
+    type SeasonAwardId,
+} from '../utils/seasonAwards';
 
 interface SeasonAwardsPageProps {
     season: string;
@@ -24,261 +34,271 @@ interface AwardConfig {
     label: string;
     eyebrow: string;
     description: string;
-    telemetryNote: string;
+    source: string;
+    metric: string;
+    direction: string;
     accentColor: string;
     Icon: typeof Award;
 }
 
+type Availability = 'loading' | 'ready' | 'disabled' | 'unavailable';
+
 const AWARD_CONFIG: Record<SeasonAwardId, AwardConfig> = {
     season_mvp: {
-        label: 'Season MVP',
-        eyebrow: 'Top overall average',
-        description: 'Highest season average across drivers with at least three community-rated races.',
-        telemetryNote: 'Built from race-by-race community averages across the season.',
+        label: 'Community MVP',
+        eyebrow: 'Top season average',
+        description: 'The strongest season-long community rating across at least three rated Grand Prix races.',
+        source: 'Community race averages',
+        metric: 'Average of each rated Grand Prix average; every race has equal weight.',
+        direction: 'Higher wins; ties share the award.',
         accentColor: '#F4C542',
         Icon: Crown,
     },
     consistency_king: {
-        label: 'Consistency King',
-        eyebrow: 'Lowest variance',
-        description: 'Most stable race-by-race community average across at least four races.',
-        telemetryNote: 'Rewards the smoothest community rating curve across the season.',
+        label: 'Most Consistent',
+        eyebrow: 'Smallest rating variation',
+        description: 'The least variation in community ratings among drivers whose season average is at or above the driver median.',
+        source: 'Community race averages',
+        metric: 'Population standard deviation of race averages; at least three rated races.',
+        direction: 'Lower wins; ties share the award.',
         accentColor: '#C6CCD5',
         Icon: Radar,
     },
     peak_performance: {
         label: 'Peak Performance',
         eyebrow: 'Best single race',
-        description: 'Highest single-race community average of the season.',
-        telemetryNote: 'Captures the strongest community-rated race of the season.',
+        description: 'The highest community average given to a driver in one Grand Prix.',
+        source: 'Community race averages',
+        metric: 'Single Grand Prix average rating.',
+        direction: 'Higher wins; ties share the award.',
         accentColor: '#FF7A00',
         Icon: Flame,
     },
-    form_surge: {
-        label: 'Form Surge',
-        eyebrow: 'Strongest climb',
-        description: 'Biggest rise from the first community-rated race to the latest.',
-        telemetryNote: 'Compares each driver’s latest community average with their season start.',
+    most_improved: {
+        label: 'Most Improved',
+        eyebrow: 'Strongest rating rise',
+        description: 'Compares a driver’s first three rated races with their last three rated races.',
+        source: 'Community race averages',
+        metric: 'Final three rated-race average minus first three; at least six rated races.',
+        direction: 'Largest positive change wins; ties share the award.',
         accentColor: '#00D084',
         Icon: TrendingUp,
     },
-    toughest_slide: {
-        label: 'Toughest Slide',
-        eyebrow: 'Sharpest drop',
-        description: 'Biggest drop from the first community-rated race to the latest.',
-        telemetryNote: 'Tracks the steepest fall in community averages across the season.',
-        accentColor: '#FF4D4F',
-        Icon: TrendingDown,
-    },
-    hot_start: {
-        label: 'Hot Start',
-        eyebrow: 'Opening three',
-        description: 'Best average across each driver’s first three community-rated races.',
-        telemetryNote: 'Looks at each driver’s first three races with community ratings.',
-        accentColor: '#FF6B35',
-        Icon: Rocket,
-    },
-    strong_finish: {
-        label: 'Strong Finish',
-        eyebrow: 'Closing three',
-        description: 'Best average across each driver’s latest three community-rated races.',
-        telemetryNote: 'Looks at each driver’s latest three races with community ratings.',
-        accentColor: '#38BDF8',
+    most_polarizing: {
+        label: 'Most Polarizing',
+        eyebrow: 'Lowest community agreement',
+        description: 'Shows where community ratings diverged most. Low agreement does not mean a low driver rating.',
+        source: 'Community rating distributions',
+        metric: 'Season agreement score, averaged equally across assessed Grand Prix races.',
+        direction: 'Lower agreement wins; ties share the award.',
+        accentColor: '#A855F7',
         Icon: Activity,
     },
     garage_boss: {
         label: 'Garage Boss',
-        eyebrow: 'Teammate domination',
-        description: 'Largest average gap over a teammate across at least three shared community-rated races.',
-        telemetryNote: 'Built from direct same-team comparisons using community averages.',
+        eyebrow: 'Teammate rating advantage',
+        description: 'The driver with the largest positive average rating gap over their teammate in the same Grand Prix.',
+        source: 'Community race averages + official team lineups',
+        metric: 'Mean signed same-race rating difference; at least three shared rated races with each team stint.',
+        direction: 'Higher positive gap wins; ties share the award.',
         accentColor: '#A855F7',
         Icon: Award,
     },
-    best_team_pairing: {
-        label: 'Best Team Pairing',
-        eyebrow: 'Strongest duo',
-        description: 'Highest combined average for the two most community-rated drivers at a team.',
-        telemetryNote: 'Team stints follow the constructor listed in each race result.',
-        accentColor: '#00D084',
-        Icon: Crown,
-    },
     most_balanced_lineup: {
         label: 'Most Balanced Lineup',
-        eyebrow: 'Closest duo',
-        description: 'Smallest average gap between a team’s two most community-rated drivers.',
-        telemetryNote: 'Rewards teams whose leading pair stayed close in community ratings.',
+        eyebrow: 'Closest teammate ratings',
+        description: 'The closest-rated real teammate pairing among pairs whose average community rating is at or above the pair median.',
+        source: 'Community race averages + official team lineups',
+        metric: 'Mean absolute same-race rating gap; at least three shared rated races.',
+        direction: 'Lower gap wins; ties share the award.',
         accentColor: '#F97316',
         Icon: Radar,
     },
-    late_season_charge: {
-        label: 'Late Season Charge',
-        eyebrow: 'Closing team run',
-        description: 'Best team average across the latest three completed races.',
-        telemetryNote: 'Measures team averages in the final three completed race rounds.',
+    best_team_pairing: {
+        label: 'Best Team Pairing',
+        eyebrow: 'Front-running and close',
+        description: 'Both real teammates must finish in the top five in at least half of their shared starts. The closest pair on race day leads.',
+        source: 'Official Grand Prix results + qualifying times',
+        metric: 'Eligibility: at least three shared starts and a double top-five in half or more. Then compare average race-time gap, qualifying best-lap gap, and double top-five count in that order.',
+        direction: 'Lower race gap, then lower qualifying gap, then more double top-fives; exact ties share the award.',
+        accentColor: '#00D084',
+        Icon: Crown,
+    },
+    longest_points_streak: {
+        label: 'Longest Points Streak',
+        eyebrow: 'Consecutive scoring races',
+        description: 'The longest run of Grand Prix races in which the driver scored at least one point.',
+        source: 'Official Grand Prix results',
+        metric: 'Consecutive completed-round results with more than zero points; a zero or missing result resets the run.',
+        direction: 'More consecutive races wins; ties share the award.',
+        accentColor: '#38BDF8',
+        Icon: Rocket,
+    },
+    classified_finish_rate: {
+        label: 'Classified Finish Rate',
+        eyebrow: 'Most classified starts',
+        description: 'A classified finish rate reflects both the driver and the car, not driver performance alone.',
+        source: 'Official Grand Prix results',
+        metric: 'Classified finishes divided by recorded race starts; DNS and non-starters are excluded from starts.',
+        direction: 'Higher percentage wins; ties share the award.',
+        accentColor: '#F4C542',
+        Icon: Gauge,
+    },
+    late_season_team_form: {
+        label: 'Late Season Team Form',
+        eyebrow: 'Closing third of the season',
+        description: 'The strongest constructor across the final third of completed Grand Prix races.',
+        source: 'Official Grand Prix points',
+        metric: 'Average team points per race; both drivers’ points are summed for each Grand Prix.',
+        direction: 'Higher average wins; ties share the award.',
         accentColor: '#22D3EE',
         Icon: TrendingUp,
     },
 };
 
+const GROUP_CONFIG: Record<SeasonAwardGroup, { title: string; description: string }> = {
+    community: {
+        title: 'Community Opinion',
+        description: 'Awards based on race-by-race community ratings and their distribution.',
+    },
+    track: {
+        title: 'On-Track Performance',
+        description: 'Awards based on official Grand Prix race results and qualifying times.',
+    },
+};
+
 function splitDriverName(driverName: string) {
     const parts = driverName.trim().split(/\s+/);
-
-    if (parts.length <= 1) {
-        return { firstLine: driverName, secondLine: '' };
-    }
-
-    return {
-        firstLine: parts[0],
-        secondLine: parts.slice(1).join(' '),
-    };
+    if (parts.length <= 1) return { firstLine: driverName, secondLine: '' };
+    return { firstLine: parts[0], secondLine: parts.slice(1).join(' ') };
 }
 
 function getTeamColor(constructorId: string) {
     return TEAM_COLORS[constructorId] || '#888888';
 }
 
-function HeroStat({
-    label,
-    value,
-    accentColor,
-}: {
-    label: string;
-    value: string;
-    accentColor: string;
-}) {
+function HeroStat({ label, value, accentColor }: { label: string; value: string; accentColor: string }) {
     return (
-        <div className="border border-[var(--border-color)] bg-[var(--bg-panel)] p-4 relative overflow-hidden">
+        <div className="relative overflow-hidden border border-[var(--border-color)] bg-[var(--bg-panel)] p-4">
             <div className="absolute inset-x-0 top-0 h-1" style={{ backgroundColor: accentColor }} />
-            <div className="font-oxanium text-[10px] uppercase tracking-[0.2em] text-[var(--text-muted)]">
-                {label}
-            </div>
-            <div className="mt-3 font-display text-3xl text-white uppercase leading-none md:text-5xl">
-                {value}
-            </div>
+            <div className="font-oxanium text-[10px] uppercase tracking-[0.2em] text-[var(--text-muted)]">{label}</div>
+            <div className="mt-3 font-display text-3xl uppercase leading-none text-white md:text-5xl">{value}</div>
         </div>
     );
 }
 
-function AwardSection({ award, index }: { award: SeasonAward; index: number }) {
+function AwardSection({
+    award,
+    index,
+    availability,
+}: {
+    award: SeasonAward;
+    index: number;
+    availability: Availability;
+}) {
     const config = AWARD_CONFIG[award.id];
-    const reverseLayout = index % 2 === 1;
-    const winner = award.winner;
-    const winnerName = winner ? splitDriverName(winner.subjectName) : null;
+    const emptyMessage = availability === 'loading'
+        ? 'Loading this award’s data.'
+        : availability === 'disabled'
+            ? 'Community rating data is not configured for this site.'
+            : availability === 'unavailable'
+                ? 'The required data source could not be reached.'
+                : award.status === 'no-positive-movement'
+                    ? 'There was no positive change between the first and final three rated races this season.'
+                    : 'There is not enough eligible data for this award yet.';
 
     return (
         <motion.section
-            initial={{ opacity: 0, y: 40 }}
+            initial={{ opacity: 0, y: 32 }}
             whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, amount: 0.25 }}
-            transition={{ duration: 0.45, ease: 'easeOut', delay: index * 0.04 }}
-            className="py-8 md:py-16"
+            viewport={{ once: true, amount: 0.2 }}
+            transition={{ duration: 0.4, ease: 'easeOut', delay: Math.min(index, 5) * 0.035 }}
+            className="grid gap-5 py-7 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] lg:gap-8"
         >
-            <div className="grid gap-6 2xl:grid-cols-12 2xl:items-end 2xl:gap-10">
-                <div className={`space-y-4 2xl:col-span-4 ${reverseLayout ? '2xl:order-2' : ''}`}>
-                    <div className="flex items-center gap-3">
-                        <div className="flex h-11 w-11 items-center justify-center border border-[var(--border-color)] bg-[var(--bg-panel)]" style={{ color: config.accentColor }}>
-                            <config.Icon size={18} />
-                        </div>
-                        <div>
-                            <div className="font-oxanium text-[10px] uppercase tracking-[0.24em]" style={{ color: config.accentColor }}>
-                                {config.eyebrow}
-                            </div>
-                            <div className="font-display text-2xl leading-[0.92] text-white uppercase tracking-tight md:text-4xl">
-                                {config.label}
-                            </div>
-                        </div>
+            <div className="space-y-3">
+                <div className="flex items-center gap-3">
+                    <div className="flex h-11 w-11 items-center justify-center border border-[var(--border-color)] bg-[var(--bg-panel)]" style={{ color: config.accentColor }}>
+                        <config.Icon size={18} />
                     </div>
-
-                    <p className="max-w-md font-ui text-sm leading-relaxed text-[var(--text-secondary)] md:text-base">
-                        {config.description}
-                    </p>
-
-                    <div className="font-oxanium text-[10px] uppercase tracking-[0.22em] text-[var(--text-muted)]">
-                        Award {String(index + 1).padStart(2, '0')}
+                    <div>
+                        <div className="font-oxanium text-[10px] uppercase tracking-[0.24em]" style={{ color: config.accentColor }}>
+                            {config.eyebrow}
+                        </div>
+                        <h3 className="font-display text-2xl uppercase leading-[0.92] tracking-tight text-white md:text-4xl">
+                            {config.label}
+                        </h3>
                     </div>
                 </div>
+                <p className="max-w-xl font-ui text-sm leading-relaxed text-[var(--text-secondary)] md:text-base">
+                    {config.description}
+                </p>
+                <div className="font-oxanium text-[10px] uppercase tracking-[0.22em] text-[var(--text-muted)]">
+                    Award {String(index + 1).padStart(2, '0')}
+                </div>
+            </div>
 
-                <div className={`2xl:col-span-8 ${reverseLayout ? '2xl:order-1' : ''}`}>
-                    <div className="relative overflow-hidden border border-[var(--border-color)] bg-[var(--bg-panel)]">
-                        <div
-                            className="absolute inset-0 opacity-[0.06] pointer-events-none"
-                            style={{ backgroundImage: 'linear-gradient(var(--border-color) 1px, transparent 1px), linear-gradient(90deg, var(--border-color) 1px, transparent 1px)', backgroundSize: '24px 24px' }}
-                        />
-                        <div className="absolute inset-x-0 top-0 h-1" style={{ backgroundColor: config.accentColor }} />
-
-                        {winner ? (
-                            <div className="relative grid gap-6 p-6 md:p-8 2xl:grid-cols-[minmax(0,1.9fr)_minmax(200px,0.28fr)]">
-                                <div className="min-w-0">
-                                    <div className="relative min-w-0">
-                                        <div className="min-w-0">
-                                            <div className="font-oxanium text-[10px] uppercase tracking-[0.22em]" style={{ color: config.accentColor }}>
-                                                Community Leader
-                                            </div>
-                                            <div className="mt-3 flex min-w-0 items-center gap-3">
-                                                <div className="h-12 w-1.5 flex-shrink-0" style={{ backgroundColor: getTeamColor(winner.constructorId) }} />
+            <div className="relative overflow-hidden border border-[var(--border-color)] bg-[var(--bg-panel)]">
+                <div className="absolute inset-x-0 top-0 h-1" style={{ backgroundColor: config.accentColor }} />
+                <div className="relative grid gap-5 p-5 md:p-6 xl:grid-cols-[minmax(0,1.25fr)_minmax(220px,0.75fr)]">
+                    <div className="min-w-0">
+                        {award.winners.length ? (
+                            <div className="space-y-4">
+                                {award.winners.map((winner, winnerIndex) => {
+                                    const name = splitDriverName(winner.subjectName);
+                                    return (
+                                        <div key={`${winner.constructorId}:${winner.driverId ?? winnerIndex}:${winnerIndex}`}
+                                            className="border border-[var(--border-color)] bg-[var(--bg-darker)] p-4 md:p-5">
+                                            <div className="flex items-start gap-3">
+                                                <div className="mt-1 h-10 w-1.5 flex-shrink-0" style={{ backgroundColor: getTeamColor(winner.constructorId) }} />
                                                 <div className="min-w-0">
-                                                    <div className="font-display text-[1.8rem] leading-[0.86] text-white uppercase tracking-tight md:text-[2.6rem] xl:text-[3rem] 2xl:text-[3.35rem]">
-                                                        <div>{winnerName?.firstLine}</div>
-                                                        {winnerName?.secondLine && <div>{winnerName.secondLine}</div>}
+                                                    <div className="font-oxanium text-[10px] uppercase tracking-[0.2em]" style={{ color: config.accentColor }}>
+                                                        {winner.subjectType === 'team' ? 'Winning team' : 'Winning driver'}
                                                     </div>
-                                                    <div className="mt-2 font-oxanium text-xs uppercase tracking-[0.2em] text-[var(--text-secondary)]">
+                                                    <div className="mt-2 font-display text-3xl uppercase leading-[0.88] tracking-tight text-white md:text-4xl">
+                                                        {winner.subjectType === 'driver' ? <><span className="block">{name.firstLine}</span>{name.secondLine && <span className="block">{name.secondLine}</span>}</> : winner.subjectName}
+                                                    </div>
+                                                    <div className="mt-2 font-oxanium text-xs uppercase tracking-[0.16em] text-[var(--text-secondary)]">
                                                         {winner.secondaryLabel}
                                                     </div>
+                                                    <div className="mt-4 inline-flex border border-[var(--border-color)] px-3 py-2 font-display text-xl uppercase text-white md:text-2xl">
+                                                        {winner.metricDisplay}
+                                                    </div>
+                                                    <p className="mt-3 font-ui text-xs leading-relaxed text-[var(--text-secondary)] md:text-sm">
+                                                        {winner.detail}
+                                                    </p>
                                                 </div>
                                             </div>
                                         </div>
-                                    </div>
-
-                                    <div className="mt-8 grid gap-3 sm:grid-cols-2">
-                                        <div className="border border-[var(--border-color)] bg-[var(--bg-darker)] p-4">
-                                            <div className="font-oxanium text-[10px] uppercase tracking-[0.2em] text-[var(--text-muted)]">
-                                                Metric
-                                            </div>
-                                            <div className="mt-3 font-display text-xl leading-[0.92] text-white uppercase md:text-3xl">
-                                                {winner.metricDisplay}
-                                            </div>
-                                        </div>
-                                        <div className="border border-[var(--border-color)] bg-[var(--bg-darker)] p-4">
-                                            <div className="font-oxanium text-[10px] uppercase tracking-[0.2em] text-[var(--text-muted)]">
-                                                Context
-                                            </div>
-                                            <div className="mt-3 font-display text-lg leading-[0.92] text-white uppercase md:text-2xl">
-                                                {winner.detail}
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div className="flex flex-col justify-between gap-4 border border-[var(--border-color)] bg-[var(--bg-darker)] p-5 2xl:max-w-[220px] 2xl:justify-self-end">
-                                    <div>
-                                        <div className="font-oxanium text-[10px] uppercase tracking-[0.2em] text-[var(--text-muted)]">
-                                            Telemetry Note
-                                        </div>
-                                        <div className="mt-3 font-display text-lg text-white uppercase leading-[1.02] md:text-2xl">
-                                            {config.telemetryNote}
-                                        </div>
-                                    </div>
-
-                                    <div className="font-oxanium text-[10px] uppercase tracking-[0.22em]" style={{ color: config.accentColor }}>
-                                        Community season awards
-                                    </div>
-                                </div>
+                                    );
+                                })}
                             </div>
                         ) : (
-                            <div className="relative p-6 md:p-8">
-                                <div className="border border-dashed border-[var(--border-color)] bg-[var(--bg-darker)] p-6 md:p-8">
+                            <div className="flex min-h-36 items-center border border-dashed border-[var(--border-color)] bg-[var(--bg-darker)] p-5 md:p-7">
+                                <div>
                                     <div className="font-oxanium text-[10px] uppercase tracking-[0.22em]" style={{ color: config.accentColor }}>
-                                        Awaiting community data
+                                        {availability === 'loading' ? 'Loading award data' : 'No award winner yet'}
                                     </div>
-                                    <div className="mt-3 font-display text-2xl text-white uppercase leading-tight md:text-4xl">
-                                        Not enough community race ratings yet for {config.label.toUpperCase()}.
-                                    </div>
-                                    <p className="mt-4 max-w-2xl font-ui text-sm leading-relaxed text-[var(--text-secondary)] md:text-base">
-                                        This award appears when its community rating and race thresholds are met.
+                                    <p className="mt-3 font-display text-xl uppercase leading-tight text-white md:text-2xl">
+                                        {emptyMessage}
                                     </p>
                                 </div>
                             </div>
                         )}
+                    </div>
+
+                    <div className="grid content-start gap-3 sm:grid-cols-3 xl:grid-cols-1">
+                        <div className="border border-[var(--border-color)] bg-[var(--bg-darker)] p-4">
+                            <div className="font-oxanium text-[10px] uppercase tracking-[0.18em] text-[var(--text-muted)]">Data source</div>
+                            <div className="mt-2 font-ui text-sm leading-relaxed text-white">{config.source}</div>
+                        </div>
+                        <div className="border border-[var(--border-color)] bg-[var(--bg-darker)] p-4">
+                            <div className="font-oxanium text-[10px] uppercase tracking-[0.18em] text-[var(--text-muted)]">Metric</div>
+                            <div className="mt-2 font-ui text-sm leading-relaxed text-white">{config.metric}</div>
+                        </div>
+                        <div className="border border-[var(--border-color)] bg-[var(--bg-darker)] p-4">
+                            <div className="font-oxanium text-[10px] uppercase tracking-[0.18em] text-[var(--text-muted)]">Winner rule</div>
+                            <div className="mt-2 font-ui text-sm leading-relaxed text-white">{config.direction}</div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -295,15 +315,9 @@ function AwardsStatus({ title, description }: { title: string; description: stri
                 className="w-full max-w-3xl border border-[var(--border-color)] border-t-2 border-t-[var(--accent-red)] bg-[var(--bg-panel)] p-6 md:p-10"
                 role="status"
             >
-                <div className="font-oxanium text-xs uppercase tracking-[0.26em] text-[var(--accent-red)]">
-                    Season Awards
-                </div>
-                <h1 className="mt-4 font-display text-4xl leading-none text-white uppercase tracking-tight md:text-6xl">
-                    {title}
-                </h1>
-                <p className="mt-5 max-w-2xl font-ui text-sm leading-relaxed text-[var(--text-secondary)] md:text-lg">
-                    {description}
-                </p>
+                <div className="font-oxanium text-xs uppercase tracking-[0.26em] text-[var(--accent-red)]">Season Awards</div>
+                <h1 className="mt-4 font-display text-4xl uppercase leading-none tracking-tight text-white md:text-6xl">{title}</h1>
+                <p className="mt-5 max-w-2xl font-ui text-sm leading-relaxed text-[var(--text-secondary)] md:text-lg">{description}</p>
             </motion.div>
         </div>
     );
@@ -314,9 +328,7 @@ function AwardsLoading() {
         <div className="flex min-h-[60vh] items-center justify-center">
             <div className="flex flex-col items-center gap-4 border border-[var(--border-color)] bg-[var(--bg-panel)] px-8 py-10" role="status">
                 <Loader2 size={28} className="animate-spin text-[var(--accent-red)]" />
-                <div className="font-oxanium text-xs uppercase tracking-[0.25em] text-[var(--text-muted)]">
-                    Loading community awards
-                </div>
+                <div className="font-oxanium text-xs uppercase tracking-[0.25em] text-[var(--text-muted)]">Loading Grand Prix data</div>
             </div>
         </div>
     );
@@ -324,115 +336,122 @@ function AwardsLoading() {
 
 export function SeasonAwardsPage({ season }: SeasonAwardsPageProps) {
     const community = useCommunityRatings('race', season);
-    const [resultsState, setResultsState] = useState<{
+    const distributions = useCommunityRatingDistributions('race', season);
+    const [raceState, setRaceState] = useState<{
         season: string;
-        status: 'loading' | 'ready' | 'unavailable';
+        status: Availability;
         results: SeasonRaceResult[];
+    }>({ season: '', status: 'loading', results: [] });
+    const [qualifyingState, setQualifyingState] = useState<{
+        season: string;
+        status: Availability;
+        results: SeasonQualifyingResult[];
     }>({ season: '', status: 'loading', results: [] });
 
     useEffect(() => {
         let active = true;
-        void getAllSeasonResults(season, { throwOnError: true })
-            .then(results => {
-                if (active) setResultsState({ season, status: 'ready', results });
-            })
-            .catch(() => {
-                if (active) setResultsState({ season, status: 'unavailable', results: [] });
-            });
+        void Promise.allSettled([
+            getAllSeasonResults(season, { throwOnError: true }),
+            getAllSeasonQualifying(season, { throwOnError: true }),
+        ]).then(([raceResult, qualifyingResult]) => {
+            if (!active) return;
+            if (raceResult.status === 'fulfilled') {
+                setRaceState({ season, status: 'ready', results: raceResult.value });
+            } else {
+                setRaceState({ season, status: 'unavailable', results: [] });
+            }
+            if (qualifyingResult.status === 'fulfilled') {
+                setQualifyingState({ season, status: 'ready', results: qualifyingResult.value });
+            } else {
+                setQualifyingState({ season, status: 'unavailable', results: [] });
+            }
+        });
         return () => { active = false; };
     }, [season]);
 
     const raceResults = useMemo(
-        () => resultsState.season === season ? resultsState.results : [],
-        [resultsState, season]
+        () => raceState.season === season ? raceState.results : [],
+        [raceState, season],
+    );
+    const qualifyingResults = useMemo(
+        () => qualifyingState.season === season ? qualifyingState.results : [],
+        [qualifyingState, season],
     );
     const awardsSummary = useMemo(
-        () => buildCommunitySeasonAwards(season, raceResults, community.ratings),
-        [season, raceResults, community.ratings]
+        () => buildSeasonAwards(season, raceResults, community.ratings, distributions.distributions, qualifyingResults),
+        [season, raceResults, community.ratings, distributions.distributions, qualifyingResults],
     );
 
-    if (community.status === 'loading') return <AwardsLoading />;
-
-    if (community.status === 'disabled') {
-        return (
-            <AwardsStatus
-                title="Community ratings unavailable"
-                description="Season Awards are calculated from community race ratings, which are not configured for this site right now. Personal ratings are not used as a substitute."
-            />
-        );
-    }
-
-    if (community.status === 'unavailable') {
-        return (
-            <AwardsStatus
-                title="Community ratings could not load"
-                description="The community rating service could not be reached. Season Awards will appear when race-by-race community ratings are available."
-            />
-        );
-    }
-
-    if (resultsState.season !== season || resultsState.status === 'loading') return <AwardsLoading />;
-
-    if (resultsState.status === 'unavailable') {
+    if (raceState.season !== season || raceState.status === 'loading') return <AwardsLoading />;
+    if (raceState.status === 'unavailable') {
         return (
             <AwardsStatus
                 title="Race data unavailable"
-                description="The season race results could not be loaded, so community ratings cannot be matched to their race and team context."
+                description="Official Grand Prix results could not be loaded, so season awards cannot be matched to drivers and team lineups."
             />
         );
     }
 
-    if (awardsSummary.ratedRaceCount === 0) {
-        return (
-            <AwardsStatus
-                title="Waiting for community ratings"
-                description={awardsSummary.completedRaceCount > 0
-                    ? 'No community race ratings are available for completed ' + season + ' races yet. The awards board will appear when at least one race rating can be matched to its race result.'
-                    : 'The ' + season + ' community awards will appear after a race is completed and race-by-race community ratings are available.'}
-            />
-        );
-    }
-
-    const readyAwardsCount = awardsSummary.awards.filter(award => award.status === 'ready').length;
+    const availabilityFor = (award: SeasonAward): Availability => {
+        if (award.id === 'best_team_pairing') {
+            return qualifyingState.season === season ? qualifyingState.status : 'loading';
+        }
+        if (award.group === 'track') return 'ready';
+        if (award.id === 'most_polarizing') return distributions.status === 'idle' ? 'loading' : distributions.status;
+        return community.status;
+    };
+    const readyAwardsCount = awardsSummary.awards.filter((award) =>
+        award.status === 'ready' && availabilityFor(award) === 'ready').length;
 
     return (
         <div className="min-h-screen py-6 md:py-10">
-            <div className="mx-auto max-w-6xl space-y-8 md:space-y-14">
+            <div className="mx-auto max-w-6xl space-y-8 md:space-y-12">
                 <motion.section
-                    initial={{ opacity: 0, y: 24 }}
+                    initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     className="relative overflow-hidden border border-[var(--border-color)] bg-[var(--bg-panel)] p-6 md:p-10"
                 >
-                    <div className="absolute inset-0 opacity-[0.05] pointer-events-none"
-                        style={{ backgroundImage: 'linear-gradient(var(--border-color) 1px, transparent 1px), linear-gradient(90deg, var(--border-color) 1px, transparent 1px)', backgroundSize: '28px 28px' }}
-                    />
+                    <div className="pointer-events-none absolute inset-0 opacity-[0.05]"
+                        style={{ backgroundImage: 'linear-gradient(var(--border-color) 1px, transparent 1px), linear-gradient(90deg, var(--border-color) 1px, transparent 1px)', backgroundSize: '28px 28px' }} />
                     <div className="relative">
                         <div className="inline-flex items-center gap-3 border-x border-[var(--accent-red)] px-4 py-1">
-                            <span className="font-oxanium text-xs uppercase tracking-[0.28em] text-[var(--accent-red)]">
-                                Season Awards
-                            </span>
+                            <span className="font-oxanium text-xs uppercase tracking-[0.28em] text-[var(--accent-red)]">Season Awards</span>
                         </div>
-
                         <div className="mt-6 max-w-4xl">
-                            <h1 className="font-display text-5xl leading-none text-white uppercase tracking-tight md:text-8xl">
-                                {season} Wrapped
-                            </h1>
+                            <h1 className="font-display text-5xl uppercase leading-none tracking-tight text-white md:text-8xl">{season} Wrapped</h1>
                             <p className="mt-4 max-w-2xl font-ui text-sm leading-relaxed text-[var(--text-secondary)] md:text-lg">
-                                The community awards board is generated from race-by-race community averages. Every race with at least one valid community rating contributes equally to season averages.
+                                Community opinion and official Grand Prix performance are shown separately. Each award uses a clear metric, and exact ties can have multiple winners.
                             </p>
                         </div>
-
                         <div className="mt-8 grid gap-4 md:grid-cols-3">
-                            <HeroStat label="Community-rated races" value={awardsSummary.ratedRaceCount + '/' + awardsSummary.completedRaceCount} accentColor="#E10600" />
-                            <HeroStat label="Drivers rated by community" value={String(awardsSummary.driverCount)} accentColor="#F4C542" />
+                            <HeroStat label="Community-rated GPs" value={`${awardsSummary.ratedRaceCount}/${awardsSummary.completedRaceCount}`} accentColor="#E10600" />
+                            <HeroStat label="Drivers rated" value={String(awardsSummary.driverCount)} accentColor="#F4C542" />
                             <HeroStat label="Awards ready" value={String(readyAwardsCount)} accentColor="#38BDF8" />
                         </div>
                     </div>
                 </motion.section>
 
-                {awardsSummary.awards.map((award, index) => (
-                    <AwardSection key={award.id} award={award} index={index} />
-                ))}
+                {(['community', 'track'] as const).map(group => {
+                    const groupAwards = awardsSummary.awards.filter(award => award.group === group);
+                    return (
+                        <section key={group} aria-labelledby={`awards-${group}`}>
+                            <div className="mb-2 border-b border-[var(--border-color)] pb-4">
+                                <h2 id={`awards-${group}`} className="font-display text-3xl uppercase leading-none tracking-tight text-white md:text-5xl">
+                                    {GROUP_CONFIG[group].title}
+                                </h2>
+                                <p className="mt-2 font-ui text-sm text-[var(--text-secondary)]">{GROUP_CONFIG[group].description}</p>
+                            </div>
+                            {groupAwards.map((award, index) => (
+                                <AwardSection
+                                    key={award.id}
+                                    award={award}
+                                    index={index}
+                                    availability={availabilityFor(award)}
+                                />
+                            ))}
+                        </section>
+                    );
+                })}
             </div>
         </div>
     );
