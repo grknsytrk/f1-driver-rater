@@ -94,17 +94,14 @@ interface CommunityPairStats extends TeamPairIdentity {
 }
 
 interface PerformancePairStats extends TeamPairIdentity {
-    sharedStarts: number;
-    doubleTopFiveFinishes: number;
-    raceGapSamples: number;
-    totalRaceGap: number;
-    qualifyingGapSamples: number;
-    totalQualifyingGap: number;
+    doubleTopTenRaceRounds: Set<string>;
+    raceGapByRound: Map<string, number>;
+    qualifyingGapByRound: Map<string, number>;
 }
 
 const TIE_EPSILON = 1e-6;
 const COMMUNITY_MIN_RACES = 3;
-const PAIR_MIN_SHARED_RACES = 3;
+const COMMUNITY_PAIR_MIN_RATED_RACES = 3;
 
 function normalizeRound(round: string): string {
     const parsed = Number.parseInt(round, 10);
@@ -348,19 +345,19 @@ function collectPerformancePairStats(
             );
             const current = stats.get(identity.key) ?? {
                 ...identity,
-                sharedStarts: 0,
-                doubleTopFiveFinishes: 0,
-                raceGapSamples: 0,
-                totalRaceGap: 0,
-                qualifyingGapSamples: 0,
-                totalQualifyingGap: 0,
+                doubleTopTenRaceRounds: new Set<string>(),
+                raceGapByRound: new Map<string, number>(),
+                qualifyingGapByRound: new Map<string, number>(),
             };
-            current.sharedStarts += 1;
-            if (first.position !== null && first.position <= 5 && second.position !== null && second.position <= 5) {
-                current.doubleTopFiveFinishes += 1;
-                if (typeof first.raceTimeGapSeconds === 'number' && typeof second.raceTimeGapSeconds === 'number') {
-                    current.raceGapSamples += 1;
-                    current.totalRaceGap += Math.abs(first.raceTimeGapSeconds - second.raceTimeGapSeconds);
+            const bothFinishedTopTen = first.position !== null && first.position >= 1 && first.position <= 10
+                && second.position !== null && second.position >= 1 && second.position <= 10;
+            if (bothFinishedTopTen) {
+                current.doubleTopTenRaceRounds.add(race.round);
+                if (typeof first.raceTimeGapSeconds === 'number' && Number.isFinite(first.raceTimeGapSeconds)
+                    && typeof second.raceTimeGapSeconds === 'number' && Number.isFinite(second.raceTimeGapSeconds)) {
+                    current.raceGapByRound.set(
+                        race.round, Math.abs(first.raceTimeGapSeconds - second.raceTimeGapSeconds),
+                    );
                 }
             }
             stats.set(identity.key, current);
@@ -379,50 +376,48 @@ function collectPerformancePairStats(
         if (!pair) continue;
         const [round, constructorId] = scope.split(':');
         const [first, second] = pair;
+        if (!Number.isFinite(first.position) || first.position < 1 || first.position > 10
+            || !Number.isFinite(second.position) || second.position < 1 || second.position > 10) continue;
         if (typeof first.bestTimeSeconds !== 'number' || typeof second.bestTimeSeconds !== 'number') continue;
         const key = pairMapKey(constructorId, first.driverId, second.driverId);
         const candidate = stats.get(key);
-        if (!candidate) continue;
+        if (!candidate || !candidate.doubleTopTenRaceRounds.has(normalizeRound(round))) continue;
         // Do not count a qualifying session as part of a pairing that was not on the race grid together.
         const race = races.find(item => item.round === normalizeRound(round));
         const racePair = race && getExactlyTwoDrivers([...race.resultsByDriver.values()]
             .filter(result => result.constructorId === constructorId && result.started !== false));
         if (!racePair || pairMapKey(constructorId, racePair[0].driverId, racePair[1].driverId) !== key) continue;
-        candidate.qualifyingGapSamples += 1;
-        candidate.totalQualifyingGap += Math.abs(first.bestTimeSeconds - second.bestTimeSeconds);
+        candidate.qualifyingGapByRound.set(
+            normalizeRound(round), Math.abs(first.bestTimeSeconds - second.bestTimeSeconds),
+        );
     }
     return [...stats.values()];
 }
 
 function selectBestTeamPair(stats: PerformancePairStats[]): AwardCandidate[] {
-    const candidates = stats.filter(pair => pair.sharedStarts >= PAIR_MIN_SHARED_RACES
-        && pair.doubleTopFiveFinishes >= 2
-        && pair.doubleTopFiveFinishes * 2 >= pair.sharedStarts
-        && pair.raceGapSamples >= 2
-        && pair.qualifyingGapSamples >= PAIR_MIN_SHARED_RACES);
+    const candidates = stats.flatMap(pair => {
+        const sharedTopTenRounds = [...pair.doubleTopTenRaceRounds]
+            .filter(round => pair.raceGapByRound.has(round) && pair.qualifyingGapByRound.has(round));
+        if (sharedTopTenRounds.length === 0) return [];
+        const average = (values: number[]) => values.reduce((sum, value) => sum + value, 0) / values.length;
+        const averageRaceGap = average(sharedTopTenRounds.map(round => pair.raceGapByRound.get(round)!));
+        const averageQualifyingGap = average(sharedTopTenRounds.map(round => pair.qualifyingGapByRound.get(round)!));
+        return [{ pair, sharedTopTenRounds, averageRaceGap, averageQualifyingGap,
+            averageCombinedGap: (averageRaceGap + averageQualifyingGap) / 2 }];
+    });
     if (candidates.length === 0) return [];
 
-    const smallestRaceGap = Math.min(...candidates.map(pair => pair.totalRaceGap / pair.raceGapSamples));
-    const raceGapCandidates = candidates.filter(pair =>
-        Math.abs(pair.totalRaceGap / pair.raceGapSamples - smallestRaceGap) <= TIE_EPSILON);
-    const smallestQualifyingGap = Math.min(...raceGapCandidates.map(pair =>
-        pair.totalQualifyingGap / pair.qualifyingGapSamples));
-    const qualifyingGapCandidates = raceGapCandidates.filter(pair =>
-        Math.abs(pair.totalQualifyingGap / pair.qualifyingGapSamples - smallestQualifyingGap) <= TIE_EPSILON);
-    const mostTopFiveFinishes = Math.max(...qualifyingGapCandidates.map(pair => pair.doubleTopFiveFinishes));
+    const smallestCombinedGap = Math.min(...candidates.map(candidate => candidate.averageCombinedGap));
 
-    return qualifyingGapCandidates
-        .filter(pair => pair.doubleTopFiveFinishes === mostTopFiveFinishes)
-        .map(pair => {
-            const averageRaceGap = pair.totalRaceGap / pair.raceGapSamples;
-            const averageQualifyingGap = pair.totalQualifyingGap / pair.qualifyingGapSamples;
-            return createTeamWinner(
+    return candidates
+        .filter(candidate => Math.abs(candidate.averageCombinedGap - smallestCombinedGap) <= TIE_EPSILON)
+        .map(({ pair, sharedTopTenRounds, averageRaceGap, averageQualifyingGap, averageCombinedGap }) =>
+            createTeamWinner(
                 pair,
-                averageRaceGap,
-                `Δ ${formatNumber(averageRaceGap, 3)}s RACE GAP`,
-                `${pair.doubleTopFiveFinishes}/${pair.sharedStarts} shared starts; average race gap ${formatNumber(averageRaceGap, 3)}s over ${pair.raceGapSamples} timed top-5 races; average qualifying gap ${formatNumber(averageQualifyingGap, 3)}s over ${pair.qualifyingGapSamples} sessions.`,
-            );
-        })
+                averageCombinedGap,
+                `Δ ${formatNumber(averageCombinedGap, 3)}s AVG GAP`,
+                `Both teammates finished and qualified in the top 10 in ${sharedTopTenRounds.length} shared Grand Prix. Average race-time gap ${formatNumber(averageRaceGap, 3)}s; average qualifying gap ${formatNumber(averageQualifyingGap, 3)}s.`,
+            ))
         .sort((a, b) => a.subjectName.localeCompare(b.subjectName)
             || a.secondaryLabel.localeCompare(b.secondaryLabel));
 }
@@ -623,7 +618,7 @@ export function buildSeasonAwards(
     }));
 
     const communityPairStats = collectCommunityPairStats(ratedRaces)
-        .filter(pair => pair.sharedRatedRaces >= PAIR_MIN_SHARED_RACES)
+        .filter(pair => pair.sharedRatedRaces >= COMMUNITY_PAIR_MIN_RATED_RACES)
         .map(pair => ({
             pair,
             averageGap: pair.totalRatingGap / pair.sharedRatedRaces,

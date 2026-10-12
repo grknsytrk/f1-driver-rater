@@ -67,7 +67,7 @@ function pairWeekend(
     team: string,
     driverA: string,
     driverB: string,
-    doubleTopFive: boolean,
+    doubleTopTen: boolean,
     raceGap: number,
     qualifyingGap: number,
 ): { races: SeasonRaceResult[]; qualifying: SeasonQualifyingResult[] } {
@@ -79,9 +79,9 @@ function pairWeekend(
                 points: 25,
             }),
             raceResult(round, driverB, team, {
-                position: doubleTopFive ? 5 : 6,
+                position: doubleTopTen ? 5 : 11,
                 raceTimeGapSeconds: raceGap,
-                points: doubleTopFive ? 10 : 8,
+                points: doubleTopTen ? 10 : 8,
             }),
         ],
         qualifying: [
@@ -95,12 +95,12 @@ function pairSeason(
     team: string,
     driverA: string,
     driverB: string,
-    topFiveRounds: number[],
+    topTenRounds: number[],
     raceGap: number,
     qualifyingGap: number,
 ) {
     const weekends = [1, 2, 3, 4].map(round => pairWeekend(
-        round, team, driverA, driverB, topFiveRounds.includes(round), raceGap, qualifyingGap,
+        round, team, driverA, driverB, topTenRounds.includes(round), raceGap, qualifyingGap,
     ));
     return {
         races: weekends.flatMap(weekend => weekend.races),
@@ -243,20 +243,20 @@ describe('buildSeasonAwards', () => {
         expect(awards.get('late_season_team_form')?.winners).toHaveLength(2);
     });
 
-    it('requires frequent double top-fives, then favors the closest race-time pairing', () => {
+    it('requires both teammates to be top ten and minimizes their average race and qualifying gap', () => {
         const fastPair = pairSeason('mercedes', 'a', 'b', [1, 2, 3, 4], 4, 0.2);
-        const closerButFewerTopFives = pairSeason('red_bull', 'c', 'd', [1, 2, 3], 0.1, 0.1);
-        const rareTopFives = pairSeason('haas', 'e', 'f', [1], 0.01, 0.01);
+        const widerPair = pairSeason('red_bull', 'c', 'd', [1, 2, 3], 0.1, 0.1);
+        const oneTopTenWeekend = pairSeason('haas', 'e', 'f', [1], 0.01, 0.01);
         const award = awardMap(buildSeasonAwards(
-            '2024', [...fastPair.races, ...closerButFewerTopFives.races, ...rareTopFives.races], [], [],
-            [...fastPair.qualifying, ...closerButFewerTopFives.qualifying, ...rareTopFives.qualifying],
+            '2024', [...fastPair.races, ...widerPair.races, ...oneTopTenWeekend.races], [], [],
+            [...fastPair.qualifying, ...widerPair.qualifying, ...oneTopTenWeekend.qualifying],
         )).get('best_team_pairing');
 
-        expect(award?.winners.map(winner => winner.constructorId)).toEqual(['red_bull']);
-        expect(award?.winners[0].metricValue).toBeCloseTo(0.1);
+        expect(award?.winners.map(winner => winner.constructorId)).toEqual(['haas']);
+        expect(award?.winners[0].metricValue).toBeCloseTo(0.01);
     });
 
-    it('uses race-time gap before qualifying gap and shares exact pairing ties', () => {
+    it('combines race-time and qualifying gaps and shares exact pairing ties', () => {
         const closerOnTrack = pairSeason('mercedes', 'a', 'b', [1, 2, 3], 1, 0.5);
         const closerInQualifying = pairSeason('red_bull', 'c', 'd', [1, 2, 3], 2, 0.1);
         const awards = awardMap(buildSeasonAwards(
