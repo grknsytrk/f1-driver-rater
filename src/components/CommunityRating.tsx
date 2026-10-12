@@ -38,7 +38,7 @@ export function CommunityNotice({ status, legacy = false }: { status: CommunityS
                                 KEEPING COMMUNITY RATINGS FAIR
                             </h3>
                             <p className="mt-1 font-oxanium text-[10px] leading-relaxed text-[var(--text-secondary)] md:text-xs">
-                                We’ve received too many rating attempts from this internet connection. To keep community ratings fair, new ratings are temporarily limited. Your ratings are saved on this device. Please try again later.
+                                There’s been a lot of activity from this internet connection recently. To keep community ratings fair, new ratings are temporarily limited. Shared connections can trigger this limit too, and it should clear automatically after a while. Your ratings are saved on this device. Please try again later.
                             </p>
                         </div>
                     </div>
