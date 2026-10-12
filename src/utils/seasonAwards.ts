@@ -14,7 +14,6 @@ export type SeasonAwardId =
     | 'best_team_pairing'
     | 'longest_points_streak'
     | 'race_comeback'
-    | 'qualifying_pace'
     | 'late_season_team_form';
 
 export type SeasonAwardGroup = 'community' | 'track';
@@ -730,62 +729,6 @@ export function buildSeasonAwards(
         ? 'no-positive-movement'
         : 'insufficient-data';
 
-    const qualifyingByRound = new Map<string, Map<string, SeasonQualifyingResult>>();
-    for (const result of qualifyingResults) {
-        if (!Number.isFinite(result.position) || result.position < 1
-            || typeof result.bestTimeSeconds !== 'number' || !Number.isFinite(result.bestTimeSeconds)
-            || result.bestTimeSeconds <= 0) continue;
-        const round = normalizeRound(result.round);
-        const byDriver = qualifyingByRound.get(round) ?? new Map<string, SeasonQualifyingResult>();
-        const current = byDriver.get(result.driverId);
-        if (!current || result.position < current.position) byDriver.set(result.driverId, result);
-        qualifyingByRound.set(round, byDriver);
-    }
-    const qualifyingPaceStats = new Map<string, {
-        driverName: string;
-        constructorId: string;
-        constructorName: string;
-        totalGapPercent: number;
-        qualifyingRaceCount: number;
-    }>();
-    for (const byDriver of qualifyingByRound.values()) {
-        const poleTime = [...byDriver.values()].find(result => result.position === 1)?.bestTimeSeconds;
-        if (typeof poleTime !== 'number' || !Number.isFinite(poleTime) || poleTime <= 0) continue;
-        for (const result of byDriver.values()) {
-            if (typeof result.bestTimeSeconds !== 'number') continue;
-            const gapPercent = Math.max(0, ((result.bestTimeSeconds / poleTime) - 1) * 100);
-            if (!Number.isFinite(gapPercent)) continue;
-            const current = qualifyingPaceStats.get(result.driverId) ?? {
-                driverName: result.driverName,
-                constructorId: result.constructorId,
-                constructorName: result.constructorName,
-                totalGapPercent: 0,
-                qualifyingRaceCount: 0,
-            };
-            current.totalGapPercent += gapPercent;
-            current.qualifyingRaceCount += 1;
-            current.constructorId = result.constructorId;
-            current.constructorName = result.constructorName;
-            qualifyingPaceStats.set(result.driverId, current);
-        }
-    }
-    const qualifyingPace = selectByMetric([...qualifyingPaceStats.entries()]
-        .filter(([, stats]) => stats.qualifyingRaceCount >= minimumSeasonRaceCount)
-        .map(([driverId, stats]) => {
-            const series = driverSeriesById.get(driverId) ?? {
-                driverId, driverName: stats.driverName, latestConstructorId: stats.constructorId,
-                latestConstructorName: stats.constructorName, seasonAverage: 0, points: [],
-            };
-            const averageGapPercent = stats.totalGapPercent / stats.qualifyingRaceCount;
-            return createDriverWinner(
-                series,
-                averageGapPercent,
-                `${formatNumber(averageGapPercent, 3)}% FROM POLE`,
-                `Average percentage gap from the pole time across ${stats.qualifyingRaceCount} of ${races.length} GP qualifying sessions (minimum ${minimumSeasonRaceCount}).`,
-                { id: stats.constructorId, name: stats.constructorName },
-            );
-        }), 'asc');
-
     const finalThirdCount = Math.ceil(races.length / 3);
     const finalThirdRounds = new Set(races.slice(-finalThirdCount).map(race => race.round));
     const lateTeamPoints = new Map<string, {
@@ -834,7 +777,6 @@ export function buildSeasonAwards(
             createAward('best_team_pairing', 'track', bestTeamPairing),
             createAward('longest_points_streak', 'track', longestPointsStreak),
             createAward('race_comeback', 'track', raceComeback, raceComebackEmptyStatus),
-            createAward('qualifying_pace', 'track', qualifyingPace),
             createAward('late_season_team_form', 'track', lateSeasonTeamForm),
         ],
     };

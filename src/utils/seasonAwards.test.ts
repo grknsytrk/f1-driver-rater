@@ -240,7 +240,6 @@ describe('buildSeasonAwards', () => {
         expect(awards.get('best_team_pairing')?.winners).toHaveLength(2);
         expect(awards.get('longest_points_streak')?.winners).toHaveLength(4);
         expect(awards.get('race_comeback')?.status).toBe('insufficient-data');
-        expect(awards.get('qualifying_pace')?.winners.map(winner => winner.driverId).sort()).toEqual(['alpha', 'gamma']);
         expect(awards.get('late_season_team_form')?.winners).toHaveLength(2);
     });
 
@@ -321,28 +320,6 @@ describe('buildSeasonAwards', () => {
         ], [])).get('race_comeback');
         expect(noGain?.status).toBe('no-positive-movement');
         expect(noGain?.winners).toEqual([]);
-    });
-
-    it('ranks qualifying pace by average percentage gap to pole across enough sessions', () => {
-        const results: SeasonRaceResult[] = [];
-        const qualifyingResults: SeasonQualifyingResult[] = [];
-        for (let round = 1; round <= 4; round += 1) {
-            results.push(
-                raceResult(round, 'alpha', 'mercedes'),
-                raceResult(round, 'beta', 'red_bull'),
-                raceResult(round, 'gamma', 'haas'),
-            );
-            const alphaIsPole = round <= 2;
-            qualifyingResults.push(
-                { ...qualifying(round, 'alpha', 'mercedes', alphaIsPole ? 90 : 90.3), position: alphaIsPole ? 1 : 3 },
-                { ...qualifying(round, 'beta', 'red_bull', alphaIsPole ? 90.1 : 90), position: alphaIsPole ? 2 : 1 },
-                { ...qualifying(round, 'gamma', 'haas', 90.2), position: 3 },
-            );
-        }
-        const award = awardMap(buildSeasonAwards('2024', results, [], [], qualifyingResults)).get('qualifying_pace');
-
-        expect(award?.winners.map(winner => winner.driverId)).toEqual(['beta']);
-        expect(award?.winners[0].metricValue).toBeCloseTo(((90.1 / 90) - 1) * 100 / 2);
     });
 
     it('sums the changing driver lineups into late-season team points per Grand Prix', () => {

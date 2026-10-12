@@ -5,7 +5,6 @@ import {
     Award,
     Crown,
     Flame,
-    Gauge,
     Loader2,
     Radar,
     Rocket,
@@ -143,16 +142,6 @@ const AWARD_CONFIG: Record<SeasonAwardId, AwardConfig> = {
         direction: 'Higher positive gain wins; ties share the award.',
         accentColor: '#00D084',
         Icon: Rocket,
-    },
-    qualifying_pace: {
-        label: 'Qualifying Pace',
-        eyebrow: 'Closest to pole time',
-        description: 'Measures how close each driver’s fastest recorded qualifying lap is to the pole lap across the season.',
-        source: 'Official Grand Prix qualifying times',
-        metric: 'Mean percentage gap to the pole time in each Grand Prix qualifying session; at least half of completed sessions are required.',
-        direction: 'Lower gap wins; ties share the award.',
-        accentColor: '#F4C542',
-        Icon: Gauge,
     },
     late_season_team_form: {
         label: 'Late Season Team Form',
@@ -405,7 +394,7 @@ export function SeasonAwardsPage({ season }: SeasonAwardsPageProps) {
     }
 
     const availabilityFor = (award: SeasonAward): Availability => {
-        if (award.id === 'best_team_pairing' || award.id === 'qualifying_pace') {
+        if (award.id === 'best_team_pairing') {
             return qualifyingState.season === season ? qualifyingState.status : 'loading';
         }
         if (award.group === 'track') return 'ready';
