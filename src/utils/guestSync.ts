@@ -6,7 +6,9 @@ import {
 } from './ratingData';
 
 export const COMMUNITY_CHANGE_EVENT = 'f1:community-change';
+export const GUEST_SYNC_ISSUE_EVENT = 'f1:guest-sync-issue';
 export const OUTBOX_KEY = 'f1_rating_outbox_v2';
+export type GuestSyncIssue = 'anonymous-rate-limited' | null;
 type Mutation = { id: string } & (
     { operation: 'upsert'; entry: RatingEntry } | { operation: 'delete'; scope: RatingScope }
 );
@@ -37,6 +39,12 @@ function fromCloud(row: CloudRating, kind: RatingEntry['kind']): RatingEntry {
     };
 }
 
+function isRateLimitError(error: unknown): boolean {
+    if (!error || typeof error !== 'object') return false;
+    const authError = error as { status?: unknown; code?: unknown };
+    return authError.status === 429 || authError.code === 'over_request_rate_limit';
+}
+
 // Persistent operations retain offline edits/deletes across reloads. Injecting the
 // client lets tests exercise real journal and merge behavior with controlled I/O.
 export function createGuestSync(client: SupabaseClient | null) {
@@ -46,8 +54,14 @@ export function createGuestSync(client: SupabaseClient | null) {
     let listening = false;
     let scheduled: ReturnType<typeof setTimeout> | null = null;
     let reportedError = false;
+    let issue: GuestSyncIssue = null;
     const outbox = () => readStored<Mutation[]>(OUTBOX_KEY, []);
     const persist = (mutations: Mutation[]) => localStorage.setItem(OUTBOX_KEY, JSON.stringify(mutations));
+    const setIssue = (next: GuestSyncIssue) => {
+        if (issue === next) return;
+        issue = next;
+        window.dispatchEvent(new CustomEvent<GuestSyncIssue>(GUEST_SYNC_ISSUE_EVENT, { detail: issue }));
+    };
     const protects = (entry: RatingEntry, mutations: Mutation[]) => mutations.some(mutation =>
         mutation.operation === 'delete' ? matchesScope(entry, mutation.scope) : entryKey(entry) === entryKey(mutation.entry));
 
@@ -57,10 +71,17 @@ export function createGuestSync(client: SupabaseClient | null) {
             userPromise = (async () => {
                 const { data, error } = await client.auth.getSession();
                 if (error) throw error;
-                if (data.session?.user) return data.session.user;
+                if (data.session?.user) {
+                    setIssue(null);
+                    return data.session.user;
+                }
                 const anonymous = await client.auth.signInAnonymously();
-                if (anonymous.error) throw anonymous.error;
+                if (anonymous.error) {
+                    setIssue(isRateLimitError(anonymous.error) ? 'anonymous-rate-limited' : null);
+                    throw anonymous.error;
+                }
                 if (!anonymous.data.user) throw new Error('Guest session unavailable.');
+                setIssue(null);
                 return anonymous.data.user;
             })().catch(error => { userPromise = null; throw error; });
         }
@@ -203,12 +224,13 @@ export function createGuestSync(client: SupabaseClient | null) {
         }
         return sync();
     }
-    return { initialize, sync, ensureUser, queueChanges, queueDelete };
+    return { initialize, sync, ensureUser, queueChanges, queueDelete, getIssue: () => issue };
 }
 
 const guestSync = createGuestSync(supabase);
 export const initializeGuestSync = guestSync.initialize;
 export const ensureGuestUser = guestSync.ensureUser;
+export const getGuestSyncIssue = guestSync.getIssue;
 export const queueGuestRatingChanges = guestSync.queueChanges;
 export const queueGuestSeasonDelete = (season: string) => guestSync.queueDelete({ season });
 export const queueGuestRaceSeasonDelete = (season: string) => guestSync.queueDelete({ kind: 'race', season });

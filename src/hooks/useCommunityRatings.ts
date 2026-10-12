@@ -1,5 +1,5 @@
 import { useEffect, useState, useSyncExternalStore } from 'react';
-import { COMMUNITY_CHANGE_EVENT } from '../utils/guestSync';
+import { COMMUNITY_CHANGE_EVENT, GUEST_SYNC_ISSUE_EVENT, type GuestSyncIssue } from '../utils/guestSync';
 import { LOCAL_RATINGS_EVENT, QUICK_STORAGE_KEY, RACE_STORAGE_KEY, type RatingScope } from '../utils/ratingData';
 import {
     communityClient, queryKey, scopeAffectsQuery,
@@ -42,13 +42,18 @@ export function useCommunityRatings(kind: CommunityQuery['kind'], season: string
             if (scopes.some(scope => scopeAffectsQuery(scope, query))) void refresh();
         };
         const onOnline = () => { void refresh(); };
+        const onGuestSyncIssue = (event: Event) => {
+            if ((event as CustomEvent<GuestSyncIssue>).detail === null) void refresh();
+        };
         window.addEventListener(COMMUNITY_CHANGE_EVENT, onChange);
         window.addEventListener('online', onOnline);
+        window.addEventListener(GUEST_SYNC_ISSUE_EVENT, onGuestSyncIssue);
         void refresh();
         return () => {
             active = false;
             window.removeEventListener(COMMUNITY_CHANGE_EVENT, onChange);
             window.removeEventListener('online', onOnline);
+            window.removeEventListener(GUEST_SYNC_ISSUE_EVENT, onGuestSyncIssue);
         };
     }, [key, kind, season, round]);
     if (!communityClient.configured) return { status: 'disabled', ratings: [] };
@@ -98,13 +103,18 @@ export function useCommunityRatingDistribution(
             if (scopes.some(scope => scopeAffectsQuery(scope, query))) void refresh();
         };
         const onOnline = () => { void refresh(); };
+        const onGuestSyncIssue = (event: Event) => {
+            if ((event as CustomEvent<GuestSyncIssue>).detail === null) void refresh();
+        };
         window.addEventListener(COMMUNITY_CHANGE_EVENT, onChange);
         window.addEventListener('online', onOnline);
+        window.addEventListener(GUEST_SYNC_ISSUE_EVENT, onGuestSyncIssue);
         void refresh();
         return () => {
             active = false;
             window.removeEventListener(COMMUNITY_CHANGE_EVENT, onChange);
             window.removeEventListener('online', onOnline);
+            window.removeEventListener(GUEST_SYNC_ISSUE_EVENT, onGuestSyncIssue);
         };
     }, [key, kind, season, driverId]);
 
