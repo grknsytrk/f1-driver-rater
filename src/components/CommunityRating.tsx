@@ -47,12 +47,12 @@ export function CommunityNotice({ status, legacy = false }: { status: CommunityS
                         </span>
                         <div className="min-w-0 flex-1">
                             <h3 className="font-display text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--accent-yellow)] md:text-xs">
-                                {retrying ? 'SYNCING YOUR RATINGS' : 'GUEST SIGN-IN TEMPORARILY LIMITED'}
+                                {retrying ? 'SYNCING YOUR RATINGS' : 'KEEPING COMMUNITY RATINGS FAIR'}
                             </h3>
                             <p className="mt-1 font-oxanium text-[10px] leading-relaxed text-[var(--text-secondary)] md:text-xs">
                                 {retrying
                                     ? 'Please wait while we try again.'
-                                    : 'Your ratings are saved on this device. Try again later to sync them with the community.'}
+                                    : 'We’ve received too many rating attempts from this internet connection. To keep community ratings fair, new ratings are temporarily limited. Your ratings are saved on this device.'}
                             </p>
                             {!retrying && (
                                 <button
