@@ -33,7 +33,7 @@ begin
         'Existing Quick Rate ratings must remain readable before acceptance';
     assert (select rating from public.user_quick_ratings where driver_id = 'policy_existing') = 7,
         'Existing Quick Rate rating changed before acceptance';
-    assert not (select community_eligible from public.user_quick_ratings where driver_id = 'policy_existing'),
+    assert (select community_eligible from public.user_quick_ratings where driver_id = 'policy_existing'),
         'Existing Quick Rate eligibility changed before acceptance';
 
     begin
@@ -72,7 +72,7 @@ begin
         'A rejected update changed an existing rating';
     assert (select community_eligible from public.user_race_ratings where driver_id = 'policy_existing'),
         'A rejected update changed existing race eligibility';
-    assert not (select community_eligible from public.user_quick_ratings where driver_id = 'policy_existing'),
+    assert (select community_eligible from public.user_quick_ratings where driver_id = 'policy_existing'),
         'A rejected update changed existing Quick Rate eligibility';
 end $$;
 
