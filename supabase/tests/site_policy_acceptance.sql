@@ -20,6 +20,12 @@ insert into public.user_quick_ratings
 select a, '2098', 'policy_existing', 'Existing Driver', 'test', 'Test', 7, true
 from policy_test_users;
 
+create temporary table policy_existing_state as
+select
+    (select community_eligible from public.user_race_ratings where driver_id = 'policy_existing') as race_eligible,
+    (select community_eligible from public.user_quick_ratings where driver_id = 'policy_existing') as quick_eligible;
+grant select on policy_existing_state to authenticated;
+
 select set_config('request.jwt.claim.sub', (select a::text from policy_test_users), true);
 set local role authenticated;
 
@@ -33,7 +39,8 @@ begin
         'Existing Quick Rate ratings must remain readable before acceptance';
     assert (select rating from public.user_quick_ratings where driver_id = 'policy_existing') = 7,
         'Existing Quick Rate rating changed before acceptance';
-    assert (select community_eligible from public.user_quick_ratings where driver_id = 'policy_existing'),
+    assert (select community_eligible from public.user_quick_ratings where driver_id = 'policy_existing')
+        is not distinct from (select quick_eligible from policy_existing_state),
         'Existing Quick Rate eligibility changed before acceptance';
 
     begin
@@ -70,9 +77,11 @@ begin
 
     assert (select rating from public.user_quick_ratings where driver_id = 'policy_existing') = 7,
         'A rejected update changed an existing rating';
-    assert (select community_eligible from public.user_race_ratings where driver_id = 'policy_existing'),
+    assert (select community_eligible from public.user_race_ratings where driver_id = 'policy_existing')
+        is not distinct from (select race_eligible from policy_existing_state),
         'A rejected update changed existing race eligibility';
-    assert (select community_eligible from public.user_quick_ratings where driver_id = 'policy_existing'),
+    assert (select community_eligible from public.user_quick_ratings where driver_id = 'policy_existing')
+        is not distinct from (select quick_eligible from policy_existing_state),
         'A rejected update changed existing Quick Rate eligibility';
 end $$;
 
@@ -105,7 +114,8 @@ begin
         'An accepted account could not update a race rating';
     assert (select rating from public.user_quick_ratings where driver_id = 'policy_existing') = 9,
         'An accepted account could not update a Quick Rate rating';
-    assert (select community_eligible from public.user_race_ratings where driver_id = 'policy_existing'),
+    assert (select community_eligible from public.user_race_ratings where driver_id = 'policy_existing')
+        is not distinct from (select race_eligible from policy_existing_state),
         'Acceptance changed the community eligibility of an existing rating';
 end $$;
 
