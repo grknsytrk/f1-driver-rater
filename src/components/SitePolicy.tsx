@@ -104,23 +104,29 @@ export function SitePolicyAcceptanceDialog({
                     Before adding or changing a rating, review and accept the Website Use and Community Standards. You will only be asked once for this policy version on this account.
                 </AlertDialogDescription>
 
-                <button
-                    type="button"
-                    onClick={onReadPolicy}
-                    className="justify-self-start whitespace-normal text-left font-oxanium text-[10px] font-bold uppercase tracking-widest text-[var(--accent-red)] underline decoration-[var(--accent-red)] underline-offset-4 transition-colors hover:text-[#ff3333]"
-                >
-                    WEBSITE USE AND COMMUNITY STANDARDS
-                </button>
-
-                <label className="flex cursor-pointer items-start gap-3 border border-[var(--border-color)] bg-[var(--bg-darker)] p-3 font-oxanium text-xs leading-5 text-[var(--text-secondary)]">
+                <div className="flex items-start gap-3 border border-[var(--border-color)] bg-[var(--bg-darker)] p-3 font-oxanium text-xs leading-5 text-[var(--text-secondary)]">
                     <input
+                        id="site-policy-consent"
                         type="checkbox"
                         checked={checked}
                         onChange={event => onCheckedChange(event.target.checked)}
+                        aria-label="I have read and agree to the Website Use and Community Standards."
                         className="mt-1 h-4 w-4 shrink-0 accent-[var(--accent-red)]"
                     />
-                    <span>I have read and agree to the Website Use and Community Standards.</span>
-                </label>
+                    <p>
+                        <label htmlFor="site-policy-consent" className="cursor-pointer">
+                            I have read and agree to the{' '}
+                        </label>
+                        <button
+                            type="button"
+                            onClick={onReadPolicy}
+                            className="whitespace-normal text-left font-oxanium text-xs font-semibold text-[var(--accent-red)] underline decoration-[var(--accent-red)] underline-offset-4 transition-colors hover:text-[#ff3333]"
+                        >
+                            Website Use and Community Standards
+                        </button>
+                        <label htmlFor="site-policy-consent" className="cursor-pointer">.</label>
+                    </p>
+                </div>
 
                 <div className="flex flex-col-reverse gap-2 sm:flex-row">
                     <AlertDialogCancel className="flex-1 rounded-none border border-[var(--border-color)] bg-[var(--bg-darker)] py-3 font-display text-sm uppercase tracking-widest text-white hover:border-white hover:bg-[var(--bg-darker)] hover:text-white dark:hover:bg-[var(--bg-darker)] dark:hover:text-white focus-visible:text-white">
