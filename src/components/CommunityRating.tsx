@@ -50,12 +50,12 @@ export function CommunityNotice({ status, legacy = false }: { status: CommunityS
                 <section
                     role="status"
                     aria-live="polite"
-                    className="mb-3 border border-[var(--accent-yellow)]/30 border-l-2 border-l-[var(--accent-yellow)] bg-[var(--accent-yellow)]/[0.04] p-3 md:p-4"
+                    className="mb-3 border border-[var(--accent-red)]/30 border-l-2 border-l-[var(--accent-red)] bg-[var(--accent-red)]/[0.04] p-3 md:p-4"
                 >
                     <div className="flex items-start gap-3">
-                        <span aria-hidden="true" className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center border border-[var(--accent-yellow)]/30 bg-[var(--bg-darker)] font-display text-xl font-bold leading-none text-[var(--accent-yellow)]">!</span>
+                        <span aria-hidden="true" className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center border border-[var(--accent-red)]/30 bg-[var(--bg-darker)] font-display text-xl font-bold leading-none text-[var(--accent-red)]">!</span>
                         <div className="min-w-0 flex-1">
-                            <h3 className="font-display text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--accent-yellow)] md:text-xs">
+                            <h3 className="font-display text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--accent-red)] md:text-xs">
                                 COMMUNITY RATINGS SUSPENDED INDEFINITELY
                             </h3>
                             <p className="mt-1 font-oxanium text-[10px] leading-relaxed text-[var(--text-secondary)] md:text-xs">
