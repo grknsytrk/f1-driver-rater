@@ -19,6 +19,7 @@ export function CommunityNotice({ status, legacy = false }: { status: CommunityS
     }, []);
 
     const rateLimited = issue === 'anonymous-rate-limited';
+    const communitySuspended = issue === 'community-suspended';
     const showRateLimitCard = rateLimited;
 
     return (
@@ -39,6 +40,25 @@ export function CommunityNotice({ status, legacy = false }: { status: CommunityS
                             </h3>
                             <p className="mt-1 font-oxanium text-[10px] leading-relaxed text-[var(--text-secondary)] md:text-xs">
                                 There’s been a lot of activity from this internet connection recently. To keep community ratings fair, new ratings are temporarily limited. Shared connections can trigger this limit too, and it should clear automatically after a while. Your ratings are saved on this device. Please try again later.
+                            </p>
+                        </div>
+                    </div>
+                </section>
+            )}
+            {communitySuspended && (
+                <section
+                    role="status"
+                    aria-live="polite"
+                    className="mb-3 border border-[var(--accent-yellow)]/30 border-l-2 border-l-[var(--accent-yellow)] bg-[var(--accent-yellow)]/[0.04] p-3 md:p-4"
+                >
+                    <div className="flex items-start gap-3">
+                        <span aria-hidden="true" className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center border border-[var(--accent-yellow)]/30 bg-[var(--bg-darker)] font-display text-xl font-bold leading-none text-[var(--accent-yellow)]">!</span>
+                        <div className="min-w-0 flex-1">
+                            <h3 className="font-display text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--accent-yellow)] md:text-xs">
+                                COMMUNITY RATINGS SUSPENDED INDEFINITELY
+                            </h3>
+                            <p className="mt-1 font-oxanium text-[10px] leading-relaxed text-[var(--text-secondary)] md:text-xs">
+                                Your community rating access has been suspended indefinitely due to rating manipulation. Your personal ratings remain saved, but they will not count toward community scores.
                             </p>
                         </div>
                     </div>

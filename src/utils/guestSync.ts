@@ -8,7 +8,8 @@ import {
 export const COMMUNITY_CHANGE_EVENT = 'f1:community-change';
 export const GUEST_SYNC_ISSUE_EVENT = 'f1:guest-sync-issue';
 export const OUTBOX_KEY = 'f1_rating_outbox_v2';
-export type GuestSyncIssue = 'anonymous-rate-limited' | null;
+export type GuestSyncIssue = 'anonymous-rate-limited' | 'community-suspended' | null;
+const COMMUNITY_SUSPENDED_USER_ID = 'e0b55267-2c8c-4cae-9ac0-58233a93e0f2';
 type Mutation = { id: string } & (
     { operation: 'upsert'; entry: RatingEntry } | { operation: 'delete'; scope: RatingScope }
 );
@@ -72,7 +73,7 @@ export function createGuestSync(client: SupabaseClient | null) {
                 const { data, error } = await client.auth.getSession();
                 if (error) throw error;
                 if (data.session?.user) {
-                    setIssue(null);
+                    setIssue(data.session.user.id === COMMUNITY_SUSPENDED_USER_ID ? 'community-suspended' : null);
                     return data.session.user;
                 }
                 const anonymous = await client.auth.signInAnonymously();
@@ -81,7 +82,7 @@ export function createGuestSync(client: SupabaseClient | null) {
                     throw anonymous.error;
                 }
                 if (!anonymous.data.user) throw new Error('Guest session unavailable.');
-                setIssue(null);
+                setIssue(anonymous.data.user.id === COMMUNITY_SUSPENDED_USER_ID ? 'community-suspended' : null);
                 return anonymous.data.user;
             })().catch(error => { userPromise = null; throw error; });
         }
