@@ -17,6 +17,7 @@ import { TEAM_COLORS } from '../types';
 import { calculateAverages, clearSeasonRatings, getDriverFormSeries, getRatedRacesCount, getRaceByRaceMatrix, getCountryCode, downloadRatingsAsJson, importRatings, type DriverRow, type RaceColumn } from '../utils/storage';
 import { getRaces, getSeasonDrivers, isRaceCompleted } from '../api/f1Api';
 import { useCommunityRatings, useRatingStorage } from '../hooks/useCommunityRatings';
+import { useSitePolicyConsent } from '../hooks/useSitePolicyConsent';
 import { CommunityNotice } from './CommunityRating';
 import { CommunityRatingRows } from './CommunityRatingRows';
 import { compareCommunity } from '../utils/communityRatings';
@@ -71,6 +72,7 @@ function rankBreakdownDrivers<T extends DriverRow>(drivers: T[], minimumRatedRac
 
 export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
     useRatingStorage();
+    const policyConsent = useSitePolicyConsent();
     const averages = calculateAverages(season);
     const personalRaces = getSeasonRatings(season);
     const source = personalRaces?.races.some(race => race.completed && validRatings(race.ratings).length) ? 'race' : 'quick';
@@ -379,21 +381,23 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
         const reader = new FileReader();
         reader.onload = (event) => {
             const content = event.target?.result as string;
-            const result = importRatings(content);
+            policyConsent.requestAcceptance(() => {
+                const result = importRatings(content);
 
-            if (result.success) {
-                toast.success('Import Successful', {
-                    description: result.message,
-                });
-                // Reload page to reflect imported data
-                setTimeout(() => {
-                    window.location.reload();
-                }, 1500);
-            } else {
-                toast.error('Import Failed', {
-                    description: result.message,
-                });
-            }
+                if (result.success) {
+                    toast.success('Import Successful', {
+                        description: result.message,
+                    });
+                    // Reload page to reflect imported data
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 1500);
+                } else {
+                    toast.error('Import Failed', {
+                        description: result.message,
+                    });
+                }
+            });
         };
         reader.readAsText(file);
 
@@ -1340,6 +1344,7 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
                     </div>
                 </AlertDialogContent>
             </AlertDialog>
+            {policyConsent.overlays}
         </div>
     );
 }

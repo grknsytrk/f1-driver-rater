@@ -94,7 +94,7 @@ describe('SeasonAwardsPage', () => {
 
         expect(container.textContent).toContain('Community Opinion');
         expect(container.textContent).toContain('On-Track Performance');
-        expect(container.textContent).toContain('Classified Finish Rate');
+        expect(container.textContent).toContain('Race Comeback');
         expect(container.textContent).toContain('Community rating data is not configured');
     });
 

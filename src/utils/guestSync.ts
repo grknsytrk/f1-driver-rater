@@ -11,7 +11,9 @@ export const COMMUNITY_RATING_MONITORING_EVENT = 'f1:community-rating-monitoring
 export const OUTBOX_KEY = 'f1_rating_outbox_v2';
 export type GuestSyncIssue = 'anonymous-rate-limited' | 'community-suspended' | null;
 type Mutation = { id: string } & (
-    { operation: 'upsert'; entry: RatingEntry } | { operation: 'delete'; scope: RatingScope }
+    | { operation: 'upsert'; entry: RatingEntry }
+    | { operation: 'delete'; scope: RatingScope }
+    | { operation: 'policy-acceptance'; policyVersion: string; acceptedAt: string }
 );
 interface CloudRating {
     user_id: string; season: string; round?: string; race_name?: string; race_date?: string;
@@ -72,8 +74,11 @@ export function createGuestSync(client: SupabaseClient | null) {
             detail: communityRatingMonitoringUntil,
         }));
     };
-    const protects = (entry: RatingEntry, mutations: Mutation[]) => mutations.some(mutation =>
-        mutation.operation === 'delete' ? matchesScope(entry, mutation.scope) : entryKey(entry) === entryKey(mutation.entry));
+    const protects = (entry: RatingEntry, mutations: Mutation[]) => mutations.some(mutation => {
+        if (mutation.operation === 'delete') return matchesScope(entry, mutation.scope);
+        if (mutation.operation === 'policy-acceptance') return false;
+        return entryKey(entry) === entryKey(mutation.entry);
+    });
 
     async function refreshSuspensionStatus() {
         if (!client || typeof client.rpc !== 'function') return;
@@ -164,7 +169,19 @@ export function createGuestSync(client: SupabaseClient | null) {
             if (!first) break;
             let sent: Mutation[];
             const scopes: RatingScope[] = [];
-            if (first.operation === 'upsert') {
+            if (first.operation === 'policy-acceptance') {
+                sent = [first];
+                const { error } = await client!.from('community_policy_acceptances')
+                    .upsert([{
+                        user_id: user.id,
+                        policy_version: first.policyVersion,
+                        accepted_at: first.acceptedAt,
+                    }], {
+                        onConflict: 'user_id,policy_version',
+                        ignoreDuplicates: true,
+                    }).abortSignal(AbortSignal.timeout(8000));
+                if (error) throw error;
+            } else if (first.operation === 'upsert') {
                 sent = [];
                 const entries: RatingEntry[] = [];
                 for (const mutation of pending.slice(0, 200)) {
@@ -197,7 +214,7 @@ export function createGuestSync(client: SupabaseClient | null) {
             // Acknowledge by operation ID, preserving newer changes to the same driver.
             const ids = new Set(sent.map(mutation => mutation.id));
             persist(outbox().filter(mutation => !ids.has(mutation.id)));
-            changed(scopes);
+            if (scopes.length > 0) changed(scopes);
         }
         reportedError = false;
         window.dispatchEvent(new Event('f1:guest-sync'));
@@ -248,6 +265,20 @@ export function createGuestSync(client: SupabaseClient | null) {
         schedule();
     }
 
+    function queuePolicyAcceptance(policyVersion: string, acceptedAt = new Date().toISOString()) {
+        if (!client) return;
+        const pending = outbox().filter(mutation =>
+            mutation.operation !== 'policy-acceptance' || mutation.policyVersion !== policyVersion);
+        pending.unshift({
+            id: crypto.randomUUID(),
+            operation: 'policy-acceptance',
+            policyVersion,
+            acceptedAt,
+        });
+        persist(pending);
+        schedule();
+    }
+
     function initialize() {
         if (!listening && client) {
             listening = true;
@@ -257,7 +288,7 @@ export function createGuestSync(client: SupabaseClient | null) {
         return sync();
     }
     return {
-        initialize, sync, ensureUser, queueChanges, queueDelete,
+        initialize, sync, ensureUser, queueChanges, queueDelete, queuePolicyAcceptance,
         getIssue: () => issue,
         getCommunityRatingMonitoringUntil: () => communityRatingMonitoringUntil,
     };
@@ -269,6 +300,7 @@ export const ensureGuestUser = guestSync.ensureUser;
 export const getGuestSyncIssue = guestSync.getIssue;
 export const getCommunityRatingMonitoringUntil = guestSync.getCommunityRatingMonitoringUntil;
 export const queueGuestRatingChanges = guestSync.queueChanges;
+export const queueGuestPolicyAcceptance = guestSync.queuePolicyAcceptance;
 export const queueGuestSeasonDelete = (season: string) => guestSync.queueDelete({ season });
 export const queueGuestRaceSeasonDelete = (season: string) => guestSync.queueDelete({ kind: 'race', season });
 export const queueGuestQuickSeasonDelete = (season: string) => guestSync.queueDelete({ kind: 'quick', season });

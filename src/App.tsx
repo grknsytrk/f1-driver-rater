@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronLeft, Trophy, Zap, Swords, Medal, Award } from 'lucide-react';
 import { SeasonSelector } from './components/SeasonSelector';
 import { RaceList } from './components/RaceList';
+import { SitePolicyModal } from './components/SitePolicy';
 import { DeveloperCredit } from './components/DeveloperCredit';
 import { SEOHead } from './components/SEOHead';
 import { HomeJsonLd } from './components/JsonLd';
@@ -225,6 +226,7 @@ function App() {
   const navigate = useNavigate();
   const location = useLocation();
   const [, setStorageRevision] = useState(0);
+  const [sitePolicyOpen, setSitePolicyOpen] = useState(false);
 
   useEffect(() => {
     void initializeGuestSync();
@@ -533,6 +535,14 @@ function App() {
                   <span className="w-1 h-1 bg-[var(--text-muted)] group-hover:bg-[var(--accent-red)] transition-colors" />
                   Teammate Wars
                 </a>
+                <button
+                  type="button"
+                  onClick={() => setSitePolicyOpen(true)}
+                  className="font-ui text-xs text-[var(--text-secondary)] hover:text-white hover:translate-x-1 transition-all inline-flex items-center gap-2 group text-left"
+                >
+                  <span className="w-1 h-1 bg-[var(--text-muted)] group-hover:bg-[var(--accent-red)] transition-colors" />
+                  Site Policy
+                </button>
               </nav>
             </div>
 
@@ -575,6 +585,7 @@ function App() {
           </div>
         </div>
       </footer>
+      <SitePolicyModal open={sitePolicyOpen} onClose={() => setSitePolicyOpen(false)} />
       <DeveloperCredit />
     </div>
   );

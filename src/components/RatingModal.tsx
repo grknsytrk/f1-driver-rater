@@ -9,6 +9,8 @@ import { RatingModalContentFallback } from './RouteFallbacks';
 import type { RaceRouteSnapshot } from '../routes/modalRouteState';
 
 import { useCommunityRatings, useRatingStorage } from '../hooks/useCommunityRatings';
+import { useSitePolicyConsent } from '../hooks/useSitePolicyConsent';
+import { hasCurrentSitePolicyAcceptance } from '../utils/sitePolicy';
 import { initializeGuestSync } from '../utils/guestSync';
 import { CommunityNotice, CommunityValue, PersonalRatingValue } from './CommunityRating';
 
@@ -57,6 +59,7 @@ function getFinishNameClass(position: string): string {
 
 export function RatingModal({ race, season, metadataResolved = true, onClose }: RatingModalProps) {
     useRatingStorage();
+    const policyConsent = useSitePolicyConsent();
     const community = useCommunityRatings('race', season, race.round);
     const savedRatings = getRaceRatings(season, race.round)?.ratings ?? [];
     const [drivers, setDrivers] = useState<DriverWithRating[]>([]);
@@ -109,18 +112,29 @@ export function RatingModal({ race, season, metadataResolved = true, onClose }: 
         if (loading || !metadataResolved) return;
         const driver = drivers.find(driver => driver.driverId === driverId);
         if (!driver) return;
-        saveRaceDriverRating(season, race.round, race.raceName, race.date, {
-            driverId, driverName: driver.driverName,
-            constructorId: driver.constructorId, constructorName: driver.constructorName,
-            rating,
+        if (getRaceRatings(season, race.round)?.ratings.some(saved => saved.driverId === driverId && saved.rating === rating)) {
+            return;
+        }
+        policyConsent.requestAcceptance(() => {
+            saveRaceDriverRating(season, race.round, race.raceName, race.date, {
+                driverId, driverName: driver.driverName,
+                constructorId: driver.constructorId, constructorName: driver.constructorName,
+                rating,
+            });
         });
     }
 
     function handleClose() {
         // Existing personal scores are opted into community in one explicit
-        // action when leaving this race, instead of requiring every slider to
-        // be selected again.
-        markRaceRatingsCommunityEligible(season, race.round, race.raceName, race.date);
+        // action when leaving this race, but only after accepting the policy.
+        // Declining must leave previously saved scores and eligibility intact.
+        void hasCurrentSitePolicyAcceptance()
+            .then(accepted => {
+                if (accepted) {
+                    markRaceRatingsCommunityEligible(season, race.round, race.raceName, race.date);
+                }
+            })
+            .catch(() => undefined);
         void initializeGuestSync();
         onClose();
     }
@@ -158,10 +172,11 @@ export function RatingModal({ race, season, metadataResolved = true, onClose }: 
                 </div>
             )}
         >
-            {loading ? (
-                <RatingModalContentFallback />
-            ) : (
-                <div className="flex-1 overflow-y-auto overflow-x-hidden p-2 md:p-6 custom-scrollbar">
+            <>
+                {loading ? (
+                    <RatingModalContentFallback />
+                ) : (
+                    <div className="flex-1 overflow-y-auto overflow-x-hidden p-2 md:p-6 custom-scrollbar">
                     <CommunityNotice status={community.status} legacy={savedRatings.some(rating => !rating.communityEligible)} />
                     <div className="grid grid-cols-1 gap-px border border-[var(--border-color)] bg-[var(--border-color)]">
                         {drivers.map((driver) => {
@@ -291,8 +306,10 @@ export function RatingModal({ race, season, metadataResolved = true, onClose }: 
                             );
                         })}
                     </div>
-                </div>
-            )}
+                    </div>
+                )}
+                {policyConsent.overlays}
+            </>
         </ModalShell>
     );
 }

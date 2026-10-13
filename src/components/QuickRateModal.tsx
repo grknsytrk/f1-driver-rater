@@ -9,6 +9,8 @@ import { ModalShell } from './ModalShell';
 import { QuickRateModalContentFallback } from './RouteFallbacks';
 
 import { useCommunityRatings, useRatingStorage } from '../hooks/useCommunityRatings';
+import { useSitePolicyConsent } from '../hooks/useSitePolicyConsent';
+import { hasCurrentSitePolicyAcceptance } from '../utils/sitePolicy';
 import { initializeGuestSync } from '../utils/guestSync';
 import { CommunityNotice, CommunityValue, PersonalRatingValue } from './CommunityRating';
 
@@ -34,6 +36,7 @@ interface DriverWithRating {
 
 export function QuickRateModal({ season, onClose }: QuickRateModalProps) {
     useRatingStorage();
+    const policyConsent = useSitePolicyConsent();
     const community = useCommunityRatings('quick', season);
     const savedRatings = getQuickRatings(season) ?? [];
     const [drivers, setDrivers] = useState<DriverWithRating[]>([]);
@@ -81,10 +84,13 @@ export function QuickRateModal({ season, onClose }: QuickRateModalProps) {
         if (loading) return;
         const driver = drivers.find(driver => driver.driverId === driverId);
         if (!driver) return;
-        saveQuickDriverRating(season, {
-            driverId, driverName: driver.driverName,
-            constructorId: driver.constructorId, constructorName: driver.constructorName,
-            rating,
+        if (getQuickRatings(season)?.some(saved => saved.driverId === driverId && saved.rating === rating)) return;
+        policyConsent.requestAcceptance(() => {
+            saveQuickDriverRating(season, {
+                driverId, driverName: driver.driverName,
+                constructorId: driver.constructorId, constructorName: driver.constructorName,
+                rating,
+            });
         });
     }
 
@@ -95,9 +101,13 @@ export function QuickRateModal({ season, onClose }: QuickRateModalProps) {
     }
 
     function handleClose() {
-        // Opt all existing season scores into community in one explicit action
-        // while keeping their personal values unchanged.
-        markQuickRatingsCommunityEligible(season);
+        // Opt existing scores into community only after accepting the policy.
+        // Declining must leave previously saved scores and eligibility intact.
+        void hasCurrentSitePolicyAcceptance()
+            .then(accepted => {
+                if (accepted) markQuickRatingsCommunityEligible(season);
+            })
+            .catch(() => undefined);
         void initializeGuestSync();
         onClose();
     }
@@ -139,10 +149,11 @@ export function QuickRateModal({ season, onClose }: QuickRateModalProps) {
                 </div>
             )}
         >
-            {loading ? (
-                <QuickRateModalContentFallback />
-            ) : (
-                <div className="flex-1 overflow-y-auto overflow-x-hidden p-2 md:p-6 custom-scrollbar">
+            <>
+                {loading ? (
+                    <QuickRateModalContentFallback />
+                ) : (
+                    <div className="flex-1 overflow-y-auto overflow-x-hidden p-2 md:p-6 custom-scrollbar">
                     <CommunityNotice status={community.status} legacy={savedRatings.some(rating => !rating.communityEligible)} />
                     <div className="grid grid-cols-1 gap-px border border-[var(--border-color)] bg-[var(--border-color)]">
                         {drivers.map((driver) => {
@@ -280,8 +291,10 @@ export function QuickRateModal({ season, onClose }: QuickRateModalProps) {
                             );
                         })}
                     </div>
-                </div>
-            )}
+                    </div>
+                )}
+                {policyConsent.overlays}
+            </>
         </ModalShell>
     );
 }

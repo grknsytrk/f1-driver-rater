@@ -14,8 +14,13 @@ function deferred() {
 }
 
 function fakeDatabase() {
-    const rows: Record<string, Row[]> = { user_quick_ratings: [], user_race_ratings: [] };
+    const rows: Record<string, Row[]> = {
+        user_quick_ratings: [],
+        user_race_ratings: [],
+        community_policy_acceptances: [],
+    };
     const writes: Row[][] = [];
+    const writeOrder: string[] = [];
     const control = { failWrites: false, beforeRead: null as (() => Promise<void>) | null, beforeWrite: null as (() => Promise<void>) | null };
     const from = vi.fn((table: string) => {
         let action = 'select';
@@ -40,9 +45,15 @@ function fakeDatabase() {
                 if (control.failWrites) return { data: null, error: new Error('offline') };
                 if (action === 'delete') rows[table] = rows[table].filter(row => !match(row));
                 else {
+                    writeOrder.push(table);
                     writes.push(structuredClone(payload));
                     for (const row of payload) {
-                        const index = rows[table].findIndex(old => ['user_id', 'season', 'round', 'driver_id'].every(key => old[key] === row[key]));
+                        const conflictKeys = table === 'community_policy_acceptances'
+                            ? ['user_id', 'policy_version']
+                            : table === 'user_quick_ratings'
+                                ? ['user_id', 'season', 'driver_id']
+                                : ['user_id', 'season', 'round', 'driver_id'];
+                        const index = rows[table].findIndex(old => conflictKeys.every(key => old[key] === row[key]));
                         if (index < 0) rows[table].push(row); else rows[table][index] = row;
                     }
                 }
@@ -52,7 +63,7 @@ function fakeDatabase() {
         return builder;
     });
     const client = { from, auth: { getSession: vi.fn().mockResolvedValue({ data: { session: { user: { id: 'guest-a' } } }, error: null }) } } as unknown as SupabaseClient;
-    return { rows, writes, control, client };
+    return { rows, writes, writeOrder, control, client };
 }
 
 beforeEach(() => { localStorage.clear(); vi.useFakeTimers(); });
@@ -145,5 +156,38 @@ describe('persistent guest sync journal', () => {
         await createGuestSync(null).sync();
         expect(readStored<unknown[]>(OUTBOX_KEY, [])).toHaveLength(1);
         expect(getQuickRatings('2026')?.[0].rating).toBe(8);
+    });
+    it('syncs policy acceptance before any queued rating writes', async () => {
+        const db = fakeDatabase();
+        saveQuickDriverRating('2026', driver);
+        const sync = createGuestSync(db.client);
+        sync.queuePolicyAcceptance('2026-10-14', '2026-10-14T08:30:00.000Z');
+
+        await sync.sync();
+
+        expect(db.writeOrder).toEqual(['community_policy_acceptances', 'user_quick_ratings']);
+        expect(db.rows.community_policy_acceptances).toMatchObject([
+            { user_id: 'guest-a', policy_version: '2026-10-14', accepted_at: '2026-10-14T08:30:00.000Z' },
+        ]);
+        expect(db.rows.user_quick_ratings[0]).toMatchObject({ rating: 8, user_id: 'guest-a' });
+        expect(readStored(OUTBOX_KEY, [])).toEqual([]);
+    });
+    it('retains a failed offline policy acceptance and retries it before ratings', async () => {
+        const db = fakeDatabase();
+        db.control.failWrites = true;
+        const sync = createGuestSync(db.client);
+        sync.queuePolicyAcceptance('2026-10-14', '2026-10-14T08:30:00.000Z');
+        saveQuickDriverRating('2026', driver);
+
+        await sync.sync();
+        expect(readStored<unknown[]>(OUTBOX_KEY, [])).toHaveLength(2);
+        expect(db.rows.user_quick_ratings).toEqual([]);
+
+        db.control.failWrites = false;
+        await sync.sync();
+
+        expect(db.writeOrder.slice(-2)).toEqual(['community_policy_acceptances', 'user_quick_ratings']);
+        expect(db.rows.user_quick_ratings[0]).toMatchObject({ rating: 8, user_id: 'guest-a' });
+        expect(readStored(OUTBOX_KEY, [])).toEqual([]);
     });
 });
