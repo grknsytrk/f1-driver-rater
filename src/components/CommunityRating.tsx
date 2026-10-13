@@ -83,13 +83,16 @@ export function CommunityNotice({ status, legacy = false }: { status: CommunityS
                         <span aria-hidden="true" className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center border border-sky-400/30 bg-[var(--bg-darker)] font-display text-xl font-bold leading-none text-sky-300">i</span>
                         <div className="min-w-0 flex-1">
                             <h3 className="font-display text-[10px] font-bold uppercase tracking-[0.12em] text-sky-300 md:text-xs">
-                                NEW ACCOUNT NOTICE — 24-HOUR MONITORING
+                                NEW ACCOUNT NOTICE
                             </h3>
-                            <p className="mt-1 font-oxanium text-[10px] leading-relaxed text-[var(--text-secondary)] md:text-xs">
-                                To help protect community ratings from manipulation, ratings from new accounts are monitored during their first 24 hours and won’t count toward community averages during this period. If no suspicious activity is detected, eligible ratings will be added automatically when the monitoring period ends.
+                            <p className="mt-1 font-display text-[8px] font-bold uppercase tracking-[0.12em] text-sky-300/80 md:text-[9px]">
+                                24-HOUR MONITORING
                             </p>
                             <p className="mt-2 font-oxanium text-[10px] leading-relaxed text-[var(--text-secondary)] md:text-xs">
-                                Deliberately submitting unfair ratings, participating in review bombing, or creating accounts to manipulate community results is prohibited. Accounts found engaging in this behavior will be permanently suspended from community rating, and their ratings will not count toward community scores. Your ratings remain saved to your account during the monitoring period.
+                                To protect community ratings from manipulation, ratings from new accounts are excluded from community averages during their first 24 hours. Your ratings are saved to your account during this period. If no suspicious activity is identified, eligible ratings will be added automatically after the 24-hour period.
+                            </p>
+                            <p className="mt-2 font-oxanium text-[10px] leading-relaxed text-[var(--text-secondary)] md:text-xs">
+                                Review bombing, creating multiple accounts to manipulate results, and deliberately submitting unfair ratings are strictly prohibited. Accounts found engaging in this behavior will be permanently suspended from community rating, and their ratings will be excluded from community averages.
                             </p>
                         </div>
                     </div>
