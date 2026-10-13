@@ -107,9 +107,9 @@ export function SitePolicyAcceptanceDialog({
                 <button
                     type="button"
                     onClick={onReadPolicy}
-                    className="justify-self-start font-oxanium text-[10px] font-bold uppercase tracking-widest text-[var(--accent-red)] underline decoration-[var(--accent-red)]/50 underline-offset-4 transition-colors hover:text-white"
+                    className="justify-self-start whitespace-normal text-left font-oxanium text-[10px] font-bold uppercase tracking-widest text-[var(--accent-red)] underline decoration-[var(--accent-red)] underline-offset-4 transition-colors hover:text-[#ff3333]"
                 >
-                    READ FULL POLICY
+                    WEBSITE USE AND COMMUNITY STANDARDS
                 </button>
 
                 <label className="flex cursor-pointer items-start gap-3 border border-[var(--border-color)] bg-[var(--bg-darker)] p-3 font-oxanium text-xs leading-5 text-[var(--text-secondary)]">
@@ -123,7 +123,7 @@ export function SitePolicyAcceptanceDialog({
                 </label>
 
                 <div className="flex flex-col-reverse gap-2 sm:flex-row">
-                    <AlertDialogCancel className="flex-1 rounded-none border border-[var(--border-color)] bg-[var(--bg-darker)] py-3 font-display text-sm uppercase tracking-widest text-white hover:border-white hover:bg-[var(--bg-darker)]">
+                    <AlertDialogCancel className="flex-1 rounded-none border border-[var(--border-color)] bg-[var(--bg-darker)] py-3 font-display text-sm uppercase tracking-widest text-white hover:border-white hover:bg-[var(--bg-darker)] hover:text-white dark:hover:bg-[var(--bg-darker)] dark:hover:text-white focus-visible:text-white">
                         CANCEL
                     </AlertDialogCancel>
                     <AlertDialogAction
