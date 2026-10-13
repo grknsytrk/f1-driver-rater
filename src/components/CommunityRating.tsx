@@ -56,10 +56,10 @@ export function CommunityNotice({ status, legacy = false }: { status: CommunityS
                         <span aria-hidden="true" className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center border border-[var(--accent-red)]/30 bg-[var(--bg-darker)] font-display text-xl font-bold leading-none text-[var(--accent-red)]">!</span>
                         <div className="min-w-0 flex-1">
                             <h3 className="font-display text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--accent-red)] md:text-xs">
-                                COMMUNITY RATINGS SUSPENDED INDEFINITELY
+                                COMMUNITY RATING ACCESS SUSPENDED
                             </h3>
                             <p className="mt-1 font-oxanium text-[10px] leading-relaxed text-[var(--text-secondary)] md:text-xs">
-                                Your community rating access has been suspended indefinitely due to rating manipulation. Your personal ratings remain saved, but they will not count toward community scores.
+                                A pattern of rating manipulation has been detected on this account. This conduct is unacceptable and undermines the integrity of community ratings. Community rating access has been suspended indefinitely. Attempts to bypass this restriction may result in further action.
                             </p>
                         </div>
                     </div>
