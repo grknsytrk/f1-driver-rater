@@ -67,7 +67,8 @@ export function CommunityNotice({ status, legacy = false }: { status: CommunityS
                                 KEEPING COMMUNITY RATINGS FAIR
                             </h3>
                             <p className="mt-1 font-oxanium text-[10px] leading-relaxed text-[var(--text-secondary)] md:text-xs">
-                                There’s been a lot of activity from this internet connection recently. To keep community ratings fair, new ratings are temporarily limited. Shared connections can trigger this limit too, and it should clear automatically after a while. Your ratings are saved on this device. Please try again later.
+                                We’ve detected high account activity from this internet connection recently. To prevent multi-account manipulation and keep scores fair, ratings from this connection are{' '}
+                                <strong>temporarily excluded from community averages</strong>. Shared networks can trigger this limit too, and it will reset automatically after a short cooldown. Your ratings remain saved on this device. Please try again later.
                             </p>
                         </div>
                     </div>
@@ -111,7 +112,7 @@ export function CommunityNotice({ status, legacy = false }: { status: CommunityS
                                 COMMUNITY RATING ACCESS SUSPENDED
                             </h3>
                             <p className="mt-1 font-oxanium text-[10px] leading-relaxed text-[var(--text-secondary)] md:text-xs">
-                                A pattern of rating manipulation has been detected on this account. This conduct is unacceptable and undermines the integrity of community ratings. Community rating access has been suspended indefinitely. Attempts to bypass this restriction may result in further action.
+                                A pattern of rating manipulation has been detected on this account. This behavior violates our fair play policy and undermines the integrity of community scores. Your access to community rating has been suspended indefinitely, and your scores have been excluded from community averages. Attempts to bypass this restriction may result in further action.
                             </p>
                         </div>
                     </div>
