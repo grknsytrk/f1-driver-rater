@@ -1,7 +1,10 @@
 import { useEffect, useState } from 'react';
 import type { CommunityRating, CommunityStatus } from '../utils/communityRatings';
 import {
+    COMMUNITY_CHANGE_EVENT,
+    COMMUNITY_RATING_MONITORING_EVENT,
     GUEST_SYNC_ISSUE_EVENT,
+    getCommunityRatingMonitoringUntil,
     getGuestSyncIssue,
     type GuestSyncIssue,
 } from '../utils/guestSync';
@@ -9,18 +12,42 @@ import { getRatingColor } from '../utils/ratingColor';
 
 export function CommunityNotice({ status, legacy = false }: { status: CommunityStatus; legacy?: boolean }) {
     const [issue, setIssue] = useState<GuestSyncIssue>(getGuestSyncIssue);
+    const [monitoringUntil, setMonitoringUntil] = useState<string | null>(getCommunityRatingMonitoringUntil);
 
     useEffect(() => {
         const handleIssue = (event: Event) => {
             setIssue((event as CustomEvent<GuestSyncIssue>).detail);
         };
+        const handleMonitoring = (event: Event) => {
+            setMonitoringUntil((event as CustomEvent<string | null>).detail);
+        };
         window.addEventListener(GUEST_SYNC_ISSUE_EVENT, handleIssue);
+        window.addEventListener(COMMUNITY_RATING_MONITORING_EVENT, handleMonitoring);
         setIssue(getGuestSyncIssue());
-        return () => window.removeEventListener(GUEST_SYNC_ISSUE_EVENT, handleIssue);
+        setMonitoringUntil(getCommunityRatingMonitoringUntil());
+        return () => {
+            window.removeEventListener(GUEST_SYNC_ISSUE_EVENT, handleIssue);
+            window.removeEventListener(COMMUNITY_RATING_MONITORING_EVENT, handleMonitoring);
+        };
     }, []);
+
+    useEffect(() => {
+        if (!monitoringUntil) return;
+        const expiration = Date.parse(monitoringUntil);
+        if (!Number.isFinite(expiration)) {
+            setMonitoringUntil(null);
+            return;
+        }
+        const timeout = window.setTimeout(() => {
+            setMonitoringUntil(null);
+            window.dispatchEvent(new CustomEvent(COMMUNITY_CHANGE_EVENT, { detail: [{}] }));
+        }, Math.max(0, expiration - Date.now() + 100));
+        return () => window.clearTimeout(timeout);
+    }, [monitoringUntil]);
 
     const rateLimited = issue === 'anonymous-rate-limited';
     const communitySuspended = issue === 'community-suspended';
+    const underNewAccountMonitoring = monitoringUntil !== null && Date.parse(monitoringUntil) > Date.now();
     const showRateLimitCard = rateLimited;
 
     return (
@@ -41,6 +68,28 @@ export function CommunityNotice({ status, legacy = false }: { status: CommunityS
                             </h3>
                             <p className="mt-1 font-oxanium text-[10px] leading-relaxed text-[var(--text-secondary)] md:text-xs">
                                 There’s been a lot of activity from this internet connection recently. To keep community ratings fair, new ratings are temporarily limited. Shared connections can trigger this limit too, and it should clear automatically after a while. Your ratings are saved on this device. Please try again later.
+                            </p>
+                        </div>
+                    </div>
+                </section>
+            )}
+            {underNewAccountMonitoring && !communitySuspended && (
+                <section
+                    role="status"
+                    aria-live="polite"
+                    className="mb-3 border border-sky-400/30 border-l-2 border-l-sky-400 bg-sky-500/[0.04] p-3 md:p-4"
+                >
+                    <div className="flex items-start gap-3">
+                        <span aria-hidden="true" className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center border border-sky-400/30 bg-[var(--bg-darker)] font-display text-xl font-bold leading-none text-sky-300">i</span>
+                        <div className="min-w-0 flex-1">
+                            <h3 className="font-display text-[10px] font-bold uppercase tracking-[0.12em] text-sky-300 md:text-xs">
+                                NEW ACCOUNT NOTICE — 24-HOUR MONITORING
+                            </h3>
+                            <p className="mt-1 font-oxanium text-[10px] leading-relaxed text-[var(--text-secondary)] md:text-xs">
+                                To help protect community ratings from manipulation, ratings from new accounts are monitored during their first 24 hours and won’t count toward community averages during this period. If no suspicious activity is detected, eligible ratings will be added automatically when the monitoring period ends.
+                            </p>
+                            <p className="mt-2 font-oxanium text-[10px] leading-relaxed text-[var(--text-secondary)] md:text-xs">
+                                Deliberately submitting unfair ratings, participating in review bombing, or creating accounts to manipulate community results is prohibited. Accounts found engaging in this behavior will be permanently suspended from community rating, and their ratings will not count toward community scores. Your ratings remain saved to your account during the monitoring period.
                             </p>
                         </div>
                     </div>

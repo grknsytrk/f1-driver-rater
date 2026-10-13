@@ -7,6 +7,7 @@ import {
 
 export const COMMUNITY_CHANGE_EVENT = 'f1:community-change';
 export const GUEST_SYNC_ISSUE_EVENT = 'f1:guest-sync-issue';
+export const COMMUNITY_RATING_MONITORING_EVENT = 'f1:community-rating-monitoring';
 export const OUTBOX_KEY = 'f1_rating_outbox_v2';
 export type GuestSyncIssue = 'anonymous-rate-limited' | 'community-suspended' | null;
 type Mutation = { id: string } & (
@@ -55,6 +56,7 @@ export function createGuestSync(client: SupabaseClient | null) {
     let scheduled: ReturnType<typeof setTimeout> | null = null;
     let reportedError = false;
     let issue: GuestSyncIssue = null;
+    let communityRatingMonitoringUntil: string | null = null;
     let lastSuspensionCheckAt = 0;
     const outbox = () => readStored<Mutation[]>(OUTBOX_KEY, []);
     const persist = (mutations: Mutation[]) => localStorage.setItem(OUTBOX_KEY, JSON.stringify(mutations));
@@ -62,6 +64,13 @@ export function createGuestSync(client: SupabaseClient | null) {
         if (issue === next) return;
         issue = next;
         window.dispatchEvent(new CustomEvent<GuestSyncIssue>(GUEST_SYNC_ISSUE_EVENT, { detail: issue }));
+    };
+    const setCommunityRatingMonitoringUntil = (next: string | null) => {
+        if (communityRatingMonitoringUntil === next) return;
+        communityRatingMonitoringUntil = next;
+        window.dispatchEvent(new CustomEvent<string | null>(COMMUNITY_RATING_MONITORING_EVENT, {
+            detail: communityRatingMonitoringUntil,
+        }));
     };
     const protects = (entry: RatingEntry, mutations: Mutation[]) => mutations.some(mutation =>
         mutation.operation === 'delete' ? matchesScope(entry, mutation.scope) : entryKey(entry) === entryKey(mutation.entry));
@@ -72,12 +81,18 @@ export function createGuestSync(client: SupabaseClient | null) {
         if (lastSuspensionCheckAt !== 0 && now - lastSuspensionCheckAt < 60_000) return;
         lastSuspensionCheckAt = now;
         try {
-            const { data, error } = await client.rpc('get_community_suspension_status');
-            if (error) {
-                lastSuspensionCheckAt = 0;
-                return;
+            const [suspension, monitoring] = await Promise.all([
+                client.rpc('get_community_suspension_status'),
+                client.rpc('get_community_rating_monitoring_until'),
+            ]);
+            if (!suspension.error) setIssue(suspension.data === true ? 'community-suspended' : null);
+            if (!monitoring.error) {
+                const until = typeof monitoring.data === 'string' && Number.isFinite(Date.parse(monitoring.data))
+                    ? monitoring.data
+                    : null;
+                setCommunityRatingMonitoringUntil(until);
             }
-            setIssue(data === true ? 'community-suspended' : null);
+            if (suspension.error || monitoring.error) lastSuspensionCheckAt = 0;
         } catch {
             lastSuspensionCheckAt = 0;
         }
@@ -241,13 +256,18 @@ export function createGuestSync(client: SupabaseClient | null) {
         }
         return sync();
     }
-    return { initialize, sync, ensureUser, queueChanges, queueDelete, getIssue: () => issue };
+    return {
+        initialize, sync, ensureUser, queueChanges, queueDelete,
+        getIssue: () => issue,
+        getCommunityRatingMonitoringUntil: () => communityRatingMonitoringUntil,
+    };
 }
 
 const guestSync = createGuestSync(supabase);
 export const initializeGuestSync = guestSync.initialize;
 export const ensureGuestUser = guestSync.ensureUser;
 export const getGuestSyncIssue = guestSync.getIssue;
+export const getCommunityRatingMonitoringUntil = guestSync.getCommunityRatingMonitoringUntil;
 export const queueGuestRatingChanges = guestSync.queueChanges;
 export const queueGuestSeasonDelete = (season: string) => guestSync.queueDelete({ season });
 export const queueGuestRaceSeasonDelete = (season: string) => guestSync.queueDelete({ kind: 'race', season });
