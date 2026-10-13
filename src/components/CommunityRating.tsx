@@ -15,6 +15,7 @@ export function CommunityNotice({ status, legacy = false }: { status: CommunityS
             setIssue((event as CustomEvent<GuestSyncIssue>).detail);
         };
         window.addEventListener(GUEST_SYNC_ISSUE_EVENT, handleIssue);
+        setIssue(getGuestSyncIssue());
         return () => window.removeEventListener(GUEST_SYNC_ISSUE_EVENT, handleIssue);
     }, []);
 
