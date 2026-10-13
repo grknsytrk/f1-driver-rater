@@ -9,7 +9,6 @@ export const COMMUNITY_CHANGE_EVENT = 'f1:community-change';
 export const GUEST_SYNC_ISSUE_EVENT = 'f1:guest-sync-issue';
 export const OUTBOX_KEY = 'f1_rating_outbox_v2';
 export type GuestSyncIssue = 'anonymous-rate-limited' | 'community-suspended' | null;
-const COMMUNITY_SUSPENDED_USER_ID = 'e0b55267-2c8c-4cae-9ac0-58233a93e0f2';
 type Mutation = { id: string } & (
     { operation: 'upsert'; entry: RatingEntry } | { operation: 'delete'; scope: RatingScope }
 );
@@ -56,6 +55,7 @@ export function createGuestSync(client: SupabaseClient | null) {
     let scheduled: ReturnType<typeof setTimeout> | null = null;
     let reportedError = false;
     let issue: GuestSyncIssue = null;
+    let lastSuspensionCheckAt = 0;
     const outbox = () => readStored<Mutation[]>(OUTBOX_KEY, []);
     const persist = (mutations: Mutation[]) => localStorage.setItem(OUTBOX_KEY, JSON.stringify(mutations));
     const setIssue = (next: GuestSyncIssue) => {
@@ -66,6 +66,23 @@ export function createGuestSync(client: SupabaseClient | null) {
     const protects = (entry: RatingEntry, mutations: Mutation[]) => mutations.some(mutation =>
         mutation.operation === 'delete' ? matchesScope(entry, mutation.scope) : entryKey(entry) === entryKey(mutation.entry));
 
+    async function refreshSuspensionStatus() {
+        if (!client || typeof client.rpc !== 'function') return;
+        const now = Date.now();
+        if (lastSuspensionCheckAt !== 0 && now - lastSuspensionCheckAt < 60_000) return;
+        lastSuspensionCheckAt = now;
+        try {
+            const { data, error } = await client.rpc('get_community_suspension_status');
+            if (error) {
+                lastSuspensionCheckAt = 0;
+                return;
+            }
+            setIssue(data === true ? 'community-suspended' : null);
+        } catch {
+            lastSuspensionCheckAt = 0;
+        }
+    }
+
     async function ensureUser(): Promise<User> {
         if (!client) throw new Error('Cloud sync is not configured.');
         if (!userPromise) {
@@ -73,7 +90,6 @@ export function createGuestSync(client: SupabaseClient | null) {
                 const { data, error } = await client.auth.getSession();
                 if (error) throw error;
                 if (data.session?.user) {
-                    setIssue(data.session.user.id === COMMUNITY_SUSPENDED_USER_ID ? 'community-suspended' : null);
                     return data.session.user;
                 }
                 const anonymous = await client.auth.signInAnonymously();
@@ -82,7 +98,6 @@ export function createGuestSync(client: SupabaseClient | null) {
                     throw anonymous.error;
                 }
                 if (!anonymous.data.user) throw new Error('Guest session unavailable.');
-                setIssue(anonymous.data.user.id === COMMUNITY_SUSPENDED_USER_ID ? 'community-suspended' : null);
                 return anonymous.data.user;
             })().catch(error => { userPromise = null; throw error; });
         }
@@ -126,6 +141,7 @@ export function createGuestSync(client: SupabaseClient | null) {
 
     async function flush() {
         const user = await ensureUser();
+        void refreshSuspensionStatus();
         if (!hydrated) await hydrate(user.id);
         for (;;) {
             const pending = outbox();
