@@ -110,7 +110,7 @@ export function SitePolicyAcceptanceDialog({
                         type="checkbox"
                         checked={checked}
                         onChange={event => onCheckedChange(event.target.checked)}
-                        aria-label="I have read and agree to the Website Use and Community Standards."
+                        aria-label="I have read and agree to the Terms of Use."
                         className="mt-1 h-4 w-4 shrink-0 accent-[var(--accent-red)]"
                     />
                     <p>
@@ -122,7 +122,7 @@ export function SitePolicyAcceptanceDialog({
                             onClick={onReadPolicy}
                             className="whitespace-normal text-left font-oxanium text-xs font-semibold text-[var(--accent-red)] underline decoration-[var(--accent-red)] underline-offset-4 transition-colors hover:text-[#ff3333]"
                         >
-                            Website Use and Community Standards
+                            Terms of Use
                         </button>
                         <label htmlFor="site-policy-consent" className="cursor-pointer">.</label>
                     </p>
