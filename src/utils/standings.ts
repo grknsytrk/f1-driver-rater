@@ -21,6 +21,11 @@ export interface ChampionshipProgressPoint {
     scores: Record<string, { weekendPoints: number; totalPoints: number }>;
 }
 
+export interface ChampionshipGapPoint extends ChampionshipProgressPoint {
+    leaderPoints: number;
+    gaps: Record<string, number>;
+}
+
 export interface PointsTrackerEntry {
     id: string;
     name: string;
@@ -139,6 +144,40 @@ export function buildPointsTimeline(
             return [entryId, { weekendPoints, totalPoints }];
         })),
     }));
+}
+
+/** Build a stable signature of each round's leader points for the active comparison set. */
+export function getRoundLeaderSignature(
+    points: ChampionshipProgressPoint[],
+    leaderIds: readonly string[],
+): string {
+    return points.map(point => (
+        leaderIds.reduce((max, id) => Math.max(max, point.scores[id]?.totalPoints ?? 0), 0)
+    )).join(',');
+}
+
+/** Calculate each round's points deficit to the round leader among the compared entries (0 = round leader). */
+export function buildChampionshipGapPoints(
+    points: ChampionshipProgressPoint[],
+    leaderIdsOrSignature: readonly string[] | string,
+): ChampionshipGapPoint[] {
+    const roundLeaders = typeof leaderIdsOrSignature === 'string'
+        ? (leaderIdsOrSignature ? leaderIdsOrSignature.split(',').map(Number) : [])
+        : points.map(point => leaderIdsOrSignature.reduce(
+            (max, id) => Math.max(max, point.scores[id]?.totalPoints ?? 0),
+            0,
+        ));
+    return points.map((point, index) => {
+        const leaderPoints = roundLeaders[index] ?? 0;
+        return {
+            ...point,
+            leaderPoints,
+            gaps: Object.fromEntries(Object.entries(point.scores).map(([id, score]) => [
+                id,
+                Math.max(0, Number((leaderPoints - score.totalPoints).toFixed(4))),
+            ])),
+        };
+    });
 }
 
 export function normalizeStandingStatus(status?: string | null): 'DNF' | 'DSQ' | 'DNS' {

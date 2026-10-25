@@ -230,7 +230,8 @@ describe('standings points tracker', () => {
         let finishExport!: (value: string) => void;
         chart.export.mockImplementationOnce(async (element: HTMLElement) => {
             expect(element.querySelector('[data-line="scores.norris.totalPoints"]')).toBeNull();
-            expect(element.querySelectorAll('[data-animated="false"]')).toHaveLength(3);
+            expect(element.querySelector('[data-line="gaps.norris"]')).toBeNull();
+            expect(element.querySelectorAll('[data-animated="false"]')).toHaveLength(6);
             return new Promise<string>(resolve => { finishExport = resolve; });
         });
         await clickButton('SAVE IMAGE');

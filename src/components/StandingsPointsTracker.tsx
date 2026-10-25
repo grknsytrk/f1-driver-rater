@@ -1,9 +1,9 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useReducedMotion } from 'framer-motion';
 import { ChartNoAxesCombined } from 'lucide-react';
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis, useActiveTooltipDataPoints } from 'recharts';
 import { POINTS_RESCALE_MS, usePointsTrackerSeries } from '../hooks/usePointsTrackerSeries';
-import type { ChampionshipProgressPoint, PointsTrackerEntry } from '../utils/standings';
+import { buildChampionshipGapPoints, getRoundLeaderSignature, type ChampionshipGapPoint, type ChampionshipProgressPoint, type PointsTrackerEntry } from '../utils/standings';
 import { getCountryCode } from '../utils/storage';
 import { ProgressiveTrackerCurve, ProgressiveTrackerDot } from './ProgressiveTrackerLine';
 
@@ -33,6 +33,7 @@ const RACE_LABELS: Record<string, string> = {
 const pointsFormatter = new Intl.NumberFormat('en-GB', { maximumFractionDigits: 3 });
 const CHART_MARGIN = { left: 0, right: 16, top: 20, bottom: 10 };
 const POINTS_DOMAIN: [number, 'auto'] = [0, 'auto'];
+const GAP_DOMAIN: [number, (dataMax: number) => number] = [0, (dataMax: number) => (dataMax > 0 ? dataMax : 10)];
 const AXIS_TICK = { fill: '#8E9196', fontSize: 11, fontFamily: 'Oxanium, sans-serif' };
 
 function raceLabel(point: ChampionshipProgressPoint): string {
@@ -81,6 +82,15 @@ export function StandingsPointsTracker({
     const selectedIds = new Set(selection ?? entries.slice(0, 3).map(entry => entry.id));
     const selectedEntries = entries.filter(entry => selectedIds.has(entry.id));
     const series = usePointsTrackerSeries(selectedEntries.map(entry => entry.id), instant);
+    const leaderSignature = useMemo(
+        () => getRoundLeaderSignature(points, series.map(item => item.id)),
+        [points, series],
+    );
+    const gapPoints = useMemo(
+        () => buildChampionshipGapPoints(points, leaderSignature),
+        [points, leaderSignature],
+    );
+    const latestGapPoint = gapPoints.at(-1);
     const renderedSeries = series.flatMap(series => {
         const entry = entries.find(entry => entry.id === series.id);
         return entry ? [{ ...series, entry }] : [];
@@ -294,6 +304,119 @@ export function StandingsPointsTracker({
                                             ))}
                                         </LineChart>
                                     </ResponsiveContainer>
+                                </div>
+
+                                <div className="border-t border-[var(--border-color)] pt-6 space-y-4">
+                                    <div className="flex flex-wrap items-end justify-between gap-3">
+                                        <div className="border-l-[6px] border-[var(--accent-yellow)] pl-3">
+                                            <div className="font-oxanium text-[10px] uppercase tracking-[0.2em] text-[var(--text-muted)] mb-1">
+                                                LEADER BASELINE · 0 PTS
+                                            </div>
+                                            <h5 className="font-display text-lg md:text-2xl text-white uppercase tracking-tight leading-none">
+                                                GAP TO LEADER
+                                            </h5>
+                                        </div>
+                                        <span className="font-oxanium text-[10px] text-[var(--text-muted)] uppercase tracking-widest">
+                                            ROUND LEADER AT BOTTOM (0) · DEFICIT IN POINTS
+                                        </span>
+                                    </div>
+
+                                    <div className="flex flex-wrap gap-x-5 gap-y-2" aria-label={`Selected ${singular} gap lines`}>
+                                        {renderedSeries.map(({ entry }) => {
+                                            const latestGap = latestGapPoint?.gaps[entry.id] ?? 0;
+                                            return (
+                                                <div key={entry.id} className="flex items-center gap-2 font-oxanium text-[11px] text-[var(--text-secondary)] uppercase">
+                                                    <LineSwatch {...entry} />
+                                                    <span>{entry.label}</span>
+                                                    <span className={latestGap === 0 ? 'text-[var(--accent-yellow)]' : 'text-white'}>
+                                                        {latestGap === 0 ? 'LEADER (0)' : `−${pointsFormatter.format(latestGap)}`}
+                                                    </span>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+
+                                    <div className="h-[280px] md:h-[360px] min-w-0" role="region" aria-label="Points gap to leader by race">
+                                        <ResponsiveContainer width="100%" height="100%" minWidth={0} onResize={setChartWidth}>
+                                            <LineChart data={gapPoints} margin={CHART_MARGIN} accessibilityLayer>
+                                                <CartesianGrid stroke="rgba(255,255,255,0.06)" strokeDasharray="3 3" />
+                                                <XAxis
+                                                    dataKey="round"
+                                                    tickFormatter={formatRound}
+                                                    axisLine={false}
+                                                    tickLine={false}
+                                                    minTickGap={18}
+                                                    interval="preserveStartEnd"
+                                                    tick={AXIS_TICK}
+                                                />
+                                                <YAxis
+                                                    type="number"
+                                                    domain={GAP_DOMAIN}
+                                                    width={44}
+                                                    axisLine={false}
+                                                    tickLine={false}
+                                                    tick={AXIS_TICK}
+                                                />
+                                                <Tooltip
+                                                    cursor={{ stroke: 'rgba(255,255,255,0.12)', strokeWidth: 1 }}
+                                                    wrapperClassName="hide-on-export"
+                                                    wrapperStyle={{ pointerEvents: 'auto' }}
+                                                    position={chartWidth < 400 ? { x: 0, y: 0 } : undefined}
+                                                    content={({ active, payload }) => {
+                                                        const point = payload?.[0]?.payload as ChampionshipGapPoint | undefined;
+                                                        if (!active || !point || isExporting || selectedEntries.length === 0) return null;
+                                                        const comparison = [...selectedEntries].sort((a, b) => point.scores[b.id].totalPoints - point.scores[a.id].totalPoints);
+                                                        const leaderPoints = point.scores[comparison[0].id].totalPoints;
+                                                        return (
+                                                            <div className="bg-[#050608] border border-[var(--border-color)] p-3 md:p-4 shadow-2xl w-[260px] max-w-[calc(100vw-64px)] max-h-[300px] md:max-h-[380px] overflow-y-auto">
+                                                                <div className="font-oxanium text-[10px] text-[var(--text-muted)] uppercase tracking-widest mb-1">ROUND {point.round} · GAP TO LEADER</div>
+                                                                <div className="font-display text-sm text-white uppercase mb-3">{point.raceName.replace(' Grand Prix', '')}</div>
+                                                                {point.sprintOnly && (
+                                                                    <p className="font-oxanium text-[10px] text-[var(--accent-yellow)] mb-3">SPRINT ONLY · GP RESULTS PENDING</p>
+                                                                )}
+                                                                <div className="grid grid-cols-[1fr_auto_auto] gap-x-3 gap-y-2 font-oxanium text-xs">
+                                                                    <span className="text-[var(--text-muted)] text-[9px]">{mode === 'drivers' ? 'DRIVER' : 'TEAM'}</span>
+                                                                    <span className="text-[var(--text-muted)] text-[9px] text-right">GAP</span>
+                                                                    <span className="text-[var(--text-muted)] text-[9px] text-right">TOTAL</span>
+                                                                    {comparison.map(entry => {
+                                                                        const score = point.scores[entry.id];
+                                                                        const deficit = pointsFormatter.format(leaderPoints - score.totalPoints);
+                                                                        return (
+                                                                            <div key={entry.id} className="contents">
+                                                                                <div className="flex items-center gap-2 text-white uppercase min-w-0">
+                                                                                    <LineSwatch {...entry} />
+                                                                                    <span className="truncate" title={entry.name}>{mode === 'drivers' ? entry.code ?? entry.label : entry.label}</span>
+                                                                                </div>
+                                                                                <span className="text-[var(--accent-yellow)] text-right tabular-nums">{deficit === '0' ? 'LEADER (0)' : `−${deficit}`}</span>
+                                                                                <span className="text-white text-right tabular-nums">{pointsFormatter.format(score.totalPoints)}</span>
+                                                                            </div>
+                                                                        );
+                                                                    })}
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    }}
+                                                />
+                                                {renderedSeries.map(({ entry, progress }) => (
+                                                    <Line
+                                                        key={entry.id}
+                                                        name={`${entry.name} gap`}
+                                                        type="linear"
+                                                        dataKey={`gaps.${entry.id}`}
+                                                        stroke={entry.color}
+                                                        strokeDasharray={entry.dash}
+                                                        strokeWidth={3}
+                                                        shape={<ProgressiveTrackerCurve progress={progress} dash={entry.dash} />}
+                                                        dot={<PointsDot progress={progress} color={entry.color} isExporting={isExporting} />}
+                                                        activeDot={false}
+                                                        isAnimationActive={!instant}
+                                                        animationDuration={POINTS_RESCALE_MS}
+                                                        animationEasing="ease"
+                                                    />
+                                                ))}
+                                            </LineChart>
+                                        </ResponsiveContainer>
+                                    </div>
                                 </div>
                             </>
                         )}

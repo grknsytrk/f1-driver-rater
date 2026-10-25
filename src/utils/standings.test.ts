@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { DriverSeasonStats, SeasonRaceResult, SeasonSprintResult } from '../api/f1Api';
-import { buildChampionshipProgress, buildDriverLineDashes, buildDriverTrackerEntries, buildPointsTimeline, buildWccRaceMap, buildWdcRaceMap, getWdcCellDisplay, normalizeStandingStatus } from './standings';
+import { buildChampionshipGapPoints, buildChampionshipProgress, buildDriverLineDashes, buildDriverTrackerEntries, buildPointsTimeline, buildWccRaceMap, buildWdcRaceMap, getRoundLeaderSignature, getWdcCellDisplay, normalizeStandingStatus } from './standings';
 
 describe('driver tracker labels', () => {
     it('uses the F1 code when available and a three-letter surname fallback', () => {
@@ -296,5 +296,35 @@ describe('constructor points timeline', () => {
             scores: { red_bull: { weekendPoints: 0, totalPoints: 14 }, ferrari: { weekendPoints: 3, totalPoints: 3 } },
         });
         expect(timeline.slice(0, 2).every(point => !point.sprintOnly)).toBe(true);
+    });
+});
+
+describe('buildChampionshipGapPoints', () => {
+    it('sets each round leader to 0 and computes deficits for all other entries', () => {
+        const timeline = buildChampionshipProgress(['antonelli', 'russell', 'hamilton'], [], buildWdcRaceMap([
+            makeRaceResult({ round: '1', driverId: 'russell', points: 25 }),
+            makeRaceResult({ round: '1', driverId: 'antonelli', points: 18 }),
+            makeRaceResult({ round: '1', driverId: 'hamilton', points: 15 }),
+            makeRaceResult({ round: '2', driverId: 'russell', points: 8 }),
+            makeRaceResult({ round: '2', driverId: 'antonelli', points: 25 }),
+            makeRaceResult({ round: '2', driverId: 'hamilton', points: 10 }),
+        ], []));
+
+        const gapTimeline = buildChampionshipGapPoints(timeline, ['antonelli', 'russell', 'hamilton']);
+        expect(gapTimeline.map(point => point.leaderPoints)).toEqual([25, 43]);
+        expect(gapTimeline.map(point => point.gaps)).toEqual([
+            { antonelli: 7, russell: 0, hamilton: 10 },
+            { antonelli: 0, russell: 10, hamilton: 18 },
+        ]);
+
+        const withoutAntonelli = buildChampionshipGapPoints(
+            timeline,
+            getRoundLeaderSignature(timeline, ['russell', 'hamilton']),
+        );
+        expect(withoutAntonelli.map(point => point.leaderPoints)).toEqual([25, 33]);
+        expect(withoutAntonelli.map(point => ({ russell: point.gaps.russell, hamilton: point.gaps.hamilton }))).toEqual([
+            { russell: 0, hamilton: 10 },
+            { russell: 0, hamilton: 8 },
+        ]);
     });
 });

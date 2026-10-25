@@ -268,4 +268,55 @@ describe('points tracker SVG', () => {
         await render(['other'], false, data, mode);
         expect(tooltip()).toContain('Other72.5LEADER');
     });
+
+    it('renders the gap-to-leader chart below the cumulative chart with the round leader at the bottom (0)', async () => {
+        const data: ChampionshipProgressPoint[] = [
+            { round: '1', raceName: 'Australian Grand Prix', sprintOnly: false, scores: {
+                leader: { totalPoints: 18, weekendPoints: 18 },
+                teammate: { totalPoints: 25, weekendPoints: 25 },
+                other: { totalPoints: 12, weekendPoints: 12 },
+            } },
+            { round: '2', raceName: 'Chinese Grand Prix', sprintOnly: false, scores: {
+                leader: { totalPoints: 43, weekendPoints: 25 },
+                teammate: { totalPoints: 33, weekendPoints: 8 },
+                other: { totalPoints: 22, weekendPoints: 10 },
+            } },
+        ];
+        await render(['leader', 'teammate', 'other'], false, data);
+        await advance(1600);
+
+        const gapRegion = container.querySelector('[aria-label="Points gap to leader by race"]');
+        expect(gapRegion).not.toBeNull();
+        expect(container.querySelector('[aria-label="Selected driver gap lines"]')?.textContent)
+            .toContain('LeaderLEADER (0)');
+        expect(container.querySelector('[aria-label="Selected driver gap lines"]')?.textContent)
+            .toContain('Teammate−10');
+        expect(container.querySelector('[aria-label="Selected driver gap lines"]')?.textContent)
+            .toContain('Other−21');
+
+        const leaderGapDots = dots('Leader gap');
+        const teammateGapDots = dots('Teammate gap');
+        const otherGapDots = dots('Other gap');
+        expect(leaderGapDots).toHaveLength(2);
+        expect(teammateGapDots).toHaveLength(2);
+        expect(otherGapDots).toHaveLength(2);
+        assertAlignedDots('Leader gap');
+        assertAlignedDots('Teammate gap');
+        assertAlignedDots('Other gap');
+
+        // Round 1: Teammate leads (gap 0 -> bottom of chart, larger cy in SVG coordinates)
+        const r1TeammateY = Number(teammateGapDots[0].getAttribute('cy'));
+        const r1LeaderY = Number(leaderGapDots[0].getAttribute('cy'));
+        const r1OtherY = Number(otherGapDots[0].getAttribute('cy'));
+        expect(r1TeammateY).toBeGreaterThan(r1LeaderY);
+        expect(r1LeaderY).toBeGreaterThan(r1OtherY);
+
+        // Round 2: Leader leads (gap 0 -> matches Round 1's 0-baseline cy at the bottom)
+        const r2LeaderY = Number(leaderGapDots[1].getAttribute('cy'));
+        const r2TeammateY = Number(teammateGapDots[1].getAttribute('cy'));
+        const r2OtherY = Number(otherGapDots[1].getAttribute('cy'));
+        expect(r2LeaderY).toBeCloseTo(r1TeammateY, 2);
+        expect(r2LeaderY).toBeGreaterThan(r2TeammateY);
+        expect(r2TeammateY).toBeGreaterThan(r2OtherY);
+    });
 });
