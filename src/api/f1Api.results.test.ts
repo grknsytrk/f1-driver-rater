@@ -318,7 +318,7 @@ describe('Jolpica API caching, in-flight deduplication and pagination integrity'
         // Career stints should persist compact stints in localStorage without persisting raw paginated driver results
         const stints = await getDriverCareerStints('norris');
         expect(stints).toEqual([{ season: '2024', constructorId: 'mclaren', constructorName: 'McLaren' }]);
-        expect(localStorage.getItem('jolpica:driver-career-stints:norris:v1')).not.toBeNull();
+        expect(localStorage.getItem('jolpica:driver-career-stints:norris:v2')).not.toBeNull();
         expect(localStorage.getItem('jolpica:paginated:/drivers/norris/results.json')).toBeNull();
     });
 });

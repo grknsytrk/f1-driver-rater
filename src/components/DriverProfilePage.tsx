@@ -30,6 +30,7 @@ import {
     getRaces,
     getSeasonDrivers,
     getSeasons,
+    hasConstructorSeasonH2HCache,
     type DriverSeasonStats,
     type SeasonQualifyingResult,
     type SeasonRaceResult,
@@ -287,8 +288,22 @@ export function DriverProfilePage({
     // Career-wide Qualifying H2H & Race H2H across all seasons
     const [careerH2HList, setCareerH2HList] = useState<CareerSeasonTeammateH2H[]>([]);
     const [careerH2HLoading, setCareerH2HLoading] = useState(false);
+    const [careerH2HProgress, setCareerH2HProgress] = useState<{ loaded: number; total: number } | null>(null);
     const [expandedQualiId, setExpandedQualiId] = useState<string | null>(null);
     const [expandedRaceId, setExpandedRaceId] = useState<string | null>(null);
+
+    const currentSeasonDataRef = useRef({
+        raceResults,
+        qualiResults,
+        constructorId: driverIdentity.constructorId,
+        constructorName: driverIdentity.constructorName,
+    });
+    currentSeasonDataRef.current = {
+        raceResults,
+        qualiResults,
+        constructorId: driverIdentity.constructorId,
+        constructorName: driverIdentity.constructorName,
+    };
 
     const currentSeasonH2HEntries = useMemo(() => {
         if (!driverIdentity.constructorId) return [];
@@ -314,72 +329,178 @@ export function DriverProfilePage({
     }, [season, driverId, driverIdentity.constructorId, driverIdentity.constructorName, raceResults, qualiResults]);
 
     useEffect(() => {
+        // Wait for the primary season load to finish so we don't compete for Jolpica rate-limit tokens
+        // or restart the career loop mid-flight when raceResults/qualiResults resolve.
+        if (loading) return;
+
         let active = true;
 
+        async function resolveStintEntries(
+            stint: { season: string; constructorId: string; constructorName: string },
+            throwOnError = false,
+        ): Promise<CareerSeasonTeammateH2H[]> {
+            const currentData = currentSeasonDataRef.current;
+            if (
+                stint.season === season
+                && (currentData.raceResults.length > 0 || currentData.qualiResults.length > 0)
+            ) {
+                return buildSeasonTeammateH2HEntries(
+                    stint.season,
+                    stint.constructorId,
+                    stint.constructorName,
+                    driverId,
+                    currentData.raceResults,
+                    currentData.qualiResults,
+                );
+            }
+            const raw = await getConstructorSeasonH2HRaw(
+                stint.season,
+                stint.constructorId,
+                stint.constructorName,
+                { throwOnError },
+            );
+            return buildSeasonTeammateH2HEntries(
+                stint.season,
+                stint.constructorId,
+                raw.constructorName,
+                driverId,
+                raw.raceResults,
+                raw.qualiResults,
+            );
+        }
+
+        function flattenStintMap(
+            byStint: Map<string, CareerSeasonTeammateH2H[]>,
+            orderedKeys: string[],
+        ): CareerSeasonTeammateH2H[] {
+            const result: CareerSeasonTeammateH2H[] = [];
+            for (const key of orderedKeys) {
+                const items = byStint.get(key);
+                if (items && items.length > 0) {
+                    result.push(...items);
+                }
+            }
+            return result;
+        }
+
         async function loadCareerH2H() {
+            setCareerH2HList([]);
             setCareerH2HLoading(true);
+            setCareerH2HProgress(null);
             try {
                 const stints = await getDriverCareerStints(driverId);
                 if (!active) return;
 
+                const currentData = currentSeasonDataRef.current;
                 const stintMap = new Map<string, { season: string; constructorId: string; constructorName: string }>();
                 for (const s of stints) {
                     stintMap.set(`${s.season}::${s.constructorId}`, s);
                 }
-                if (driverIdentity.constructorId) {
-                    const currentKey = `${season}::${driverIdentity.constructorId}`;
-                    if (!stintMap.has(currentKey)) {
-                        stintMap.set(currentKey, {
-                            season,
-                            constructorId: driverIdentity.constructorId,
-                            constructorName: driverIdentity.constructorName,
-                        });
+                const currentSeasonConstructors = new Map<string, string>();
+                for (const result of currentData.raceResults) {
+                    if (result.driverId === driverId) {
+                        currentSeasonConstructors.set(result.constructorId, result.constructorName);
                     }
                 }
+                for (const result of currentData.qualiResults) {
+                    if (result.driverId === driverId && !currentSeasonConstructors.has(result.constructorId)) {
+                        currentSeasonConstructors.set(result.constructorId, result.constructorName);
+                    }
+                }
+                if (currentSeasonConstructors.size === 0 && currentData.constructorId) {
+                    currentSeasonConstructors.set(currentData.constructorId, currentData.constructorName);
+                }
+                currentSeasonConstructors.forEach((constructorName, constructorId) => {
+                    const currentKey = `${season}::${constructorId}`;
+                    if (!stintMap.has(currentKey)) {
+                        stintMap.set(currentKey, { season, constructorId, constructorName });
+                    }
+                });
 
                 const orderedStints = [...stintMap.values()].sort(
                     (a, b) => (parseInt(a.season, 10) || 0) - (parseInt(b.season, 10) || 0),
                 );
+                const orderedKeys = orderedStints.map(s => `${s.season}::${s.constructorId}`);
+                const entriesByStint = new Map<string, CareerSeasonTeammateH2H[]>();
+                const totalStints = orderedStints.length;
+                let completedCount = 0;
 
-                const accumulated: CareerSeasonTeammateH2H[] = [];
+                setCareerH2HProgress({ loaded: 0, total: totalStints });
 
-                // Process in small batches of 2 so we never overwhelm the API
-                for (let i = 0; i < orderedStints.length; i += 2) {
-                    const batch = orderedStints.slice(i, i + 2);
-                    const batchResults = await Promise.all(
-                        batch.map(async stint => {
-                            if (stint.season === season && (raceResults.length > 0 || qualiResults.length > 0)) {
-                                return buildSeasonTeammateH2HEntries(
-                                    stint.season,
-                                    stint.constructorId,
-                                    stint.constructorName,
-                                    driverId,
-                                    raceResults,
-                                    qualiResults,
-                                );
-                            }
-                            const raw = await getConstructorSeasonH2HRaw(
-                                stint.season,
-                                stint.constructorId,
-                                stint.constructorName,
-                            );
-                            return buildSeasonTeammateH2HEntries(
-                                stint.season,
-                                stint.constructorId,
-                                raw.constructorName,
-                                driverId,
-                                raw.raceResults,
-                                raw.qualiResults,
-                            );
+                // 1. Immediately resolve all warm/cached stints in parallel (0ms network wait)
+                const warmStints: typeof orderedStints = [];
+                const coldStints: typeof orderedStints = [];
+
+                for (const stint of orderedStints) {
+                    const isWarm =
+                        (stint.season === season
+                            && (currentData.raceResults.length > 0 || currentData.qualiResults.length > 0))
+                        || hasConstructorSeasonH2HCache(stint.season, stint.constructorId);
+                    if (isWarm) {
+                        warmStints.push(stint);
+                    } else {
+                        coldStints.push(stint);
+                    }
+                }
+
+                if (warmStints.length > 0) {
+                    await Promise.all(
+                        warmStints.map(async stint => {
+                            const items = await resolveStintEntries(stint, false);
+                            entriesByStint.set(`${stint.season}::${stint.constructorId}`, items);
+                            completedCount += 1;
                         }),
                     );
-
                     if (!active) return;
-                    batchResults.forEach(items => accumulated.push(...items));
-                    setCareerH2HList([...accumulated]);
+                    setCareerH2HList(flattenStintMap(entriesByStint, orderedKeys));
+                    setCareerH2HProgress({ loaded: completedCount, total: totalStints });
+                }
+
+                // 2. Fetch uncached stints sequentially; the shared API queue also spaces every Jolpica request.
+                const retryQueue: typeof orderedStints = [];
+                for (let idx = 0; idx < coldStints.length; idx += 1) {
+                    if (!active) return;
+                    const stint = coldStints[idx];
+                    const key = `${stint.season}::${stint.constructorId}`;
+
+                    try {
+                        const items = await resolveStintEntries(stint, true);
+                        if (!active) return;
+                        if (items.length === 0) {
+                            retryQueue.push(stint);
+                        } else {
+                            entriesByStint.set(key, items);
+                        }
+                    } catch {
+                        retryQueue.push(stint);
+                    }
+
+                    completedCount += 1;
+                    setCareerH2HList(flattenStintMap(entriesByStint, orderedKeys));
+                    setCareerH2HProgress({ loaded: completedCount, total: totalStints });
+
+                }
+
+                // 3. Recovery pass for any stint that hit a transient error or empty response
+                if (retryQueue.length > 0 && active) {
+                    await new Promise(resolve => setTimeout(resolve, 1200));
+                    for (const stint of retryQueue) {
+                        if (!active) return;
+                        const key = `${stint.season}::${stint.constructorId}`;
+                        const items = await resolveStintEntries(stint, false);
+                        if (!active) return;
+                        if (items.length > 0) {
+                            entriesByStint.set(key, items);
+                            setCareerH2HList(flattenStintMap(entriesByStint, orderedKeys));
+                        }
+                        await new Promise(resolve => setTimeout(resolve, 400));
+                    }
                 }
             } finally {
-                if (active) setCareerH2HLoading(false);
+                if (active) {
+                    setCareerH2HLoading(false);
+                    setCareerH2HProgress(null);
+                }
             }
         }
 
@@ -387,7 +508,7 @@ export function DriverProfilePage({
         return () => {
             active = false;
         };
-    }, [driverId, season, driverIdentity.constructorId, driverIdentity.constructorName, raceResults, qualiResults]);
+    }, [driverId, season, loading]);
 
     const displayedCareerH2H = careerH2HList.length > 0 ? careerH2HList : currentSeasonH2HEntries;
 
@@ -1029,7 +1150,9 @@ export function DriverProfilePage({
                             {careerH2HLoading && (
                                 <span className="inline-flex items-center gap-1.5 font-oxanium text-[10px] uppercase tracking-wider text-[var(--accent-yellow)]">
                                     <Loader2 size={11} className="animate-spin" />
-                                    LOADING CAREER SEASONS...
+                                    {careerH2HProgress && careerH2HProgress.total > 0
+                                        ? `LOADING CAREER SEASONS (${careerH2HProgress.loaded}/${careerH2HProgress.total})...`
+                                        : 'LOADING CAREER SEASONS...'}
                                 </span>
                             )}
                             <span className="font-oxanium text-[10px] uppercase tracking-widest text-[var(--text-muted)]">

@@ -1,6 +1,12 @@
 import axios from 'axios';
 import type { Season, Race, RaceResult, Driver, Constructor } from '../types';
 import { parseF1TimeSeconds } from '../utils/f1Time';
+import {
+    extractHistoricalConstructorSeasonH2H,
+    extractHistoricalDriverStints,
+    hasCachedHistoricalConstructorSeasonH2H,
+    loadHistoricalH2HPayload,
+} from '../utils/historicalH2H';
 
 // Jolpica API - Ergast successor
 const API_BASE = 'https://api.jolpi.ca/ergast/f1';
@@ -25,6 +31,62 @@ function isRateLimitAxiosError(error: unknown): boolean {
 function sleep(ms: number) {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
+
+let rateLimitCooldownUntil = 0;
+let nextAllowedRequestAt = 0;
+let requestSlotQueue: Promise<void> = Promise.resolve();
+const IS_TEST_ENV = typeof import.meta !== 'undefined' && import.meta.env?.MODE === 'test';
+const MIN_JOLPICA_REQUEST_INTERVAL_MS = 750;
+
+async function waitForJolpicaRequestSlot(): Promise<void> {
+    if (IS_TEST_ENV) return;
+    const scheduledSlot = requestSlotQueue.then(async () => {
+        while (true) {
+            const targetTime = Math.max(Date.now(), rateLimitCooldownUntil, nextAllowedRequestAt);
+            const delayMs = targetTime - Date.now();
+            if (delayMs <= 0) break;
+            await sleep(delayMs);
+        }
+        nextAllowedRequestAt = Date.now() + MIN_JOLPICA_REQUEST_INTERVAL_MS;
+    });
+    requestSlotQueue = scheduledSlot.catch(() => undefined);
+    return scheduledSlot;
+}
+
+function getRateLimitBackoffMs(error: unknown, attempt: number): number {
+    if (axios.isAxiosError(error)) {
+        const retryAfterHeader = error.response?.headers?.['retry-after'];
+        const headerValue = typeof retryAfterHeader === 'string' || typeof retryAfterHeader === 'number'
+            ? String(retryAfterHeader)
+            : '';
+        const parsedSeconds = Number.parseFloat(headerValue);
+        if (Number.isFinite(parsedSeconds) && parsedSeconds > 0) {
+            return Math.ceil(parsedSeconds * 1000) + 500;
+        }
+        const retryAt = Date.parse(headerValue);
+        if (Number.isFinite(retryAt) && retryAt > Date.now()) return retryAt - Date.now() + 500;
+    }
+    return Math.round(2000 * Math.pow(1.7, attempt)) + Math.floor(Math.random() * 500);
+}
+
+// Pace every Jolpica request, including parallel page loads and retry paths.
+api.interceptors.request.use(async config => {
+    await waitForJolpicaRequestSlot();
+    return config;
+});
+
+api.interceptors.response.use(
+    response => response,
+    error => {
+        if (isRateLimitAxiosError(error)) {
+            rateLimitCooldownUntil = Math.max(
+                rateLimitCooldownUntil,
+                Date.now() + getRateLimitBackoffMs(error, 0),
+            );
+        }
+        return Promise.reject(error);
+    },
+);
 
 function getSeasonCacheTtlMs(season: string | number, opts?: { currentMs?: number; pastMs?: number }) {
     const currentMs = opts?.currentMs ?? 2 * 60 * 1000; // 2 minutes
@@ -724,15 +786,16 @@ async function fetchAllPaginated(
             const url = `${endpoint}?limit=${limit}&offset=${offset}`;
             let response: { data: PaginatedRaceResponse } | null = null;
             try {
-                // Retry a couple of times on 429 with exponential backoff (best-effort).
-                const maxRetries = 2;
+                // Retry up to 6 times on 429 with shared cooldown + exponential backoff so multi-season career loads never drop seasons.
+                const maxRetries = 6;
                 for (let attempt = 0; attempt <= maxRetries; attempt++) {
                     try {
                         response = await api.get<PaginatedRaceResponse>(url);
                         break;
                     } catch (err) {
                         if (!isRateLimitAxiosError(err) || attempt === maxRetries) throw err;
-                        const backoffMs = 500 * Math.pow(2, attempt) + Math.floor(Math.random() * 250);
+                        const backoffMs = getRateLimitBackoffMs(err, attempt);
+                        rateLimitCooldownUntil = Math.max(rateLimitCooldownUntil, Date.now() + backoffMs);
                         await sleep(backoffMs);
                     }
                 }
@@ -1111,9 +1174,18 @@ export interface ConstructorSeasonH2HRaw {
 }
 
 export async function getDriverCareerStints(driverId: string): Promise<DriverCareerStint[]> {
-    const cacheKey = `jolpica:driver-career-stints:${driverId}:v1`;
+    // Check static historical dataset (2000-2025) first -> 0 Jolpica API requests
+    const historical = await loadHistoricalH2HPayload();
+    if (historical) {
+        const staticStints = extractHistoricalDriverStints(historical, driverId);
+        if (staticStints.length > 0) {
+            return staticStints;
+        }
+    }
+
+    const cacheKey = `jolpica:driver-career-stints:${driverId}:v2`;
     const cached = getCache<DriverCareerStint[]>(cacheKey);
-    if (cached) return cached;
+    if (cached && cached.length > 0) return cached;
 
     try {
         // Keep raw driver career results in memory only; the compact stints array is persisted to localStorage
@@ -1154,27 +1226,50 @@ export async function getDriverCareerStints(driverId: string): Promise<DriverCar
     }
 }
 
+export function hasConstructorSeasonH2HCache(season: string, constructorId: string): boolean {
+    if (hasCachedHistoricalConstructorSeasonH2H(season, constructorId)) return true;
+    const cacheKey = `jolpica:constructor-h2h:${season}:${constructorId}:v2`;
+    if (getCache<ConstructorSeasonH2HRaw>(cacheKey)) return true;
+    const hasFullSeasonRaces = getCache<JolpicaRaceRecord[]>(`jolpica:paginated:/${season}/results.json`) !== null;
+    const hasFullSeasonQuali = getCache<JolpicaRaceRecord[]>(`jolpica:paginated:/${season}/qualifying.json`) !== null;
+    return hasFullSeasonRaces && hasFullSeasonQuali;
+}
+
 export async function getConstructorSeasonH2HRaw(
     season: string,
     constructorId: string,
     constructorNameFallback = constructorId,
+    options?: { throwOnError?: boolean },
 ): Promise<ConstructorSeasonH2HRaw> {
-    const cacheKey = `jolpica:constructor-h2h:${season}:${constructorId}:v1`;
+    // Check static historical dataset (2000-2025) first -> 0 Jolpica API requests
+    const historical = await loadHistoricalH2HPayload();
+    if (historical) {
+        const fromStatic = extractHistoricalConstructorSeasonH2H(
+            historical,
+            season,
+            constructorId,
+            constructorNameFallback,
+        );
+        if (fromStatic) {
+            return fromStatic;
+        }
+    }
+
+    const cacheKey = `jolpica:constructor-h2h:${season}:${constructorId}:v2`;
     const cached = getCache<ConstructorSeasonH2HRaw>(cacheKey);
-    if (cached) return cached;
+    if (cached && (cached.raceResults.length > 0 || cached.qualiResults.length > 0)) return cached;
 
     try {
         const cachedFullSeasonRaces = getCache<JolpicaRaceRecord[]>(`jolpica:paginated:/${season}/results.json`);
         const cachedFullSeasonQuali = getCache<JolpicaRaceRecord[]>(`jolpica:paginated:/${season}/qualifying.json`);
 
-        const [rawRaces, rawQualifying] = await Promise.all([
-            cachedFullSeasonRaces
-                ? Promise.resolve(cachedFullSeasonRaces)
-                : fetchAllPaginated(`/${season}/constructors/${constructorId}/results.json`, { cacheRaw: false }),
-            cachedFullSeasonQuali
-                ? Promise.resolve(cachedFullSeasonQuali)
-                : fetchAllPaginated(`/${season}/constructors/${constructorId}/qualifying.json`, { cacheRaw: false }),
-        ]);
+        // Fetch race results first, then qualifying sequentially when uncached to avoid burst rate limits
+        const rawRaces = cachedFullSeasonRaces
+            ? cachedFullSeasonRaces
+            : await fetchAllPaginated(`/${season}/constructors/${constructorId}/results.json`, { cacheRaw: false });
+        const rawQualifying = cachedFullSeasonQuali
+            ? cachedFullSeasonQuali
+            : await fetchAllPaginated(`/${season}/constructors/${constructorId}/qualifying.json`, { cacheRaw: false });
 
         const raceResults: SeasonRaceResult[] = [];
         let resolvedConstructorName = constructorNameFallback;
@@ -1231,11 +1326,14 @@ export async function getConstructorSeasonH2HRaw(
             qualiResults,
         };
 
-        setCache(cacheKey, payload, getSeasonCacheTtlMs(season));
+        if (raceResults.length > 0 || qualiResults.length > 0) {
+            setCache(cacheKey, payload, getSeasonCacheTtlMs(season));
+        }
         return payload;
     } catch (error) {
         const stale = getStaleCache<ConstructorSeasonH2HRaw>(cacheKey);
-        if (stale) return stale;
+        if (stale && (stale.raceResults.length > 0 || stale.qualiResults.length > 0)) return stale;
+        if (options?.throwOnError) throw error;
         console.error(`Error fetching constructor H2H for ${season} ${constructorId}:`, error);
         return {
             season,

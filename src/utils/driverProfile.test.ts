@@ -448,4 +448,49 @@ describe('driverProfile utilities', () => {
         expect(getCountryCode('Mexican Grand Prix')).toBe('MX');
         expect(getCountryCode('Brazilian Grand Prix')).toBe('BR');
     });
+
+    it('resolves complete multi-season career H2H for Alonso (2001-2025) and Hamilton (2007-2025) from static historical dataset', async () => {
+        const {
+            extractHistoricalConstructorSeasonH2H,
+            extractHistoricalDriverStints,
+        } = await import('./historicalH2H');
+        const rawData = await import('../../public/data/historical-h2h-v1.json');
+        const payload = (rawData.default ?? rawData) as unknown as import('./historicalH2H').CompactHistoricalH2HPayload;
+
+        const alonsoStints = extractHistoricalDriverStints(payload, 'alonso');
+        const alonsoSeasons = [...new Set(alonsoStints.map(s => s.season))];
+        expect(alonsoSeasons).toEqual([
+            '2001', '2003', '2004', '2005', '2006', '2007', '2008', '2009',
+            '2010', '2011', '2012', '2013', '2014', '2015', '2016', '2017',
+            '2018', '2021', '2022', '2023', '2024', '2025',
+        ]);
+
+        // Verify 2015-2024 stints for Alonso produce non-empty teammate H2H entries
+        for (const stint of alonsoStints) {
+            const h2hRaw = extractHistoricalConstructorSeasonH2H(
+                payload,
+                stint.season,
+                stint.constructorId,
+                stint.constructorName,
+            );
+            expect(h2hRaw).not.toBeNull();
+            const entries = buildSeasonTeammateH2HEntries(
+                stint.season,
+                stint.constructorId,
+                h2hRaw!.constructorName,
+                'alonso',
+                h2hRaw!.raceResults,
+                h2hRaw!.qualiResults,
+            );
+            expect(entries.length).toBeGreaterThan(0);
+        }
+
+        const hamiltonStints = extractHistoricalDriverStints(payload, 'hamilton');
+        const hamiltonSeasons = [...new Set(hamiltonStints.map(s => s.season))];
+        expect(hamiltonSeasons).toEqual([
+            '2007', '2008', '2009', '2010', '2011', '2012', '2013', '2014',
+            '2015', '2016', '2017', '2018', '2019', '2020', '2021', '2022',
+            '2023', '2024', '2025',
+        ]);
+    });
 });

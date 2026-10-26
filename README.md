@@ -23,6 +23,10 @@ A Formula 1 driver rating application that lets you rate drivers race-by-race an
 - **Mobile Friendly** - Works well on phones and tablets, not just desktop
 - **Animations** - Smooth transitions and interactions powered by Framer Motion
 
+## Historical career H2H data
+
+Career teammate H2H for 2000–2025 is served from `public/data/historical-h2h-v1.json`; the active season remains live. To update one archived season and merge it into the file, run `node scripts/generate-historical-h2h.mjs --season 2000`. To rebuild the full archive, run `node scripts/generate-historical-h2h.mjs --all`. The generator sends Jolpica requests sequentially with at least one second between request starts and respects `Retry-After` when the API asks it to wait.
+
 ## Teammate Wars
 
 This feature compares teammates on a race-by-race basis using real data from the API:
