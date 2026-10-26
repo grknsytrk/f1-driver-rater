@@ -26,6 +26,7 @@ import { getDriverPortrait } from '../utils/driverPortraits';
 interface TeammateWarsProps {
     season: string;
     onBack: () => void;
+    onSelectDriver?: (driverId: string) => void;
 }
 
 interface H2HStats {
@@ -69,7 +70,7 @@ function getDriverGivenName(driverName: string): string {
 
 type TeammateRatingSource = 'personal' | 'community';
 
-export function TeammateWars({ season }: TeammateWarsProps) {
+export function TeammateWars({ season, onSelectDriver }: TeammateWarsProps) {
     useRatingStorage();
     const averages = calculateAverages(season);
     const personalRaces = getSeasonRatings(season);
@@ -786,16 +787,28 @@ export function TeammateWars({ season }: TeammateWarsProps) {
                                             </motion.span>
                                         </AnimatePresence>
                                     </div>
-                                    <div className={`h2h-battle__name mb-1 w-full max-w-full truncate px-1 font-display text-base leading-[0.95] uppercase tracking-tight sm:text-xl ${
-                                        standingsByDriverId[driverA.driverId]?.position === "1"
-                                            ? 'text-[var(--accent-yellow)] opacity-75'
-                                            : ''
-                                    }`}>
-                                        {driverAFamilyName}
-                                    </div>
-                                    <div className="w-full max-w-full truncate px-1 font-oxanium text-[9px] uppercase text-[var(--text-muted)] sm:text-[10px]">
-                                        {driverAGivenName}
-                                    </div>
+                                    <button
+                                        type="button"
+                                        disabled={!onSelectDriver}
+                                        onClick={(e) => {
+                                            if (!onSelectDriver) return;
+                                            e.stopPropagation();
+                                            onSelectDriver(driverA.driverId);
+                                        }}
+                                        title={onSelectDriver ? `View ${driverA.driverName} profile` : undefined}
+                                        className={`group/drv flex w-full max-w-full flex-col items-center ${onSelectDriver ? 'cursor-pointer' : 'cursor-default'}`}
+                                    >
+                                        <div className={`h2h-battle__name mb-1 w-full max-w-full truncate px-1 font-display text-base leading-[0.95] uppercase tracking-tight sm:text-xl ${
+                                            standingsByDriverId[driverA.driverId]?.position === "1"
+                                                ? 'text-[var(--accent-yellow)] opacity-75'
+                                                : ''
+                                        } ${onSelectDriver ? 'group-hover/drv:text-[var(--accent-yellow)] transition-colors' : ''}`}>
+                                            {driverAFamilyName}
+                                        </div>
+                                        <div className="w-full max-w-full truncate px-1 font-oxanium text-[9px] uppercase text-[var(--text-muted)] sm:text-[10px]">
+                                            {driverAGivenName}
+                                        </div>
+                                    </button>
                                 </div>
 
                                 {/* Progress Bar */}
@@ -835,16 +848,28 @@ export function TeammateWars({ season }: TeammateWarsProps) {
                                             </motion.span>
                                         </AnimatePresence>
                                     </div>
-                                    <div className={`h2h-battle__name mb-1 w-full max-w-full truncate px-1 font-display text-base leading-[0.95] uppercase tracking-tight sm:text-xl ${
-                                        standingsByDriverId[driverB.driverId]?.position === "1"
-                                            ? 'text-[var(--accent-yellow)] opacity-75'
-                                            : ''
-                                    }`}>
-                                        {driverBFamilyName}
-                                    </div>
-                                    <div className="w-full max-w-full truncate px-1 font-oxanium text-[9px] uppercase text-[var(--text-muted)] sm:text-[10px]">
-                                        {driverBGivenName}
-                                    </div>
+                                    <button
+                                        type="button"
+                                        disabled={!onSelectDriver}
+                                        onClick={(e) => {
+                                            if (!onSelectDriver) return;
+                                            e.stopPropagation();
+                                            onSelectDriver(driverB.driverId);
+                                        }}
+                                        title={onSelectDriver ? `View ${driverB.driverName} profile` : undefined}
+                                        className={`group/drv flex w-full max-w-full flex-col items-center ${onSelectDriver ? 'cursor-pointer' : 'cursor-default'}`}
+                                    >
+                                        <div className={`h2h-battle__name mb-1 w-full max-w-full truncate px-1 font-display text-base leading-[0.95] uppercase tracking-tight sm:text-xl ${
+                                            standingsByDriverId[driverB.driverId]?.position === "1"
+                                                ? 'text-[var(--accent-yellow)] opacity-75'
+                                                : ''
+                                        } ${onSelectDriver ? 'group-hover/drv:text-[var(--accent-yellow)] transition-colors' : ''}`}>
+                                            {driverBFamilyName}
+                                        </div>
+                                        <div className="w-full max-w-full truncate px-1 font-oxanium text-[9px] uppercase text-[var(--text-muted)] sm:text-[10px]">
+                                            {driverBGivenName}
+                                        </div>
+                                    </button>
                                 </div>
                             </div>
 

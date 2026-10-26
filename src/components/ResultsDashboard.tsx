@@ -40,6 +40,7 @@ import { PodiumFlagBackdrop } from './PodiumFlagBackdrop';
 interface ResultsDashboardProps {
     season: string;
     onReset: () => void;
+    onSelectDriver?: (driverId: string) => void;
 }
 
 type DriverRatingsSortKey = 'myAverage' | 'communityAverage' | 'votes';
@@ -75,7 +76,7 @@ function rankBreakdownDrivers<T extends DriverRow>(drivers: T[], minimumRatedRac
     });
 }
 
-export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
+export function ResultsDashboard({ season, onReset, onSelectDriver }: ResultsDashboardProps) {
     useRatingStorage();
     const policyConsent = useSitePolicyConsent();
     const averages = calculateAverages(season);
@@ -665,14 +666,17 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
                                             className={`flex flex-col w-[30%] max-w-[100px] md:max-w-none md:w-56 ${isWinner ? 'z-10' : 'z-0'}`}
                                         >
                                             {/* DRIVER INFO */}
-                                            <div className="mb-1 md:mb-2 bg-[var(--bg-panel)] border border-[var(--border-color)] border-l-2 p-1.5 md:p-3 overflow-hidden"
+                                            <div
+                                                onClick={onSelectDriver ? () => onSelectDriver(driver.driverId) : undefined}
+                                                title={onSelectDriver ? `View ${driver.driverName} profile` : undefined}
+                                                className={`group/pod mb-1 md:mb-2 bg-[var(--bg-panel)] border border-[var(--border-color)] border-l-2 p-1.5 md:p-3 overflow-hidden ${onSelectDriver ? 'cursor-pointer hover:border-[var(--accent-yellow)] transition-colors' : ''}`}
                                                 style={{ borderLeftColor: getTeamColor(driver.constructorId) }}
                                             >
                                                 <div className="flex justify-between items-start mb-0.5 md:mb-1">
                                                     <span className="font-oxanium text-[7px] md:text-xs text-[var(--text-secondary)]">P{rank}</span>
                                                     <div className="w-1 h-1 md:w-2 md:h-2 rounded-full flex-shrink-0" style={{ backgroundColor: getTeamColor(driver.constructorId) }} />
                                                 </div>
-                                                <div className="font-display-condensed text-[10px] md:text-2xl leading-none text-white uppercase tracking-tight truncate">
+                                                <div className="font-display-condensed text-[10px] md:text-2xl leading-none text-white group-hover/pod:text-[var(--accent-yellow)] transition-colors uppercase tracking-tight truncate">
                                                     {driver.driverName.split(' ')[1] || driver.driverName}
                                                 </div>
                                                 <div className="font-ui text-[6px] md:text-[10px] text-[var(--text-muted)] uppercase tracking-wider mt-0.5 md:mt-1 truncate">
@@ -817,6 +821,7 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
                                         source={source}
                                         communityStatus={community.status}
                                         communityVisible={communityVisible}
+                                        onSelectDriver={onSelectDriver}
                                     />
                                 </div>
                             </div>
@@ -1197,17 +1202,36 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
 
                                                 {/* Driver Name */}
                                                 <td className="sticky left-12 z-10 bg-[var(--bg-panel)] px-3 py-2">
-                                                    <div className="flex items-center gap-2">
-                                                        <div className="w-1 h-6" style={{ backgroundColor: getTeamColor(driver.constructorId) }} />
-                                                        <div>
-                                                            <div className="font-display text-sm text-white uppercase leading-none">
-                                                                {getDriverLabel(driver.driverName)}
+                                                    {onSelectDriver ? (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => onSelectDriver(driver.driverId)}
+                                                            title={`View ${driver.driverName} profile`}
+                                                            className="group/drv flex items-center gap-2 text-left cursor-pointer"
+                                                        >
+                                                            <div className="w-1 h-6" style={{ backgroundColor: getTeamColor(driver.constructorId) }} />
+                                                            <div>
+                                                                <div className="font-display text-sm text-white group-hover/drv:text-[var(--accent-yellow)] transition-colors uppercase leading-none">
+                                                                    {getDriverLabel(driver.driverName)}
+                                                                </div>
+                                                                <div className="font-oxanium text-[8px] text-[var(--text-muted)] uppercase">
+                                                                    {driver.constructorName}
+                                                                </div>
                                                             </div>
-                                                            <div className="font-oxanium text-[8px] text-[var(--text-muted)] uppercase">
-                                                                {driver.constructorName}
+                                                        </button>
+                                                    ) : (
+                                                        <div className="flex items-center gap-2">
+                                                            <div className="w-1 h-6" style={{ backgroundColor: getTeamColor(driver.constructorId) }} />
+                                                            <div>
+                                                                <div className="font-display text-sm text-white uppercase leading-none">
+                                                                    {getDriverLabel(driver.driverName)}
+                                                                </div>
+                                                                <div className="font-oxanium text-[8px] text-[var(--text-muted)] uppercase">
+                                                                    {driver.constructorName}
+                                                                </div>
                                                             </div>
                                                         </div>
-                                                    </div>
+                                                    )}
                                                 </td>
 
                                                 {/* Average */}

@@ -1,4 +1,4 @@
-import { ChevronDown } from 'lucide-react';
+import { ChevronDown, User } from 'lucide-react';
 import { useState } from 'react';
 import { TEAM_COLORS } from '../types';
 import type { AverageRating } from '../types';
@@ -19,13 +19,14 @@ interface CommunityRatingRowsProps {
     source: 'race' | 'quick';
     communityStatus: CommunityStatus;
     communityVisible: boolean;
+    onSelectDriver?: (driverId: string) => void;
 }
 
 function getTeamColor(constructorId: string): string {
     return TEAM_COLORS[constructorId] || '#888888';
 }
 
-export function CommunityRatingRows({ rows, season, source, communityStatus, communityVisible }: CommunityRatingRowsProps) {
+export function CommunityRatingRows({ rows, season, source, communityStatus, communityVisible, onSelectDriver }: CommunityRatingRowsProps) {
     const [expandedDriverId, setExpandedDriverId] = useState<string | null>(null);
     const expandedRow = rows.find(row => row.driver.driverId === expandedDriverId);
     const distributionDriverId = expandedRow && expandedRow.comparison.voteCount >= COMMUNITY_DISTRIBUTION_MIN_VOTES
@@ -40,17 +41,26 @@ export function CommunityRatingRows({ rows, season, source, communityStatus, com
                 const gridColumns = communityVisible
                     ? 'grid-cols-[minmax(0,1fr)_60px_104px] md:grid-cols-[minmax(0,1fr)_72px_112px_40px]'
                     : 'grid-cols-[minmax(0,1fr)_60px] md:grid-cols-[minmax(0,1fr)_72px]';
+                const interactive = communityVisible || Boolean(onSelectDriver);
                 return (
                     <div key={driver.driverId} className="border-b border-[var(--border-color)]">
                         <button
                             type="button"
                             data-testid={`community-rating-row-${driver.driverId}`}
-                            aria-label={`${expanded ? 'Hide' : 'Show'} community distribution for ${driver.driverName}`}
-                            aria-expanded={expanded}
-                            aria-controls={expanded ? panelId : undefined}
-                            disabled={!communityVisible}
-                            onClick={() => setExpandedDriverId(current => current === driver.driverId ? null : driver.driverId)}
-                            className={`grid w-full items-center gap-2 p-2 text-left transition-colors md:p-3 ${gridColumns} ${communityVisible ? 'cursor-pointer hover:bg-white/[0.03]' : 'cursor-default'}`}
+                            aria-label={communityVisible
+                                ? `${expanded ? 'Hide' : 'Show'} community distribution for ${driver.driverName}`
+                                : `View ${driver.driverName} profile`}
+                            aria-expanded={communityVisible ? expanded : undefined}
+                            aria-controls={communityVisible && expanded ? panelId : undefined}
+                            disabled={!interactive}
+                            onClick={() => {
+                                if (communityVisible) {
+                                    setExpandedDriverId(current => current === driver.driverId ? null : driver.driverId);
+                                } else if (onSelectDriver) {
+                                    onSelectDriver(driver.driverId);
+                                }
+                            }}
+                            className={`grid w-full items-center gap-2 p-2 text-left transition-colors md:p-3 ${gridColumns} ${interactive ? 'cursor-pointer hover:bg-white/[0.03]' : 'cursor-default'}`}
                         >
                             <span className="flex min-w-0 items-center gap-2">
                                 <span className="w-4 shrink-0 font-oxanium text-[10px] text-[var(--text-muted)]">{index + 1}</span>
@@ -97,6 +107,18 @@ export function CommunityRatingRows({ rows, season, source, communityStatus, com
                         </button>
                         {expanded && (
                             <div id={panelId} role="region" aria-label={`${driver.driverName} community distribution details`} className="border-t border-[var(--border-color)] bg-[var(--bg-darker)] px-3 py-3 md:px-5">
+                                {onSelectDriver && (
+                                    <div className="mb-3 flex justify-end">
+                                        <button
+                                            type="button"
+                                            onClick={() => onSelectDriver(driver.driverId)}
+                                            className="inline-flex items-center gap-1.5 border border-[var(--border-color)] bg-[var(--bg-panel)] px-3 py-1 font-oxanium text-[10px] uppercase tracking-wider text-white transition-colors hover:border-[var(--accent-yellow)] hover:text-[var(--accent-yellow)]"
+                                        >
+                                            <User size={11} />
+                                            <span>VIEW DRIVER PROFILE</span>
+                                        </button>
+                                    </div>
+                                )}
                                 <CommunityRatingDistribution
                                     driverName={driver.driverName}
                                     communityStatus={communityStatus}

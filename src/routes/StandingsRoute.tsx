@@ -26,6 +26,7 @@ export default function StandingsRoute() {
             <StandingsPage
                 season={season}
                 onBack={() => navigate(`/${season}`)}
+                onSelectDriver={(driverId) => navigate(`/${season}/driver/${driverId}`)}
             />
         </motion.div>
     );

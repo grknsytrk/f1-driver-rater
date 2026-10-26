@@ -17,6 +17,7 @@ import {
 import { getSeasons, getRaces } from './api/f1Api';
 import {
   AwardsRoute,
+  DriverProfileRoute,
   ResultsRoute,
   StandingsRoute,
   TeammateWarsRoute,
@@ -252,11 +253,12 @@ function App() {
   const isTeammateWarsPage = pathParts[1] === 'teammate-wars';
   const isStandingsPage = pathParts[1] === 'standings';
   const isAwardsPage = pathParts[1] === 'awards';
+  const isDriverProfilePage = pathParts[1] === 'driver';
   const isHomePage = pathname === '/' || pathname === '';
 
   const showResultsButton = Boolean(currentSeason);
   const showSeasonActions = Boolean(
-    currentSeason && !isResultsPage && !isQuickRatePage && !isRacePage && !isTeammateWarsPage && !isStandingsPage && !isAwardsPage
+    currentSeason && !isResultsPage && !isQuickRatePage && !isRacePage && !isTeammateWarsPage && !isStandingsPage && !isAwardsPage && !isDriverProfilePage
   );
   const mobileActionGridClass = showResultsButton ? 'grid-cols-5' : 'grid-cols-4';
 
@@ -268,7 +270,13 @@ function App() {
   }
 
   function handleBack() {
-    if (isResultsPage && currentSeason) {
+    if (isDriverProfilePage && currentSeason) {
+      if (window.history.state && typeof window.history.state.idx === 'number' && window.history.state.idx > 0) {
+        navigate(-1);
+      } else {
+        navigate(`/${currentSeason}`);
+      }
+    } else if (isResultsPage && currentSeason) {
       navigate(`/${currentSeason}`);
     } else if (isQuickRatePage && currentSeason) {
       navigate(`/${currentSeason}`);
@@ -366,6 +374,12 @@ function App() {
                     <>
                       <span className="text-[var(--text-muted)]">/</span>
                       <span className="font-oxanium text-xs text-[var(--accent-yellow)] uppercase">Awards</span>
+                    </>
+                  )}
+                  {isDriverProfilePage && (
+                    <>
+                      <span className="text-[var(--text-muted)]">/</span>
+                      <span className="font-oxanium text-xs text-[var(--accent-yellow)] uppercase">Driver Profile</span>
                     </>
                   )}
                 </div>
@@ -474,6 +488,14 @@ function App() {
               element={(
                 <Suspense fallback={<AwardsRouteFallback />}>
                   <AwardsRoute />
+                </Suspense>
+              )}
+            />
+            <Route
+              path="/:season/driver/:driverId"
+              element={(
+                <Suspense fallback={<ResultsRouteFallback />}>
+                  <DriverProfileRoute />
                 </Suspense>
               )}
             />

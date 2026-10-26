@@ -26,6 +26,7 @@ export default function ResultsRoute() {
             <ResultsDashboard
                 season={season}
                 onReset={() => navigate(`/${season}`)}
+                onSelectDriver={(driverId) => navigate(`/${season}/driver/${driverId}`)}
             />
         </motion.div>
     );

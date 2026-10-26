@@ -888,6 +888,8 @@ export async function getAllSeasonSprints(season: string, options: { throwOnErro
 // Get all qualifying results for a season (for H2H calculations)
 export interface SeasonQualifyingResult {
     round: string;
+    raceName?: string;
+    date?: string;
     driverId: string;
     driverName: string;
     constructorId: string;
@@ -911,6 +913,8 @@ export async function getAllSeasonQualifying(
             race.QualifyingResults?.forEach((result: RaceQualifyingResult) => {
                 results.push({
                     round: race.round,
+                    raceName: race.raceName ?? `Round ${race.round}`,
+                    date: race.date,
                     driverId: result.Driver.driverId,
                     driverName: `${result.Driver.givenName} ${result.Driver.familyName}`,
                     constructorId: result.Constructor.constructorId,
@@ -932,5 +936,146 @@ export async function getAllSeasonQualifying(
         }
         console.error(`Error fetching season qualifying for ${season}:`, error);
         return [];
+    }
+}
+
+export interface DriverCareerStint {
+    season: string;
+    constructorId: string;
+    constructorName: string;
+}
+
+export interface ConstructorSeasonH2HRaw {
+    season: string;
+    constructorId: string;
+    constructorName: string;
+    raceResults: SeasonRaceResult[];
+    qualiResults: SeasonQualifyingResult[];
+}
+
+export async function getDriverCareerStints(driverId: string): Promise<DriverCareerStint[]> {
+    const cacheKey = `jolpica:driver-career-stints:${driverId}:v1`;
+    const cached = getCache<DriverCareerStint[]>(cacheKey);
+    if (cached) return cached;
+
+    try {
+        const allDriverRaces = await fetchAllPaginated(`/drivers/${driverId}/results.json`);
+        const seen = new Set<string>();
+        const stints: DriverCareerStint[] = [];
+
+        const sortedRaces = [...allDriverRaces].sort((a, b) => {
+            const seasonDiff = (parseInt(a.season ?? '0', 10) || 0) - (parseInt(b.season ?? '0', 10) || 0);
+            if (seasonDiff !== 0) return seasonDiff;
+            return (parseInt(a.round, 10) || 0) - (parseInt(b.round, 10) || 0);
+        });
+
+        sortedRaces.forEach(race => {
+            const season = race.season;
+            if (!season) return;
+            race.Results?.forEach(res => {
+                if (res.Driver.driverId !== driverId) return;
+                const constructorId = res.Constructor.constructorId;
+                const constructorName = res.Constructor.name;
+                const key = `${season}::${constructorId}`;
+                if (!seen.has(key)) {
+                    seen.add(key);
+                    stints.push({ season, constructorId, constructorName });
+                }
+            });
+        });
+
+        if (stints.length > 0) {
+            setCache(cacheKey, stints, 6 * 60 * 60 * 1000);
+        }
+        return stints;
+    } catch (error) {
+        const stale = getStaleCache<DriverCareerStint[]>(cacheKey);
+        if (stale) return stale;
+        console.error(`Error fetching career stints for ${driverId}:`, error);
+        return [];
+    }
+}
+
+export async function getConstructorSeasonH2HRaw(
+    season: string,
+    constructorId: string,
+    constructorNameFallback = constructorId,
+): Promise<ConstructorSeasonH2HRaw> {
+    const cacheKey = `jolpica:constructor-h2h:${season}:${constructorId}:v1`;
+    const cached = getCache<ConstructorSeasonH2HRaw>(cacheKey);
+    if (cached) return cached;
+
+    try {
+        const [rawRaces, rawQualifying] = await Promise.all([
+            fetchAllPaginated(`/${season}/constructors/${constructorId}/results.json`),
+            fetchAllPaginated(`/${season}/constructors/${constructorId}/qualifying.json`),
+        ]);
+
+        const raceResults: SeasonRaceResult[] = [];
+        let resolvedConstructorName = constructorNameFallback;
+
+        rawRaces.forEach(race => {
+            const raceEntries = race.Results ?? [];
+            raceEntries.forEach(result => {
+                const isClassified = isClassifiedRaceResult(result);
+                const parsedPosition = Number.parseInt(result.position, 10);
+                const parsedGridPosition = Number.parseInt(result.grid, 10);
+                resolvedConstructorName = result.Constructor?.name || resolvedConstructorName;
+
+                raceResults.push({
+                    round: race.round,
+                    raceName: race.raceName ?? `Round ${race.round}`,
+                    date: race.date,
+                    driverId: result.Driver.driverId,
+                    driverName: `${result.Driver.givenName} ${result.Driver.familyName}`,
+                    constructorId: result.Constructor.constructorId,
+                    constructorName: result.Constructor.name,
+                    gridPosition: Number.isFinite(parsedGridPosition) ? parsedGridPosition : null,
+                    position: isClassified && Number.isFinite(parsedPosition) ? parsedPosition : null,
+                    points: parseFloat(result.points) || 0,
+                    status: result.status,
+                    started: didStartRace(result),
+                });
+            });
+        });
+
+        const qualiResults: SeasonQualifyingResult[] = [];
+        rawQualifying.forEach(race => {
+            race.QualifyingResults?.forEach(result => {
+                resolvedConstructorName = result.Constructor?.name || resolvedConstructorName;
+                qualiResults.push({
+                    round: race.round,
+                    raceName: race.raceName ?? `Round ${race.round}`,
+                    date: race.date,
+                    driverId: result.Driver.driverId,
+                    driverName: `${result.Driver.givenName} ${result.Driver.familyName}`,
+                    constructorId: result.Constructor.constructorId,
+                    constructorName: result.Constructor.name,
+                    position: parseInt(result.position, 10),
+                });
+            });
+        });
+
+        const payload: ConstructorSeasonH2HRaw = {
+            season,
+            constructorId,
+            constructorName: resolvedConstructorName,
+            raceResults,
+            qualiResults,
+        };
+
+        setCache(cacheKey, payload, getSeasonCacheTtlMs(season));
+        return payload;
+    } catch (error) {
+        const stale = getStaleCache<ConstructorSeasonH2HRaw>(cacheKey);
+        if (stale) return stale;
+        console.error(`Error fetching constructor H2H for ${season} ${constructorId}:`, error);
+        return {
+            season,
+            constructorId,
+            constructorName: constructorNameFallback,
+            raceResults: [],
+            qualiResults: [],
+        };
     }
 }

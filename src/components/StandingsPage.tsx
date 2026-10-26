@@ -14,6 +14,7 @@ import { StandingsPointsTracker } from './StandingsPointsTracker';
 interface StandingsPageProps {
     season: string;
     onBack: () => void;
+    onSelectDriver?: (driverId: string) => void;
 }
 
 type TabType = 'wdc' | 'wcc';
@@ -30,7 +31,7 @@ interface RaceColumn {
     countryCode: string;
 }
 
-export function StandingsPage({ season }: StandingsPageProps) {
+export function StandingsPage({ season, onSelectDriver }: StandingsPageProps) {
     const [activeTab, setActiveTab] = useState<TabType>('wdc');
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -300,6 +301,7 @@ export function StandingsPage({ season }: StandingsPageProps) {
                     raceMap={wdcRaceMap}
                     latestTeamMap={latestTeamByDriverId}
                     getTeamColor={getTeamColor}
+                    onSelectDriver={onSelectDriver}
                 />
             ) : (
                 <WCCTable
@@ -338,9 +340,10 @@ interface WDCTableProps {
     raceMap: Map<string, Map<string, { position: number | null | undefined; points: number }>>;
     latestTeamMap: Map<string, { constructorId: string; constructorName: string }>;
     getTeamColor: (constructorId: string) => string;
+    onSelectDriver?: (driverId: string) => void;
 }
 
-function WDCTable({ drivers, races, raceMap, latestTeamMap, getTeamColor }: WDCTableProps) {
+function WDCTable({ drivers, races, raceMap, latestTeamMap, getTeamColor, onSelectDriver }: WDCTableProps) {
     if (drivers.length === 0) {
         return (
             <div className="text-center py-12 text-[var(--text-muted)]">
@@ -411,17 +414,36 @@ function WDCTable({ drivers, races, raceMap, latestTeamMap, getTeamColor }: WDCT
 
                                     {/* Driver Name */}
                                     <td className="sticky left-12 z-10 bg-[var(--bg-panel)] px-2 md:px-3 py-2">
-                                        <div className="flex items-center gap-2">
-                                            <div className="w-1 h-6" style={{ backgroundColor: getTeamColor(displayConstructorId) }} />
-                                            <div>
-                                                <div className="font-display text-xs md:text-sm text-white uppercase leading-none">
-                                                    {driver.driverName.split(' ')[1] || driver.driverName}
+                                        {onSelectDriver ? (
+                                            <button
+                                                type="button"
+                                                onClick={() => onSelectDriver(driver.driverId)}
+                                                className="group/driver flex items-center gap-2 text-left cursor-pointer"
+                                                title={`View ${driver.driverName} profile`}
+                                            >
+                                                <div className="w-1 h-6" style={{ backgroundColor: getTeamColor(displayConstructorId) }} />
+                                                <div>
+                                                    <div className="font-display text-xs md:text-sm text-white group-hover/driver:text-[var(--accent-yellow)] transition-colors uppercase leading-none">
+                                                        {driver.driverName.split(' ')[1] || driver.driverName}
+                                                    </div>
+                                                    <div className="font-oxanium text-[7px] md:text-[8px] text-[var(--text-muted)] uppercase">
+                                                        {displayConstructorName}
+                                                    </div>
                                                 </div>
-                                                <div className="font-oxanium text-[7px] md:text-[8px] text-[var(--text-muted)] uppercase">
-                                                    {displayConstructorName}
+                                            </button>
+                                        ) : (
+                                            <div className="flex items-center gap-2">
+                                                <div className="w-1 h-6" style={{ backgroundColor: getTeamColor(displayConstructorId) }} />
+                                                <div>
+                                                    <div className="font-display text-xs md:text-sm text-white uppercase leading-none">
+                                                        {driver.driverName.split(' ')[1] || driver.driverName}
+                                                    </div>
+                                                    <div className="font-oxanium text-[7px] md:text-[8px] text-[var(--text-muted)] uppercase">
+                                                        {displayConstructorName}
+                                                    </div>
                                                 </div>
                                             </div>
-                                        </div>
+                                        )}
                                     </td>
 
                                     {/* Points */}
