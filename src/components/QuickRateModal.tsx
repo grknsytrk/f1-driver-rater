@@ -3,7 +3,7 @@ import { RotateCcw, Zap } from 'lucide-react';
 import { toast } from 'sonner';
 import { TEAM_COLORS } from '../types';
 import { getDriverSeasonStats } from '../api/f1Api';
-import { clearQuickRatings, saveQuickDriverRating, getQuickRatings, markQuickRatingsCommunityEligible } from '../utils/storage';
+import { clearQuickRatings, saveQuickDriverRating, removeQuickDriverRating, getQuickRatings, markQuickRatingsCommunityEligible } from '../utils/storage';
 import { fetchWithMinDelay } from '../utils/delay';
 import { ModalShell } from './ModalShell';
 import { QuickRateModalContentFallback } from './RouteFallbacks';
@@ -84,7 +84,11 @@ export function QuickRateModal({ season, onClose }: QuickRateModalProps) {
         if (loading) return;
         const driver = drivers.find(driver => driver.driverId === driverId);
         if (!driver) return;
-        if (getQuickRatings(season)?.some(saved => saved.driverId === driverId && saved.rating === rating)) return;
+        if (getQuickRatings(season)?.some(saved => saved.driverId === driverId && saved.rating === rating)) {
+            removeQuickDriverRating(season, driverId);
+            setHoveredRating(current => (current?.id === driverId ? null : current));
+            return;
+        }
         policyConsent.requestAcceptance(() => {
             saveQuickDriverRating(season, {
                 driverId, driverName: driver.driverName,

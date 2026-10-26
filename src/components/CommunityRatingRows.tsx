@@ -71,8 +71,8 @@ export function CommunityRatingRows({ rows, season, source, communityStatus, com
                                 </span>
                             </span>
                             <span className="flex min-h-[54px] w-full min-w-0 flex-col items-start justify-center text-left font-oxanium">
-                                <span className="whitespace-nowrap text-sm font-normal leading-none tabular-nums md:text-lg" style={{ color: getRatingColor(communityVisible ? comparison.myAverage : driver.averageRating) }}>
-                                    {(communityVisible ? comparison.myAverage : driver.averageRating).toFixed(2)}
+                                <span className="whitespace-nowrap text-sm font-normal leading-none tabular-nums md:text-lg" style={{ color: (communityVisible ? comparison.myAverage : driver.averageRating) > 0 ? getRatingColor(communityVisible ? comparison.myAverage : driver.averageRating) : 'var(--text-muted)' }}>
+                                    {(communityVisible ? comparison.myAverage : driver.averageRating) > 0 ? (communityVisible ? comparison.myAverage : driver.averageRating).toFixed(2) : '—'}
                                 </span>
                                 {communityVisible && <span className="mt-1 h-[9px]" aria-hidden="true" />}
                             </span>

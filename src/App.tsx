@@ -15,7 +15,6 @@ import {
   TeammateWarsRouteFallback,
 } from './components/RouteFallbacks';
 import { getSeasons, getRaces } from './api/f1Api';
-import { getRatedRacesCount, hasQuickRatings } from './utils/storage';
 import {
   AwardsRoute,
   ResultsRoute,
@@ -255,8 +254,7 @@ function App() {
   const isAwardsPage = pathParts[1] === 'awards';
   const isHomePage = pathname === '/' || pathname === '';
 
-  const ratedCount = currentSeason ? getRatedRacesCount(currentSeason) : 0;
-  const showResultsButton = currentSeason ? (ratedCount > 0 || hasQuickRatings(currentSeason)) : false;
+  const showResultsButton = Boolean(currentSeason);
   const showSeasonActions = Boolean(
     currentSeason && !isResultsPage && !isQuickRatePage && !isRacePage && !isTeammateWarsPage && !isStandingsPage && !isAwardsPage
   );

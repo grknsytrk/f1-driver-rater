@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Timer } from 'lucide-react';
 import { TEAM_COLORS } from '../types';
 import { getRaceRatingContext, type RaceRecap } from '../api/f1Api';
-import { saveRaceDriverRating, getRaceRatings, markRaceRatingsCommunityEligible } from '../utils/storage';
+import { saveRaceDriverRating, removeRaceDriverRating, getRaceRatings, markRaceRatingsCommunityEligible } from '../utils/storage';
 import { fetchWithMinDelay } from '../utils/delay';
 import { ModalShell } from './ModalShell';
 import { RatingModalContentFallback } from './RouteFallbacks';
@@ -113,6 +113,8 @@ export function RatingModal({ race, season, metadataResolved = true, onClose }: 
         const driver = drivers.find(driver => driver.driverId === driverId);
         if (!driver) return;
         if (getRaceRatings(season, race.round)?.ratings.some(saved => saved.driverId === driverId && saved.rating === rating)) {
+            removeRaceDriverRating(season, race.round, race.raceName, race.date, driverId);
+            setHoveredRating(current => (current?.id === driverId ? null : current));
             return;
         }
         policyConsent.requestAcceptance(() => {

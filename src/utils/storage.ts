@@ -89,6 +89,18 @@ export function saveRaceDriverRating(season: string, round: string, raceName: st
     ]);
 }
 
+export function removeRaceDriverRating(season: string, round: string, raceName: string, date: string, driverId: string): void {
+    const existing = getRaceRatings(season, round)?.ratings ?? [];
+    if (!existing.some(value => value.driverId === driverId)) return;
+    saveRaceRatings(
+        season,
+        round,
+        raceName,
+        date,
+        existing.filter(value => value.driverId !== driverId),
+    );
+}
+
 // Promote all existing personal scores for a race when the user explicitly
 // leaves that race's rating screen. This keeps legacy scores intact while
 // avoiding a driver-by-driver re-entry step.
@@ -337,6 +349,15 @@ export function saveQuickDriverRating(season: string, rating: DriverRating): voi
         ...(getQuickRatings(season) ?? []).filter(value => value.driverId !== rating.driverId),
         { ...rating, communityEligible: true },
     ]);
+}
+
+export function removeQuickDriverRating(season: string, driverId: string): void {
+    const existing = getQuickRatings(season) ?? [];
+    if (!existing.some(value => value.driverId === driverId)) return;
+    saveQuickRatings(
+        season,
+        existing.filter(value => value.driverId !== driverId),
+    );
 }
 
 // Promote all existing personal Quick Rate scores for the season in one

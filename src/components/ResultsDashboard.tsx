@@ -28,7 +28,12 @@ import { CountryFlag } from '../utils/countryFlags';
 import { buildDriverLineDashes } from '../utils/standings';
 import { FormTrackerLines } from './FormTrackerLines';
 import { FormLineSwatch } from './FormLineSwatch';
-import { buildCommunityBreakdown, type BreakdownDriverIdentity } from '../utils/raceBreakdown';
+import {
+    buildCommunityBreakdown,
+    buildCommunityFormSeries,
+    buildCommunitySeasonAverages,
+    type BreakdownDriverIdentity,
+} from '../utils/raceBreakdown';
 import { getRatingColor } from '../utils/ratingColor';
 import { PodiumFlagBackdrop } from './PodiumFlagBackdrop';
 
@@ -75,7 +80,11 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
     const policyConsent = useSitePolicyConsent();
     const averages = calculateAverages(season);
     const personalRaces = getSeasonRatings(season);
-    const source = personalRaces?.races.some(race => race.completed && validRatings(race.ratings).length) ? 'race' : 'quick';
+    const hasPersonalRaceRatings = Boolean(
+        personalRaces?.races.some(race => race.completed && validRatings(race.ratings).length),
+    );
+    const hasPersonalQuickRatings = (getQuickRatings(season) ?? []).length > 0;
+    const source: 'race' | 'quick' = hasPersonalRaceRatings || !hasPersonalQuickRatings ? 'race' : 'quick';
     const community = useCommunityRatings(source, season);
     const communityVisible = community.status !== 'disabled' && community.status !== 'unavailable';
     const hasLegacy = (source === 'race'
@@ -116,7 +125,8 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
     const [cardImage, setCardImage] = useState<string | null>(null);
     const [generating, setGenerating] = useState(false);
     const [generatingTable, setGeneratingTable] = useState(false);
-    const [breakdownSource, setBreakdownSource] = useState<BreakdownSource>('personal');
+    const [userSelectedMode, setUserSelectedMode] = useState<BreakdownSource | null>(null);
+    const [userSelectedBreakdownSource, setUserSelectedBreakdownSource] = useState<BreakdownSource | null>(null);
     const [breakdownCalendar, setBreakdownCalendar] = useState<BreakdownCalendar | null>(null);
     const [seasonDriverMetadata, setSeasonDriverMetadata] = useState<SeasonDriverMetadata | null>(null);
     const [showConfirmModal, setShowConfirmModal] = useState(false);
@@ -129,9 +139,12 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
     const tableRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const isScrollingToTop = useRef(false);
+
+    const activeMode: BreakdownSource = userSelectedMode ?? (averages.length > 0 ? 'personal' : 'community');
+    const breakdownSource: BreakdownSource = userSelectedBreakdownSource ?? activeMode;
+
     const completedCalendarRaces = breakdownCalendar?.season === season ? breakdownCalendar.races : [];
     const seasonDriverIdentities = seasonDriverMetadata?.season === season ? seasonDriverMetadata.drivers : [];
-    const hasRatings = rankedAverages.length > 0;
     const communityBreakdown = buildCommunityBreakdown(
         raceMatrix.races, raceMatrix.drivers, community.ratings,
         completedCalendarRaces, seasonDriverIdentities,
@@ -142,16 +155,38 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
     const rankedCommunityBreakdownDrivers = rankBreakdownDrivers(
         communityBreakdown.drivers, Math.ceil(votedCommunityRaces * 0.5),
     );
+    const communityRankedAverages = buildCommunitySeasonAverages(
+        communityBreakdown.drivers,
+        votedCommunityRaces,
+        source === 'quick' ? community.ratings : [],
+        seasonDriverIdentities,
+    );
+    const activeRankedAverages = activeMode === 'community' ? communityRankedAverages : rankedAverages;
+    const communityFormSeries = buildCommunityFormSeries(communityBreakdown.drivers, breakdownRaces);
+    const activeRankedFormSeries = activeMode === 'community' ? communityFormSeries : rankedFormSeries;
+
     const breakdownDrivers: (DriverRow & { voteCounts?: Record<string, number> })[] = breakdownSource === 'community'
         ? rankedCommunityBreakdownDrivers : rankedRaceMatrixDrivers;
     const showCommunityBreakdownStatus = breakdownSource === 'community'
         && (community.status !== 'ready' || breakdownRaces.length === 0);
     const canDownloadBreakdown = breakdownSource === 'personal'
         || (community.status === 'ready' && breakdownRaces.length > 0);
-    const formSeriesKey = formSeries.map(series => `${series.driverId}:${series.latestConstructorId}:${series.totalRatedRaces}`).join('|');
-    const driverRatingRows = rankedAverages.map(driver => ({
+    const formSeriesKey = activeRankedFormSeries
+        .map(series => `${series.driverId}:${series.latestConstructorId}:${series.totalRatedRaces}`)
+        .join('|');
+    const personalAverageByDriverId = new Map(
+        rankedAverages.map(driver => [driver.driverId, driver.averageRating]),
+    );
+    const baseDriversForTable = activeMode === 'community' ? communityRankedAverages : rankedAverages;
+    const driverRatingRows = baseDriversForTable.map(driver => ({
         driver,
-        comparison: compareCommunity(driver, personalRaces, community.ratings, source, 'season'),
+        comparison: compareCommunity(
+            { ...driver, averageRating: personalAverageByDriverId.get(driver.driverId) ?? 0 },
+            personalRaces,
+            community.ratings,
+            source,
+            'season',
+        ),
     }));
     const sortedDriverRatingRows = [...driverRatingRows].sort((a, b) => {
         if (!driverRatingsSort) return 0;
@@ -174,6 +209,12 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
             || a.driver.driverName.localeCompare(b.driver.driverName);
     });
 
+    function handleModeChange(nextMode: BreakdownSource) {
+        setUserSelectedMode(nextMode);
+        setUserSelectedBreakdownSource(nextMode);
+        setCardImage(null);
+    }
+
     useEffect(() => {
         if (source !== 'race') return;
         let active = true;
@@ -185,6 +226,7 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
                     round: race.round,
                     raceName: race.raceName,
                     countryCode: getCountryCode(race.raceName),
+                    date: race.date,
                 })),
             });
         }).catch(() => {
@@ -194,7 +236,7 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
     }, [season, source]);
 
     useEffect(() => {
-        if (!hasRatings || seasonDriverMetadata?.season === season) return;
+        if (seasonDriverMetadata?.season === season) return;
 
         let active = true;
         getSeasonDrivers(season).then(drivers => {
@@ -213,7 +255,7 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
             if (active) setSeasonDriverMetadata({ season, drivers: [] });
         });
         return () => { active = false; };
-    }, [hasRatings, seasonDriverMetadata?.season, season]);
+    }, [seasonDriverMetadata?.season, season]);
 
     // Track scroll position to show/hide "Top" button
     useEffect(() => {
@@ -241,36 +283,18 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
     useEffect(() => {
         setSelectedFormDriverIds(current => reconcileFormDriverSelection(
             current,
-            rankedFormSeries.map(series => series.driverId),
+            activeRankedFormSeries.map(series => series.driverId),
         ));
-    }, [season, rankedFormSeries, formSeriesKey]);
+    }, [season, activeMode, activeRankedFormSeries, formSeriesKey]);
 
-    const visibleFormDrivers = rankedFormSeries.filter(series => selectedFormDriverIds.includes(series.driverId));
-
-    if (averages.length === 0) {
-        return (
-            <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="flex flex-col items-center justify-center p-8 md:p-20 border border-[var(--border-color)] bg-[var(--bg-panel)] min-h-[300px] md:min-h-[400px] mx-4 md:mx-0"
-            >
-                <div className="w-16 h-16 border border-[var(--text-muted)] flex items-center justify-center mb-6 opacity-50">
-                    <Trophy size={24} className="text-[var(--text-muted)]" />
-                </div>
-                <h3 className="font-display text-2xl md:text-4xl mb-2 text-white uppercase tracking-wide text-center">NO RATINGS YET</h3>
-                <p className="font-oxanium text-[var(--text-secondary)] uppercase tracking-wider text-xs md:text-sm text-center">
-                    Rate some races to see your results
-                </p>
-            </motion.div>
-        );
-    }
+    const visibleFormDrivers = activeRankedFormSeries.filter(series => selectedFormDriverIds.includes(series.driverId));
 
     function getTeamColor(constructorId: string): string {
         return TEAM_COLORS[constructorId] || '#888888';
     }
 
     async function handleGenerateCard() {
-        if (!cardRef.current) return;
+        if (!cardRef.current || activeRankedAverages.length === 0) return;
 
         setShowCardSection(true);
         setGenerating(true);
@@ -302,7 +326,9 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
     function handleDownloadCard() {
         if (!cardImage) return;
         const link = document.createElement('a');
-        link.download = `f1-ratings-${season}.png`;
+        link.download = activeMode === 'community'
+            ? `f1-community-ratings-${season}.png`
+            : `f1-ratings-${season}.png`;
         link.href = cardImage;
         link.click();
     }
@@ -406,23 +432,25 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
     }
 
     // Chart data
-    const chartData = rankedAverages.slice(0, 10).map(d => ({
+    const chartData = activeRankedAverages.slice(0, 10).map(d => ({
         name: getDriverLabel(d.driverName),
         rating: d.averageRating,
         fullName: d.driverName.toUpperCase(),
         color: getTeamColor(d.constructorId),
-        team: d.constructorName.toUpperCase()
+        team: d.constructorName.toUpperCase(),
     }));
 
     // Podium (top 3)
-    const podium = rankedAverages.slice(0, 3);
+    const podium = activeRankedAverages.slice(0, 3);
     const winnerNationality = seasonDriverIdentities.find(driver => driver.driverId === podium[0]?.driverId)?.nationality;
     const podiumOrder = [1, 0, 2]; // Silver, Gold, Bronze positions
-    const formChartData = buildFormChartData(rankedFormSeries);
-    const formLineDashes = buildDriverLineDashes(rankedFormSeries.map(driver => ({
+    const formChartData = buildFormChartData(activeRankedFormSeries);
+    const formLineDashes = buildDriverLineDashes(activeRankedFormSeries.map(driver => ({
         driverId: driver.driverId,
         constructorId: driver.latestConstructorId,
     })));
+    const showBreakdownSection = raceMatrix.races.length > 0
+        || (activeMode === 'community' && breakdownRaces.length > 0);
 
     return (
         <div className="min-h-screen py-4 md:py-8 px-3 md:px-6">
@@ -434,16 +462,55 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
                     animate={{ opacity: 1, y: 0 }}
                     className="space-y-4 md:space-y-6"
                 >
-                    <div className="flex flex-col items-start border-l-4 border-[var(--accent-red)] pl-4 md:pl-6">
-                        <h2 className="font-display text-3xl md:text-7xl text-white uppercase tracking-tight leading-none">
-                            {season} <span className="text-[var(--accent-red)]">SEASON</span>
-                        </h2>
-                        <div className="h-px w-16 md:w-32 bg-[var(--accent-red)] mt-2" />
+                    <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+                        <div className="flex flex-col items-start border-l-4 border-[var(--accent-red)] pl-4 md:pl-6">
+                            <h2 className="font-display text-3xl md:text-7xl text-white uppercase tracking-tight leading-none">
+                                {season} <span className="text-[var(--accent-red)]">SEASON</span>
+                            </h2>
+                            <div className="h-px w-16 md:w-32 bg-[var(--accent-red)] mt-2" />
+                        </div>
+
+                        <div
+                            role="group"
+                            aria-label="Results dashboard rating source"
+                            className="inline-flex self-start md:self-auto border border-[var(--border-color)] bg-[var(--bg-darker)] p-1"
+                        >
+                            <button
+                                type="button"
+                                aria-pressed={activeMode === 'personal'}
+                                onClick={() => handleModeChange('personal')}
+                                className={`px-3 md:px-4 py-2 font-ui text-[10px] md:text-xs font-bold uppercase tracking-wider transition-colors ${activeMode === 'personal'
+                                    ? 'bg-[var(--accent-red)] text-white'
+                                    : 'text-[var(--text-secondary)] hover:text-white'}`}
+                            >
+                                MY RATINGS
+                            </button>
+                            <button
+                                type="button"
+                                aria-pressed={activeMode === 'community'}
+                                onClick={() => handleModeChange('community')}
+                                className={`px-3 md:px-4 py-2 font-ui text-[10px] md:text-xs font-bold uppercase tracking-wider transition-colors ${activeMode === 'community'
+                                    ? 'bg-[var(--accent-yellow)] text-black'
+                                    : 'text-[var(--text-secondary)] hover:text-white'}`}
+                            >
+                                COMMUNITY
+                            </button>
+                        </div>
                     </div>
 
                     <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-[var(--border-color)] pb-4">
                         <p className="font-oxanium text-[var(--accent-red)] tracking-widest text-xs md:text-sm uppercase">
-                            SEASON {season} • RACES RATED: <span className="text-white">{ratedCount}</span>
+                            {activeMode === 'community' ? (
+                                <>
+                                    SEASON {season} • COMMUNITY RACES:{' '}
+                                    <span className="text-white">{votedCommunityRaces}</span>
+                                </>
+                            ) : (
+                                <>
+                                    SEASON {season} • RACES RATED:{' '}
+                                    <span className="text-white">{ratedCount}</span>
+                                </>
+                            )}
                         </p>
 
                         <div className="grid grid-cols-2 md:flex gap-2 w-full md:w-auto">
@@ -499,7 +566,8 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
                                     <button
                                         aria-label="Generate a shareable PNG card from your season ratings"
                                         onClick={handleGenerateCard}
-                                        className="group flex items-center justify-center gap-2 px-3 md:px-4 py-2 bg-[var(--bg-panel)] border border-[var(--border-color)] hover:border-white transition-all hover:bg-[var(--bg-panel-hover)]"
+                                        disabled={activeRankedAverages.length === 0}
+                                        className="group flex items-center justify-center gap-2 px-3 md:px-4 py-2 bg-[var(--bg-panel)] border border-[var(--border-color)] hover:border-white transition-all hover:bg-[var(--bg-panel-hover)] disabled:opacity-50"
                                     >
                                         <ImageDown size={14} className="text-[var(--text-muted)] group-hover:text-white" />
                                         <span className="font-ui font-bold text-[10px] md:text-xs text-white uppercase tracking-wider hidden md:inline">GENERATE CARD</span>
@@ -510,7 +578,7 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
                                     sideOffset={8}
                                     className="bg-[var(--bg-darker)] text-white border border-[var(--border-color)]"
                                 >
-                                    Create a shareable PNG card from your ratings (opens the Share section)
+                                    Create a shareable PNG card from the active ratings view (opens the Share section)
                                 </TooltipContent>
                             </ShadcnTooltip>
 
@@ -538,419 +606,462 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
 
                 </motion.div>
 
-                {/* 2. SECTION: PODIUM (TECHNICAL BLOCKS) */}
-                <div className="podium-stage relative isolate pt-4 md:pt-8 pb-8 md:pb-16 overflow-hidden">
-                    {winnerNationality && <PodiumFlagBackdrop key={winnerNationality} nationality={winnerNationality} />}
-                    <div className="relative z-10 flex items-end justify-center gap-1 md:gap-8">
-                        {podiumOrder.map((pos, visualIndex) => {
-                            if (!podium[pos]) return null;
-                            const driver = podium[pos];
-                            const isWinner = pos === 0;
-                            // Explicit heights - smaller on mobile
-                            const blockHeight = isWinner ? 'h-20 md:h-56' : pos === 1 ? 'h-16 md:h-40' : 'h-12 md:h-32';
-                            const positionColor = isWinner ? 'var(--accent-yellow)' : pos === 1 ? '#C0C0C0' : '#CD7F32';
-                            const rank = isWinner ? 1 : pos === 1 ? 2 : 3;
+                {activeRankedAverages.length === 0 ? (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        className="flex flex-col items-center justify-center p-8 md:p-20 border border-[var(--border-color)] bg-[var(--bg-panel)] min-h-[300px] md:min-h-[400px]"
+                    >
+                        <div className="w-16 h-16 border border-[var(--text-muted)] flex items-center justify-center mb-6 opacity-50">
+                            <Trophy size={24} className="text-[var(--text-muted)]" />
+                        </div>
+                        {activeMode === 'community' ? (
+                            <>
+                                <h3 className="font-display text-2xl md:text-4xl mb-2 text-white uppercase tracking-wide text-center">
+                                    {community.status === 'loading'
+                                        ? 'LOADING COMMUNITY RESULTS'
+                                        : community.status === 'ready'
+                                            ? 'NO COMMUNITY RATINGS YET'
+                                            : 'COMMUNITY RATINGS UNAVAILABLE'}
+                                </h3>
+                                <p className="font-oxanium text-[var(--text-secondary)] uppercase tracking-wider text-xs md:text-sm text-center">
+                                    {community.status === 'loading'
+                                        ? `Fetching global community ratings for the ${season} season...`
+                                        : community.status === 'ready'
+                                            ? `No community votes have been recorded for the ${season} season yet`
+                                            : 'Community data could not be loaded right now'}
+                                </p>
+                            </>
+                        ) : (
+                            <>
+                                <h3 className="font-display text-2xl md:text-4xl mb-2 text-white uppercase tracking-wide text-center">NO RATINGS YET</h3>
+                                <p className="font-oxanium text-[var(--text-secondary)] uppercase tracking-wider text-xs md:text-sm text-center">
+                                    Rate some races to see your results — or switch to Community mode above
+                                </p>
+                            </>
+                        )}
+                    </motion.div>
+                ) : (
+                    <>
+                        {/* 2. SECTION: PODIUM (TECHNICAL BLOCKS) */}
+                        <div className="podium-stage relative isolate pt-4 md:pt-8 pb-8 md:pb-16 overflow-hidden">
+                            {winnerNationality && <PodiumFlagBackdrop key={winnerNationality} nationality={winnerNationality} />}
+                            <div className="relative z-10 flex items-end justify-center gap-1 md:gap-8">
+                                {podiumOrder.map((pos, visualIndex) => {
+                                    if (!podium[pos]) return null;
+                                    const driver = podium[pos];
+                                    const isWinner = pos === 0;
+                                    // Explicit heights - smaller on mobile
+                                    const blockHeight = isWinner ? 'h-20 md:h-56' : pos === 1 ? 'h-16 md:h-40' : 'h-12 md:h-32';
+                                    const positionColor = isWinner ? 'var(--accent-yellow)' : pos === 1 ? '#C0C0C0' : '#CD7F32';
+                                    const rank = isWinner ? 1 : pos === 1 ? 2 : 3;
 
-                            return (
-                                <motion.div
-                                    key={driver.driverId}
-                                    initial={{ opacity: 0, y: 50 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    transition={{ delay: 0.1 * visualIndex, ease: "circOut" }}
-                                    className={`flex flex-col w-[30%] max-w-[100px] md:max-w-none md:w-56 ${isWinner ? 'z-10' : 'z-0'}`}
-                                >
-                                    {/* DRIVER INFO */}
-                                    <div className="mb-1 md:mb-2 bg-[var(--bg-panel)] border border-[var(--border-color)] border-l-2 p-1.5 md:p-3 overflow-hidden"
-                                        style={{ borderLeftColor: getTeamColor(driver.constructorId) }}
-                                    >
-                                        <div className="flex justify-between items-start mb-0.5 md:mb-1">
-                                            <span className="font-oxanium text-[7px] md:text-xs text-[var(--text-secondary)]">P{rank}</span>
-                                            <div className="w-1 h-1 md:w-2 md:h-2 rounded-full flex-shrink-0" style={{ backgroundColor: getTeamColor(driver.constructorId) }} />
-                                        </div>
-                                        <div className="font-display-condensed text-[10px] md:text-2xl leading-none text-white uppercase tracking-tight truncate">
-                                            {driver.driverName.split(' ')[1]}
-                                        </div>
-                                        <div className="font-ui text-[6px] md:text-[10px] text-[var(--text-muted)] uppercase tracking-wider mt-0.5 md:mt-1 truncate">
-                                            {driver.constructorName}
-                                        </div>
-                                    </div>
-
-                                    {/* RATING DISPLAY */}
-                                    <div className="bg-[var(--bg-darker)] border-x border-[var(--border-color)] px-1.5 md:px-4 py-0.5 md:py-2 flex justify-between items-center">
-                                        <span className="font-ui text-[6px] md:text-[10px] text-[var(--text-secondary)] uppercase">AVG</span>
-                                        <span className="font-oxanium text-xs md:text-xl font-bold" style={{ color: positionColor }}>
-                                            {driver.averageRating.toFixed(2)}
-                                        </span>
-                                    </div>
-
-                                    {/* BAR BLOCK */}
-                                    <div
-                                        className={`w-full ${blockHeight} relative bg-[var(--bg-panel)] border border-[var(--border-color)] border-t-0 p-1 md:p-2 overflow-hidden`}
-                                    >
-                                        <div className="absolute inset-0 opacity-10"
-                                            style={{ backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 2px, #fff 2px, #fff 3px)' }} />
-
-                                        <div className="absolute bottom-0 left-0 w-full h-1" style={{ backgroundColor: positionColor }} />
-
-                                        <span
-                                            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 font-oxanium text-4xl md:text-8xl font-bold leading-none select-none z-10"
-                                            style={{ color: positionColor, opacity: 0.4 }}
+                                    return (
+                                        <motion.div
+                                            key={driver.driverId}
+                                            initial={{ opacity: 0, y: 50 }}
+                                            animate={{ opacity: 1, y: 0 }}
+                                            transition={{ delay: 0.1 * visualIndex, ease: "circOut" }}
+                                            className={`flex flex-col w-[30%] max-w-[100px] md:max-w-none md:w-56 ${isWinner ? 'z-10' : 'z-0'}`}
                                         >
-                                            {rank}
-                                        </span>
-                                    </div>
-                                </motion.div>
-                            );
-                        })}
-                    </div>
-                </div>
-
-                {/* 3. SECTION: STATS GRID */}
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 md:gap-12">
-
-                    {/* CHART (Span 6) - Hidden on mobile */}
-                    <div className="hidden md:flex md:flex-col lg:col-span-6">
-                        <div className="mb-4 flex items-center justify-between border-b border-[var(--border-color)] pb-2">
-                            <h3 className="font-display text-xl md:text-2xl text-white uppercase tracking-wider">PERFORMANCE ANALYSIS</h3>
-                            <BarChart3 className="text-[var(--accent-red)] opacity-50" size={16} />
-                        </div>
-
-                        <div className="bg-[var(--bg-panel)] border border-[var(--border-color)] p-4 md:p-6 flex-1 min-h-[400px] md:min-h-[600px] relative scanline">
-                            {/* Grid Lines Overlay */}
-                            <div className="absolute inset-0 pointer-events-none opacity-5"
-                                style={{ backgroundImage: 'linear-gradient(var(--border-color) 1px, transparent 1px), linear-gradient(90deg, var(--border-color) 1px, transparent 1px)', backgroundSize: '20px 20px' }} />
-
-                            <ResponsiveContainer width="100%" height="100%">
-                                <BarChart data={chartData} layout="vertical" margin={{ left: 0, right: 30, top: 10, bottom: 10 }}>
-                                    <XAxis type="number" domain={[0, 10]} hide />
-                                    <YAxis
-                                        type="category"
-                                        dataKey="name"
-                                        tick={{ fill: '#8E9196', fontSize: 12, fontFamily: 'Formula1', fontWeight: 400 }}
-                                        width={100}
-                                        axisLine={false}
-                                        tickLine={false}
-                                    />
-                                    <Tooltip
-                                        cursor={{ fill: 'rgba(255,255,255,0.02)' }}
-                                        content={({ active, payload }) => {
-                                            if (active && payload && payload.length) {
-                                                const d = payload[0].payload;
-                                                return (
-                                                    <div className="bg-[#050608] border border-[var(--border-color)] p-4 shadow-2xl">
-                                                        <div className="flex items-center gap-2 mb-2">
-                                                            <div className="w-1 h-3" style={{ backgroundColor: d.color }} />
-                                                            <div className="font-display text-xl text-white uppercase leading-none">{d.fullName}</div>
-                                                        </div>
-                                                        <div className="flex justify-between gap-4 font-oxanium text-sm">
-                                                            <span className="text-[var(--text-muted)]">RATING</span>
-                                                            <span className="text-[var(--accent-yellow)]">{d.rating.toFixed(3)}</span>
-                                                        </div>
-                                                    </div>
-                                                );
-                                            }
-                                            return null;
-                                        }}
-                                    />
-                                    <Bar dataKey="rating" radius={[0, 1, 1, 0]} barSize={16}>
-                                        {chartData.map((entry, index) => (
-                                            <Cell key={`cell-${index}`} fill={entry.color} />
-                                        ))}
-                                    </Bar>
-                                </BarChart>
-                            </ResponsiveContainer>
-                        </div>
-                    </div>
-
-                    {/* Personal season order is the default; the three metric columns can be sorted independently. */}
-                    <div className="min-w-0 lg:col-span-6">
-                        <div className="mb-3 border-b border-[var(--border-color)] pb-2">
-                            <h3 className="font-display text-lg text-white uppercase tracking-wider md:text-2xl">DRIVER RATINGS</h3>
-                            <p className="mt-1 font-oxanium text-[9px] tracking-wide text-[var(--text-muted)]">
-                                {source === 'race' ? 'RACE RATINGS · PERSONAL SEASON ORDER' : 'QUICK RATE · SEASON RATINGS'}
-                            </p>
-                        </div>
-                        <CommunityNotice status={community.status} legacy={hasLegacy} />
-                        <div className="bg-[var(--bg-panel)] border-t border-[var(--border-color)]">
-                            <div className={`grid items-center gap-2 border-b border-[var(--border-color)] px-2 py-2 font-oxanium text-[8px] text-[var(--text-muted)] md:px-3 md:text-[9px] ${communityVisible ? 'grid-cols-[minmax(0,1fr)_60px_104px] md:grid-cols-[minmax(0,1fr)_72px_112px_40px]' : 'grid-cols-[minmax(0,1fr)_60px] md:grid-cols-[minmax(0,1fr)_72px]'}`}>
-                                <span>DRIVER</span>
-                                <button
-                                    type="button"
-                                    aria-label="Sort by my average, highest first"
-                                    aria-pressed={driverRatingsSort === 'myAverage'}
-                                    onClick={() => setDriverRatingsSort('myAverage')}
-                                    className={`w-full cursor-pointer select-none whitespace-nowrap text-left transition-colors hover:text-white ${driverRatingsSort === 'myAverage' ? 'text-white' : ''}`}
-                                >
-                                    MY AVG
-                                </button>
-                                {communityVisible && <>
-                                    <button
-                                        type="button"
-                                        aria-label="Sort by community average, highest first"
-                                        aria-pressed={driverRatingsSort === 'communityAverage'}
-                                        onClick={() => setDriverRatingsSort('communityAverage')}
-                                        className={`w-full cursor-pointer select-none whitespace-nowrap text-center transition-colors hover:text-white ${driverRatingsSort === 'communityAverage' ? 'text-white' : ''}`}
-                                    >
-                                        COMMUNITY AVG
-                                    </button>
-                                    <button
-                                        type="button"
-                                        aria-label="Sort by votes, highest first"
-                                        aria-pressed={driverRatingsSort === 'votes'}
-                                        onClick={() => setDriverRatingsSort('votes')}
-                                        className={`hidden w-full cursor-pointer select-none items-center justify-center whitespace-nowrap text-center transition-colors hover:text-white md:flex ${driverRatingsSort === 'votes' ? 'text-white' : ''}`}
-                                    >
-                                        VOTES
-                                    </button>
-                                </>}
-                            </div>
-                            <CommunityRatingRows
-                                rows={sortedDriverRatingRows}
-                                season={season}
-                                source={source}
-                                communityStatus={community.status}
-                                communityVisible={communityVisible}
-                            />
-                        </div>
-                    </div>
-                </div>
-
-                {/* 4. SECTION: FORM TRACKER */}
-                <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.25 }}
-                >
-                    <div className="mb-4 flex items-center justify-between border-b border-[var(--border-color)] pb-2">
-                        <div className="flex items-center gap-3">
-                            <BarChart3 size={16} className="text-[var(--accent-red)]" />
-                            <h3 className="font-display text-2xl text-white uppercase tracking-wider">FORM TRACKER</h3>
-                        </div>
-                        <span className="font-oxanium text-[10px] text-[var(--text-muted)] uppercase tracking-widest">
-                            RAW RACE RATINGS
-                        </span>
-                    </div>
-
-                    {formSeries.length === 0 ? (
-                        <div className="bg-[var(--bg-panel)] border border-[var(--border-color)] p-6 md:p-8 relative overflow-hidden">
-                            <div
-                                className="absolute inset-0 pointer-events-none opacity-5"
-                                style={{ backgroundImage: 'linear-gradient(var(--border-color) 1px, transparent 1px), linear-gradient(90deg, var(--border-color) 1px, transparent 1px)', backgroundSize: '20px 20px' }}
-                            />
-                            <div className="relative z-10 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                                <div>
-                                    <div className="font-display text-2xl text-white uppercase tracking-wider">FORM TRACKER UNAVAILABLE</div>
-                                    <p className="font-oxanium text-sm text-[var(--text-secondary)] max-w-2xl">
-                                        Form graph requires race-by-race ratings. Quick Rate data only provides a season snapshot.
-                                    </p>
-                                </div>
-                                <div className="font-oxanium text-[10px] text-[var(--text-muted)] uppercase tracking-widest">
-                                    NO TIMELINE DATA
-                                </div>
-                            </div>
-                        </div>
-                    ) : (
-                        <div className="bg-[var(--bg-panel)] border border-[var(--border-color)] p-4 md:p-6 relative scanline overflow-hidden">
-                            <div
-                                className="absolute inset-0 pointer-events-none opacity-5"
-                                style={{ backgroundImage: 'linear-gradient(var(--border-color) 1px, transparent 1px), linear-gradient(90deg, var(--border-color) 1px, transparent 1px)', backgroundSize: '20px 20px' }}
-                            />
-
-                            <div className="relative z-10 space-y-6">
-                                <div className="space-y-3">
-                                    <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-                                        <p className="font-ui text-sm text-[var(--text-secondary)]">
-                                            Select one or more drivers to compare their race-by-race ratings.
-                                        </p>
-                                        <span className="font-oxanium text-[10px] uppercase tracking-widest text-[var(--text-muted)]">
-                                            {visibleFormDrivers.length} SELECTED
-                                        </span>
-                                    </div>
-                                    {visibleFormDrivers.length > 0 && <div aria-label="Selected drivers" className="flex gap-3 overflow-x-auto pb-2">
-                                        {visibleFormDrivers.map(driver => {
-                                            const color = getTeamColor(driver.latestConstructorId);
-                                            return (
-                                                <div key={driver.driverId} className="w-[260px] shrink-0 border border-[var(--border-color)] bg-[var(--bg-darker)] p-3">
-                                                    <div className="flex items-start justify-between gap-3">
-                                                        <div className="flex min-w-0 items-center gap-2">
-                                                            <FormLineSwatch color={color} dash={formLineDashes.get(driver.driverId)} height={40} />
-                                                            <div className="min-w-0">
-                                                                <div className="truncate font-display text-sm uppercase leading-tight text-white">{driver.driverName}</div>
-                                                                <div className="truncate font-oxanium text-[9px] uppercase tracking-wider text-[var(--text-muted)]">
-                                                                    {driver.latestConstructorName}{driver.changedTeams ? ' · TEAM CHANGE' : ''}
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                        <div className="shrink-0 text-right">
-                                                            <div className="font-oxanium text-[9px] uppercase tracking-wider text-[var(--text-muted)]">AVG</div>
-                                                            <div className="font-display text-lg leading-none text-white">{driver.seasonAverage.toFixed(2)}</div>
-                                                        </div>
-                                                    </div>
-                                                    <div className="mt-3 grid grid-cols-3 gap-2 border-t border-[var(--border-color)] pt-2">
-                                                        <div>
-                                                            <div className="font-oxanium text-[8px] uppercase tracking-wider text-[var(--text-muted)]">RACES</div>
-                                                            <div className="font-oxanium text-xs text-white">{driver.totalRatedRaces}</div>
-                                                        </div>
-                                                        <div className="min-w-0">
-                                                            <div className="font-oxanium text-[8px] uppercase tracking-wider text-[var(--text-muted)]">BEST</div>
-                                                            <div className="font-oxanium text-xs text-white">{driver.bestRating?.toFixed(1) ?? 'N/A'}</div>
-                                                            <div className="truncate font-ui text-[8px] uppercase text-[var(--text-muted)]">{formatRaceDisplayName(driver.bestRaceName)}</div>
-                                                        </div>
-                                                        <div className="min-w-0">
-                                                            <div className="font-oxanium text-[8px] uppercase tracking-wider text-[var(--text-muted)]">WORST</div>
-                                                            <div className="font-oxanium text-xs text-white">{driver.worstRating?.toFixed(1) ?? 'N/A'}</div>
-                                                            <div className="truncate font-ui text-[8px] uppercase text-[var(--text-muted)]">{formatRaceDisplayName(driver.worstRaceName)}</div>
-                                                        </div>
-                                                    </div>
+                                            {/* DRIVER INFO */}
+                                            <div className="mb-1 md:mb-2 bg-[var(--bg-panel)] border border-[var(--border-color)] border-l-2 p-1.5 md:p-3 overflow-hidden"
+                                                style={{ borderLeftColor: getTeamColor(driver.constructorId) }}
+                                            >
+                                                <div className="flex justify-between items-start mb-0.5 md:mb-1">
+                                                    <span className="font-oxanium text-[7px] md:text-xs text-[var(--text-secondary)]">P{rank}</span>
+                                                    <div className="w-1 h-1 md:w-2 md:h-2 rounded-full flex-shrink-0" style={{ backgroundColor: getTeamColor(driver.constructorId) }} />
                                                 </div>
-                                            );
-                                        })}
-                                    </div>}
+                                                <div className="font-display-condensed text-[10px] md:text-2xl leading-none text-white uppercase tracking-tight truncate">
+                                                    {driver.driverName.split(' ')[1] || driver.driverName}
+                                                </div>
+                                                <div className="font-ui text-[6px] md:text-[10px] text-[var(--text-muted)] uppercase tracking-wider mt-0.5 md:mt-1 truncate">
+                                                    {driver.constructorName}
+                                                </div>
+                                            </div>
+
+                                            {/* RATING DISPLAY */}
+                                            <div className="bg-[var(--bg-darker)] border-x border-[var(--border-color)] px-1.5 md:px-4 py-0.5 md:py-2 flex justify-between items-center">
+                                                <span className="font-ui text-[6px] md:text-[10px] text-[var(--text-secondary)] uppercase">AVG</span>
+                                                <span className="font-oxanium text-xs md:text-xl font-bold" style={{ color: positionColor }}>
+                                                    {driver.averageRating.toFixed(2)}
+                                                </span>
+                                            </div>
+
+                                            {/* BAR BLOCK */}
+                                            <div
+                                                className={`w-full ${blockHeight} relative bg-[var(--bg-panel)] border border-[var(--border-color)] border-t-0 p-1 md:p-2 overflow-hidden`}
+                                            >
+                                                <div className="absolute inset-0 opacity-10"
+                                                    style={{ backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 2px, #fff 2px, #fff 3px)' }} />
+
+                                                <div className="absolute bottom-0 left-0 w-full h-1" style={{ backgroundColor: positionColor }} />
+
+                                                <span
+                                                    className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 font-oxanium text-4xl md:text-8xl font-bold leading-none select-none z-10"
+                                                    style={{ color: positionColor, opacity: 0.4 }}
+                                                >
+                                                    {rank}
+                                                </span>
+                                            </div>
+                                        </motion.div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+
+                        {/* 3. SECTION: STATS GRID */}
+                        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 md:gap-12">
+
+                            {/* CHART (Span 6) - Hidden on mobile */}
+                            <div className="hidden md:flex md:flex-col lg:col-span-6">
+                                <div className="mb-4 flex items-center justify-between border-b border-[var(--border-color)] pb-2">
+                                    <h3 className="font-display text-xl md:text-2xl text-white uppercase tracking-wider">PERFORMANCE ANALYSIS</h3>
+                                    <BarChart3 className="text-[var(--accent-red)] opacity-50" size={16} />
                                 </div>
 
-                                <div>
-                                    <div className="mb-2 flex items-center justify-between gap-3">
-                                        <span className="font-oxanium text-[10px] uppercase tracking-widest text-[var(--text-muted)]">SELECT DRIVERS</span>
-                                        <span className="font-oxanium text-[9px] uppercase tracking-wider text-[var(--text-muted)]">Click again to remove</span>
-                                    </div>
-                                    <div role="group" aria-label="Select drivers to compare in Form Tracker" className="overflow-x-auto pb-2">
-                                        <div className="flex min-w-max gap-2">
-                                            {rankedFormSeries.map(driver => {
-                                                const isSelected = selectedFormDriverIds.includes(driver.driverId);
-                                                const color = getTeamColor(driver.latestConstructorId);
+                                <div className="bg-[var(--bg-panel)] border border-[var(--border-color)] p-4 md:p-6 flex-1 min-h-[400px] md:min-h-[600px] relative scanline">
+                                    {/* Grid Lines Overlay */}
+                                    <div className="absolute inset-0 pointer-events-none opacity-5"
+                                        style={{ backgroundImage: 'linear-gradient(var(--border-color) 1px, transparent 1px), linear-gradient(90deg, var(--border-color) 1px, transparent 1px)', backgroundSize: '20px 20px' }} />
 
-                                                return (
-                                                    <button
-                                                        key={driver.driverId}
-                                                        type="button"
-                                                        aria-label={`${isSelected ? 'Remove' : 'Add'} ${driver.driverName} ${isSelected ? 'from' : 'to'} the Form Tracker chart`}
-                                                        aria-pressed={isSelected}
-                                                        onClick={() => setSelectedFormDriverIds(current => toggleFormDriverSelection(current, driver.driverId))}
-                                                        className={`group min-w-[130px] border px-3 py-2 text-left transition-colors ${isSelected
-                                                            ? 'bg-[var(--bg-darker)]'
-                                                            : 'border-[var(--border-color)] bg-[var(--bg-panel-hover)] hover:border-white/40'
-                                                            }`}
-                                                        style={isSelected ? { borderColor: color } : undefined}
-                                                    >
-                                                        <div className="flex items-center gap-2">
-                                                            <FormLineSwatch color={color} dash={formLineDashes.get(driver.driverId)} height={32} />
-                                                            <div className="min-w-0">
-                                                                <div className="truncate font-display text-sm uppercase leading-none text-white">
-                                                                    {getDriverLabel(driver.driverName)}
-                                                                </div>
-                                                                <div className="mt-1 truncate font-oxanium text-[9px] uppercase tracking-wider text-[var(--text-muted)]">
-                                                                    {driver.seasonAverage.toFixed(2)} AVG
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    </button>
-                                                );
-                                            })}
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {visibleFormDrivers.length === 0 ? (
-                                    <div className="h-[320px] md:h-[420px] flex flex-col items-center justify-center gap-3 text-center" role="status">
-                                        <BarChart3 size={32} className="text-[var(--text-muted)]" />
-                                        <p className="font-display text-lg uppercase text-white">SELECT DRIVERS TO COMPARE</p>
-                                        <p className="font-ui text-sm text-[var(--text-secondary)]">Choose one or more drivers above to see their race-by-race ratings.</p>
-                                    </div>
-                                ) : (
-                                <div className="h-[320px] md:h-[420px]">
                                     <ResponsiveContainer width="100%" height="100%">
-                                        <LineChart data={formChartData} margin={{ left: 0, right: 16, top: 20, bottom: 10 }}>
-                                            <CartesianGrid stroke="rgba(255,255,255,0.06)" strokeDasharray="3 3" />
-                                            <XAxis
-                                                dataKey="roundLabel"
-                                                axisLine={false}
-                                                tickLine={false}
-                                                tick={{ fill: '#8E9196', fontSize: 11, fontFamily: 'Oxanium, sans-serif' }}
-                                            />
+                                        <BarChart data={chartData} layout="vertical" margin={{ left: 0, right: 30, top: 10, bottom: 10 }}>
+                                            <XAxis type="number" domain={[0, 10]} hide />
                                             <YAxis
-                                                type="number"
-                                                domain={[0, 10]}
-                                                ticks={[0, 2, 4, 6, 8, 10]}
+                                                type="category"
+                                                dataKey="name"
+                                                tick={{ fill: '#8E9196', fontSize: 12, fontFamily: 'Formula1', fontWeight: 400 }}
+                                                width={100}
                                                 axisLine={false}
                                                 tickLine={false}
-                                                tick={{ fill: '#8E9196', fontSize: 11, fontFamily: 'Oxanium, sans-serif' }}
                                             />
                                             <Tooltip
-                                                cursor={{ stroke: 'rgba(255,255,255,0.08)', strokeWidth: 1 }}
+                                                cursor={{ fill: 'rgba(255,255,255,0.02)' }}
                                                 content={({ active, payload }) => {
-                                                    if (!active || !payload || payload.length === 0) return null;
+                                                    if (active && payload && payload.length) {
+                                                        const d = payload[0].payload;
+                                                        return (
+                                                            <div className="bg-[#050608] border border-[var(--border-color)] p-4 shadow-2xl">
+                                                                <div className="flex items-center gap-2 mb-2">
+                                                                    <div className="w-1 h-3" style={{ backgroundColor: d.color }} />
+                                                                    <div className="font-display text-xl text-white uppercase leading-none">{d.fullName}</div>
+                                                                </div>
+                                                                <div className="flex justify-between gap-4 font-oxanium text-sm">
+                                                                    <span className="text-[var(--text-muted)]">RATING</span>
+                                                                    <span className="text-[var(--accent-yellow)]">{d.rating.toFixed(3)}</span>
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    }
+                                                    return null;
+                                                }}
+                                            />
+                                            <Bar dataKey="rating" radius={[0, 1, 1, 0]} barSize={16}>
+                                                {chartData.map((entry, index) => (
+                                                    <Cell key={`cell-${index}`} fill={entry.color} />
+                                                ))}
+                                            </Bar>
+                                        </BarChart>
+                                    </ResponsiveContainer>
+                                </div>
+                            </div>
 
-                                                    const point = payload[0]?.payload as FormChartPoint | undefined;
-                                                    if (!point) return null;
+                            {/* Personal or Community season order is the default; the three metric columns can be sorted independently. */}
+                            <div className="min-w-0 lg:col-span-6">
+                                <div className="mb-3 border-b border-[var(--border-color)] pb-2">
+                                    <h3 className="font-display text-lg text-white uppercase tracking-wider md:text-2xl">DRIVER RATINGS</h3>
+                                    <p className="mt-1 font-oxanium text-[9px] tracking-wide text-[var(--text-muted)]">
+                                        {activeMode === 'community'
+                                            ? (source === 'race' ? 'RACE RATINGS · COMMUNITY SEASON ORDER' : 'QUICK RATE · COMMUNITY SEASON ORDER')
+                                            : (source === 'race' ? 'RACE RATINGS · PERSONAL SEASON ORDER' : 'QUICK RATE · SEASON RATINGS')}
+                                    </p>
+                                </div>
+                                <CommunityNotice status={community.status} legacy={hasLegacy} />
+                                <div className="bg-[var(--bg-panel)] border-t border-[var(--border-color)]">
+                                    <div className={`grid items-center gap-2 border-b border-[var(--border-color)] px-2 py-2 font-oxanium text-[8px] text-[var(--text-muted)] md:px-3 md:text-[9px] ${communityVisible ? 'grid-cols-[minmax(0,1fr)_60px_104px] md:grid-cols-[minmax(0,1fr)_72px_112px_40px]' : 'grid-cols-[minmax(0,1fr)_60px] md:grid-cols-[minmax(0,1fr)_72px]'}`}>
+                                        <span>DRIVER</span>
+                                        <button
+                                            type="button"
+                                            aria-label="Sort by my average, highest first"
+                                            aria-pressed={driverRatingsSort === 'myAverage'}
+                                            onClick={() => setDriverRatingsSort('myAverage')}
+                                            className={`w-full cursor-pointer select-none whitespace-nowrap text-left transition-colors hover:text-white ${driverRatingsSort === 'myAverage' ? 'text-white' : ''}`}
+                                        >
+                                            MY AVG
+                                        </button>
+                                        {communityVisible && <>
+                                            <button
+                                                type="button"
+                                                aria-label="Sort by community average, highest first"
+                                                aria-pressed={driverRatingsSort === 'communityAverage'}
+                                                onClick={() => setDriverRatingsSort('communityAverage')}
+                                                className={`w-full cursor-pointer select-none whitespace-nowrap text-center transition-colors hover:text-white ${driverRatingsSort === 'communityAverage' ? 'text-white' : ''}`}
+                                            >
+                                                COMMUNITY AVG
+                                            </button>
+                                            <button
+                                                type="button"
+                                                aria-label="Sort by votes, highest first"
+                                                aria-pressed={driverRatingsSort === 'votes'}
+                                                onClick={() => setDriverRatingsSort('votes')}
+                                                className={`hidden w-full cursor-pointer select-none items-center justify-center whitespace-nowrap text-center transition-colors hover:text-white md:flex ${driverRatingsSort === 'votes' ? 'text-white' : ''}`}
+                                            >
+                                                VOTES
+                                            </button>
+                                        </>}
+                                    </div>
+                                    <CommunityRatingRows
+                                        rows={sortedDriverRatingRows}
+                                        season={season}
+                                        source={source}
+                                        communityStatus={community.status}
+                                        communityVisible={communityVisible}
+                                    />
+                                </div>
+                            </div>
+                        </div>
 
-                                                    const ratings = payload.flatMap(entry => {
-                                                        const driverId = typeof entry.dataKey === 'string' ? entry.dataKey : '';
-                                                        const driver = visibleFormDrivers.find(series => series.driverId === driverId);
-                                                        const rating = Number(entry.value);
-                                                        if (!driver || entry.value === null || entry.value === undefined || !Number.isFinite(rating)) return [];
+                        {/* 4. SECTION: FORM TRACKER */}
+                        <motion.div
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: 0.25 }}
+                        >
+                            <div className="mb-4 flex items-center justify-between border-b border-[var(--border-color)] pb-2">
+                                <div className="flex items-center gap-3">
+                                    <BarChart3 size={16} className="text-[var(--accent-red)]" />
+                                    <h3 className="font-display text-2xl text-white uppercase tracking-wider">FORM TRACKER</h3>
+                                </div>
+                                <span className="font-oxanium text-[10px] text-[var(--text-muted)] uppercase tracking-widest">
+                                    {activeMode === 'community' ? 'COMMUNITY RACE AVERAGES' : 'RAW RACE RATINGS'}
+                                </span>
+                            </div>
 
-                                                        const racePoint = driver.points.find(candidate => candidate.round === point.round);
-                                                        return [{ driver, racePoint, rating, color: getTeamColor(driver.latestConstructorId) }];
-                                                    });
-                                                    if (ratings.length === 0) return null;
+                            {activeRankedFormSeries.length === 0 ? (
+                                <div className="bg-[var(--bg-panel)] border border-[var(--border-color)] p-6 md:p-8 relative overflow-hidden">
+                                    <div
+                                        className="absolute inset-0 pointer-events-none opacity-5"
+                                        style={{ backgroundImage: 'linear-gradient(var(--border-color) 1px, transparent 1px), linear-gradient(90deg, var(--border-color) 1px, transparent 1px)', backgroundSize: '20px 20px' }}
+                                    />
+                                    <div className="relative z-10 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                                        <div>
+                                            <div className="font-display text-2xl text-white uppercase tracking-wider">FORM TRACKER UNAVAILABLE</div>
+                                            <p className="font-oxanium text-sm text-[var(--text-secondary)] max-w-2xl">
+                                                Form graph requires race-by-race ratings. Quick Rate data only provides a season snapshot.
+                                            </p>
+                                        </div>
+                                        <div className="font-oxanium text-[10px] text-[var(--text-muted)] uppercase tracking-widest">
+                                            NO TIMELINE DATA
+                                        </div>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="bg-[var(--bg-panel)] border border-[var(--border-color)] p-4 md:p-6 relative scanline overflow-hidden">
+                                    <div
+                                        className="absolute inset-0 pointer-events-none opacity-5"
+                                        style={{ backgroundImage: 'linear-gradient(var(--border-color) 1px, transparent 1px), linear-gradient(90deg, var(--border-color) 1px, transparent 1px)', backgroundSize: '20px 20px' }}
+                                    />
 
+                                    <div className="relative z-10 space-y-6">
+                                        <div className="space-y-3">
+                                            <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                                                <p className="font-ui text-sm text-[var(--text-secondary)]">
+                                                    Select one or more drivers to compare their race-by-race ratings.
+                                                </p>
+                                                <span className="font-oxanium text-[10px] uppercase tracking-widest text-[var(--text-muted)]">
+                                                    {visibleFormDrivers.length} SELECTED
+                                                </span>
+                                            </div>
+                                            {visibleFormDrivers.length > 0 && <div aria-label="Selected drivers" className="flex gap-3 overflow-x-auto pb-2">
+                                                {visibleFormDrivers.map(driver => {
+                                                    const color = getTeamColor(driver.latestConstructorId);
                                                     return (
-                                                        <div className="max-w-[280px] border border-[var(--border-color)] bg-[#050608] p-4 shadow-2xl">
-                                                            <div className="font-display text-sm uppercase leading-tight text-white">
-                                                                {formatRaceDisplayName(point.raceName)}
-                                                            </div>
-                                                            <div className="mt-1 font-oxanium text-[10px] uppercase tracking-wider text-[var(--text-muted)]">
-                                                                ROUND {point.roundNumber} · {new Date(point.date).toLocaleDateString('en-GB')}
-                                                            </div>
-                                                            <div className="mt-3 space-y-2">
-                                                                {ratings.map(({ driver, racePoint, rating, color }) => (
-                                                                    <div key={driver.driverId} className="flex items-center justify-between gap-4 border-t border-white/10 pt-2">
-                                                                        <div className="flex min-w-0 items-center gap-2">
-                                                                            <FormLineSwatch color={color} dash={formLineDashes.get(driver.driverId)} height={20} />
-                                                                            <span className="min-w-0">
-                                                                                <span className="block truncate font-display-condensed text-xs uppercase text-white">{driver.driverName}</span>
-                                                                                <span className="block truncate font-oxanium text-[9px] uppercase text-[var(--text-muted)]">
-                                                                                    {racePoint?.constructorName ?? driver.latestConstructorName}
-                                                                                </span>
-                                                                            </span>
+                                                        <div key={driver.driverId} className="w-[260px] shrink-0 border border-[var(--border-color)] bg-[var(--bg-darker)] p-3">
+                                                            <div className="flex items-start justify-between gap-3">
+                                                                <div className="flex min-w-0 items-center gap-2">
+                                                                    <FormLineSwatch color={color} dash={formLineDashes.get(driver.driverId)} height={40} />
+                                                                    <div className="min-w-0">
+                                                                        <div className="truncate font-display text-sm uppercase leading-tight text-white">{driver.driverName}</div>
+                                                                        <div className="truncate font-oxanium text-[9px] uppercase tracking-wider text-[var(--text-muted)]">
+                                                                            {driver.latestConstructorName}{driver.changedTeams ? ' · TEAM CHANGE' : ''}
                                                                         </div>
-                                                                        <span className="font-oxanium text-sm tabular-nums text-[var(--accent-yellow)]">{rating.toFixed(1)}</span>
                                                                     </div>
-                                                                ))}
+                                                                </div>
+                                                                <div className="shrink-0 text-right">
+                                                                    <div className="font-oxanium text-[9px] uppercase tracking-wider text-[var(--text-muted)]">AVG</div>
+                                                                    <div className="font-display text-lg leading-none text-white">{driver.seasonAverage.toFixed(2)}</div>
+                                                                </div>
+                                                            </div>
+                                                            <div className="mt-3 grid grid-cols-3 gap-2 border-t border-[var(--border-color)] pt-2">
+                                                                <div>
+                                                                    <div className="font-oxanium text-[8px] uppercase tracking-wider text-[var(--text-muted)]">RACES</div>
+                                                                    <div className="font-oxanium text-xs text-white">{driver.totalRatedRaces}</div>
+                                                                </div>
+                                                                <div className="min-w-0">
+                                                                    <div className="font-oxanium text-[8px] uppercase tracking-wider text-[var(--text-muted)]">BEST</div>
+                                                                    <div className="font-oxanium text-xs text-white">{driver.bestRating?.toFixed(1) ?? 'N/A'}</div>
+                                                                    <div className="truncate font-ui text-[8px] uppercase text-[var(--text-muted)]">{formatRaceDisplayName(driver.bestRaceName)}</div>
+                                                                </div>
+                                                                <div className="min-w-0">
+                                                                    <div className="font-oxanium text-[8px] uppercase tracking-wider text-[var(--text-muted)]">WORST</div>
+                                                                    <div className="font-oxanium text-xs text-white">{driver.worstRating?.toFixed(1) ?? 'N/A'}</div>
+                                                                    <div className="truncate font-ui text-[8px] uppercase text-[var(--text-muted)]">{formatRaceDisplayName(driver.worstRaceName)}</div>
+                                                                </div>
                                                             </div>
                                                         </div>
                                                     );
-                                                }}
-                                            />
-                                            {visibleFormDrivers.map((driver, index) => {
-                                                const color = getTeamColor(driver.latestConstructorId);
-                                                const dash = index % 2 === 0 ? '6 4' : '2 4';
-                                                return (
-                                                    <ReferenceLine
-                                                        key={`average-${driver.driverId}`}
-                                                        y={driver.seasonAverage}
-                                                        stroke={color}
-                                                        strokeDasharray={dash}
-                                                        strokeOpacity={0.45}
-                                                    />
-                                                );
-                                            })}
-                                            <FormTrackerLines
-                                                drivers={rankedFormSeries}
-                                                selectedDriverIds={visibleFormDrivers.map(driver => driver.driverId)}
-                                                getColor={getTeamColor}
-                                            />
-                                        </LineChart>
-                                    </ResponsiveContainer>
-                                </div>
-                                )}
-                            </div>
-                        </div>
-                    )}
-                </motion.div>
+                                                })}
+                                            </div>}
+                                        </div>
 
-                {/* 4. SECTION: RACE-BY-RACE TABLE */}
-                {raceMatrix.races.length > 0 && (
+                                        <div>
+                                            <div className="mb-2 flex items-center justify-between gap-3">
+                                                <span className="font-oxanium text-[10px] uppercase tracking-widest text-[var(--text-muted)]">SELECT DRIVERS</span>
+                                                <span className="font-oxanium text-[9px] uppercase tracking-wider text-[var(--text-muted)]">Click again to remove</span>
+                                            </div>
+                                            <div role="group" aria-label="Select drivers to compare in Form Tracker" className="overflow-x-auto pb-2">
+                                                <div className="flex min-w-max gap-2">
+                                                    {activeRankedFormSeries.map(driver => {
+                                                        const isSelected = selectedFormDriverIds.includes(driver.driverId);
+                                                        const color = getTeamColor(driver.latestConstructorId);
+
+                                                        return (
+                                                            <button
+                                                                key={driver.driverId}
+                                                                type="button"
+                                                                aria-label={`${isSelected ? 'Remove' : 'Add'} ${driver.driverName} ${isSelected ? 'from' : 'to'} the Form Tracker chart`}
+                                                                aria-pressed={isSelected}
+                                                                onClick={() => setSelectedFormDriverIds(current => toggleFormDriverSelection(current, driver.driverId))}
+                                                                className={`group min-w-[130px] border px-3 py-2 text-left transition-colors ${isSelected
+                                                                    ? 'bg-[var(--bg-darker)]'
+                                                                    : 'border-[var(--border-color)] bg-[var(--bg-panel-hover)] hover:border-white/40'
+                                                                    }`}
+                                                                style={isSelected ? { borderColor: color } : undefined}
+                                                            >
+                                                                <div className="flex items-center gap-2">
+                                                                    <FormLineSwatch color={color} dash={formLineDashes.get(driver.driverId)} height={32} />
+                                                                    <div className="min-w-0">
+                                                                        <div className="truncate font-display text-sm uppercase leading-none text-white">
+                                                                            {getDriverLabel(driver.driverName)}
+                                                                        </div>
+                                                                        <div className="mt-1 truncate font-oxanium text-[9px] uppercase tracking-wider text-[var(--text-muted)]">
+                                                                            {driver.seasonAverage.toFixed(2)} AVG
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            </button>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {visibleFormDrivers.length === 0 ? (
+                                            <div className="h-[320px] md:h-[420px] flex flex-col items-center justify-center gap-3 text-center" role="status">
+                                                <BarChart3 size={32} className="text-[var(--text-muted)]" />
+                                                <p className="font-display text-lg uppercase text-white">SELECT DRIVERS TO COMPARE</p>
+                                                <p className="font-ui text-sm text-[var(--text-secondary)]">Choose one or more drivers above to see their race-by-race ratings.</p>
+                                            </div>
+                                        ) : (
+                                            <div className="h-[320px] md:h-[420px]">
+                                                <ResponsiveContainer width="100%" height="100%">
+                                                    <LineChart data={formChartData} margin={{ left: 0, right: 16, top: 20, bottom: 10 }}>
+                                                        <CartesianGrid stroke="rgba(255,255,255,0.06)" strokeDasharray="3 3" />
+                                                        <XAxis
+                                                            dataKey="roundLabel"
+                                                            axisLine={false}
+                                                            tickLine={false}
+                                                            tick={{ fill: '#8E9196', fontSize: 11, fontFamily: 'Oxanium, sans-serif' }}
+                                                        />
+                                                        <YAxis
+                                                            type="number"
+                                                            domain={[0, 10]}
+                                                            ticks={[0, 2, 4, 6, 8, 10]}
+                                                            axisLine={false}
+                                                            tickLine={false}
+                                                            tick={{ fill: '#8E9196', fontSize: 11, fontFamily: 'Oxanium, sans-serif' }}
+                                                        />
+                                                        <Tooltip
+                                                            cursor={{ stroke: 'rgba(255,255,255,0.08)', strokeWidth: 1 }}
+                                                            content={({ active, payload }) => {
+                                                                if (!active || !payload || payload.length === 0) return null;
+
+                                                                const point = payload[0]?.payload as FormChartPoint | undefined;
+                                                                if (!point) return null;
+
+                                                                const ratings = payload.flatMap(entry => {
+                                                                    const driverId = typeof entry.dataKey === 'string' ? entry.dataKey : '';
+                                                                    const driver = visibleFormDrivers.find(series => series.driverId === driverId);
+                                                                    const rating = Number(entry.value);
+                                                                    if (!driver || entry.value === null || entry.value === undefined || !Number.isFinite(rating)) return [];
+
+                                                                    const racePoint = driver.points.find(candidate => candidate.round === point.round);
+                                                                    return [{ driver, racePoint, rating, color: getTeamColor(driver.latestConstructorId) }];
+                                                                });
+                                                                if (ratings.length === 0) return null;
+
+                                                                return (
+                                                                    <div className="max-w-[280px] border border-[var(--border-color)] bg-[#050608] p-4 shadow-2xl">
+                                                                        <div className="font-display text-sm uppercase leading-tight text-white">
+                                                                            {formatRaceDisplayName(point.raceName)}
+                                                                        </div>
+                                                                        <div className="mt-1 font-oxanium text-[10px] uppercase tracking-wider text-[var(--text-muted)]">
+                                                                            ROUND {point.roundNumber}{point.date ? ` · ${new Date(point.date).toLocaleDateString('en-GB')}` : ''}
+                                                                        </div>
+                                                                        <div className="mt-3 space-y-2">
+                                                                            {ratings.map(({ driver, racePoint, rating, color }) => (
+                                                                                <div key={driver.driverId} className="flex items-center justify-between gap-4 border-t border-white/10 pt-2">
+                                                                                    <div className="flex min-w-0 items-center gap-2">
+                                                                                        <FormLineSwatch color={color} dash={formLineDashes.get(driver.driverId)} height={20} />
+                                                                                        <span className="min-w-0">
+                                                                                            <span className="block truncate font-display-condensed text-xs uppercase text-white">{driver.driverName}</span>
+                                                                                            <span className="block truncate font-oxanium text-[9px] uppercase text-[var(--text-muted)]">
+                                                                                                {racePoint?.constructorName ?? driver.latestConstructorName}
+                                                                                            </span>
+                                                                                        </span>
+                                                                                    </div>
+                                                                                    <span className="font-oxanium text-sm tabular-nums text-[var(--accent-yellow)]">
+                                                                                        {activeMode === 'community' ? rating.toFixed(2) : rating.toFixed(1)}
+                                                                                    </span>
+                                                                                </div>
+                                                                            ))}
+                                                                        </div>
+                                                                    </div>
+                                                                );
+                                                            }}
+                                                        />
+                                                        {visibleFormDrivers.map((driver, index) => {
+                                                            const color = getTeamColor(driver.latestConstructorId);
+                                                            const dash = index % 2 === 0 ? '6 4' : '2 4';
+                                                            return (
+                                                                <ReferenceLine
+                                                                    key={`average-${driver.driverId}`}
+                                                                    y={driver.seasonAverage}
+                                                                    stroke={color}
+                                                                    strokeDasharray={dash}
+                                                                    strokeOpacity={0.45}
+                                                                />
+                                                            );
+                                                        })}
+                                                        <FormTrackerLines
+                                                            drivers={activeRankedFormSeries}
+                                                            selectedDriverIds={visibleFormDrivers.map(driver => driver.driverId)}
+                                                            getColor={getTeamColor}
+                                                        />
+                                                    </LineChart>
+                                                </ResponsiveContainer>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+                        </motion.div>
+                    </>
+                )}
+
+                {/* 5. SECTION: RACE-BY-RACE TABLE */}
+                {showBreakdownSection && (
                     <motion.div
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
@@ -1001,7 +1112,7 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
                                     type="button"
                                     aria-pressed={breakdownSource === 'personal'}
                                     disabled={generatingTable}
-                                    onClick={() => setBreakdownSource('personal')}
+                                    onClick={() => setUserSelectedBreakdownSource('personal')}
                                     className={`px-3 py-2 font-ui text-[10px] font-bold uppercase tracking-wider transition-colors disabled:opacity-50 ${breakdownSource === 'personal'
                                         ? 'bg-[var(--accent-red)] text-white'
                                         : 'text-[var(--text-secondary)] hover:text-white'}`}
@@ -1012,7 +1123,7 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
                                     type="button"
                                     aria-pressed={breakdownSource === 'community'}
                                     disabled={generatingTable}
-                                    onClick={() => setBreakdownSource('community')}
+                                    onClick={() => setUserSelectedBreakdownSource('community')}
                                     className={`px-3 py-2 font-ui text-[10px] font-bold uppercase tracking-wider transition-colors disabled:opacity-50 ${breakdownSource === 'community'
                                         ? 'bg-[var(--accent-yellow)] text-black'
                                         : 'text-[var(--text-secondary)] hover:text-white'}`}
@@ -1149,14 +1260,18 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
                 >
                     {/* Card Header */}
                     <div className="border-l-4 border-[#e10600] pl-4 mb-6">
-                        <div className="text-[10px] text-[#e10600] tracking-[0.3em] mb-1">MY DRIVER RATINGS</div>
+                        <div className="text-[10px] text-[#e10600] tracking-[0.3em] mb-1">
+                            {activeMode === 'community' ? 'COMMUNITY DRIVER RATINGS' : 'MY DRIVER RATINGS'}
+                        </div>
                         <div className="text-5xl font-black text-white tracking-tight">{season} SEASON</div>
-                        <div className="text-xs text-gray-500 mt-1">{ratedCount} RACES RATED</div>
+                        <div className="text-xs text-gray-500 mt-1">
+                            {activeMode === 'community' ? `${votedCommunityRaces} COMMUNITY RACES` : `${ratedCount} RACES RATED`}
+                        </div>
                     </div>
 
                     {/* Top 10 Drivers */}
                     <div className="space-y-1">
-                        {rankedAverages.slice(0, 10).map((driver, index) => {
+                        {activeRankedAverages.slice(0, 10).map((driver, index) => {
                             const isTop3 = index < 3;
                             const positionColor = index === 0 ? '#FFD700' : index === 1 ? '#C0C0C0' : index === 2 ? '#CD7F32' : '#888';
 
@@ -1207,7 +1322,7 @@ export function ResultsDashboard({ season, onReset }: ResultsDashboardProps) {
                 </div>
             </div>
 
-            {/* 4. SECTION: SHARE YOUR CARD - Shows after clicking Generate Card */}
+            {/* 6. SECTION: SHARE YOUR CARD - Shows after clicking Generate Card */}
             {showCardSection && (
                 <motion.div
                     ref={shareSectionRef}
