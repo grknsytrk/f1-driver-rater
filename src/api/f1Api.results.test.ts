@@ -12,7 +12,16 @@ import {
 
 const apiGet = vi.hoisted(() => vi.fn());
 vi.mock('axios', () => ({
-    default: { create: () => ({ get: apiGet }), isAxiosError: () => false },
+    default: {
+        create: () => ({
+            get: apiGet,
+            interceptors: {
+                request: { use: () => undefined },
+                response: { use: () => undefined },
+            },
+        }),
+        isAxiosError: () => false,
+    },
 }));
 
 beforeEach(() => {

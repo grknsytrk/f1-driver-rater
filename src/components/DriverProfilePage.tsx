@@ -21,8 +21,8 @@ import {
     TrendingDown,
 } from 'lucide-react';
 import {
-    getAllSeasonQualifying,
-    getAllSeasonResults,
+    getDriverProfileSeasonQualifying,
+    getDriverProfileSeasonResults,
     getAllSeasonSprints,
     getConstructorSeasonH2HRaw,
     getDriverCareerStints,
@@ -131,8 +131,8 @@ export function DriverProfilePage({
                 const [driversRes, statsRes, racesRes, qualisRes, sprintsRes, calRes, seasonsRes] = await Promise.allSettled([
                     getSeasonDrivers(season),
                     getDriverSeasonStats(season),
-                    getAllSeasonResults(season),
-                    getAllSeasonQualifying(season),
+                    getDriverProfileSeasonResults(season),
+                    getDriverProfileSeasonQualifying(season),
                     getAllSeasonSprints(season),
                     getRaces(season),
                     getSeasons(),

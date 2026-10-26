@@ -4,6 +4,7 @@ import { parseF1TimeSeconds } from '../utils/f1Time';
 import {
     extractHistoricalConstructorSeasonH2H,
     extractHistoricalDriverStints,
+    extractHistoricalSeasonData,
     hasCachedHistoricalConstructorSeasonH2H,
     loadHistoricalH2HPayload,
 } from '../utils/historicalH2H';
@@ -890,12 +891,20 @@ export async function getConstructorStandings(season: string): Promise<Construct
 
 export async function getDriverSeasonStats(season: string): Promise<DriverSeasonStats[]> {
     try {
-        // Fetch standings, race results (for podiums), and qualifying results (for poles) concurrently
-        const [standings, allRaces, allQualifying] = await Promise.all([
+        const [standings, historical] = await Promise.all([
             getDriverStandings(season),
-            fetchAllPaginated(`/${season}/results.json`),
-            fetchAllPaginated(`/${season}/qualifying.json`),
+            loadHistoricalH2HPayload(),
         ]);
+        const historicalSeason = historical ? extractHistoricalSeasonData(historical, season) : null;
+        let allRaces: JolpicaRaceRecord[] = [];
+        let allQualifying: JolpicaRaceRecord[] = [];
+
+        if (!historicalSeason) {
+            [allRaces, allQualifying] = await Promise.all([
+                fetchAllPaginated(`/${season}/results.json`),
+                fetchAllPaginated(`/${season}/qualifying.json`),
+            ]);
+        }
 
         // Map to store calculated stats
         const driverStats: Map<string, { poles: number; podiums: number }> = new Map();
@@ -905,36 +914,45 @@ export async function getDriverSeasonStats(season: string): Promise<DriverSeason
             driverStats.set(standing.Driver.driverId, { poles: 0, podiums: 0 });
         });
 
-        // Calculate Podiums (Position 1, 2, 3)
-        allRaces.forEach((race: JolpicaRaceRecord) => {
-            const results = race.Results || [];
-            results.forEach((result: RaceResult) => {
-                const pos = parseInt(result.position);
-                if (pos >= 1 && pos <= 3) {
-                    const driverId = result.Driver.driverId;
-                    const stats = driverStats.get(driverId);
-                    if (stats) {
-                        stats.podiums += 1;
-                        driverStats.set(driverId, stats);
-                    }
+        const addStat = (driverId: string, key: 'poles' | 'podiums') => {
+            const stats = driverStats.get(driverId);
+            if (stats) {
+                stats[key] += 1;
+                driverStats.set(driverId, stats);
+            }
+        };
+
+        if (historicalSeason) {
+            // Archived seasons already contain the race and qualifying positions
+            // needed for these totals, so avoid downloading both paginated feeds.
+            historicalSeason.raceResults.forEach(result => {
+                if (result.position !== null && result.position >= 1 && result.position <= 3) {
+                    addStat(result.driverId, 'podiums');
                 }
             });
-        });
 
-        // Calculate Poles (Qualifying Position 1)
-        allQualifying.forEach((race: JolpicaRaceRecord) => {
-            const qualifyingResults = race.QualifyingResults || [];
-            const poleDriver = qualifyingResults.find((r: RaceQualifyingResult) => r.position === '1');
-
-            if (poleDriver) {
-                const driverId = poleDriver.Driver.driverId;
-                const stats = driverStats.get(driverId);
-                if (stats) {
-                    stats.poles += 1;
-                    driverStats.set(driverId, stats);
+            const countedPoleRounds = new Set<string>();
+            historicalSeason.qualiResults.forEach(result => {
+                if (result.position === 1 && !countedPoleRounds.has(result.round)) {
+                    countedPoleRounds.add(result.round);
+                    addStat(result.driverId, 'poles');
                 }
-            }
-        });
+            });
+        } else {
+            // Calculate Podiums (Position 1, 2, 3)
+            allRaces.forEach((race: JolpicaRaceRecord) => {
+                (race.Results || []).forEach((result: RaceResult) => {
+                    const pos = parseInt(result.position);
+                    if (pos >= 1 && pos <= 3) addStat(result.Driver.driverId, 'podiums');
+                });
+            });
+
+            // Calculate Poles (Qualifying Position 1)
+            allQualifying.forEach((race: JolpicaRaceRecord) => {
+                const poleDriver = (race.QualifyingResults || []).find((r: RaceQualifyingResult) => r.position === '1');
+                if (poleDriver) addStat(poleDriver.Driver.driverId, 'poles');
+            });
+        }
 
         // Merge reliable standings data with calculated stats
         return standings.map((standing: DriverStanding) => {
@@ -1157,6 +1175,24 @@ export async function getAllSeasonQualifying(
         console.error(`Error fetching season qualifying for ${season}:`, error);
         return [];
     }
+}
+
+/**
+ * Profile race logs only need positions and race metadata, all of which are in
+ * the static historical archive. Keep the richer API-backed result helper for
+ * views that also need official race time gaps.
+ */
+export async function getDriverProfileSeasonResults(season: string): Promise<SeasonRaceResult[]> {
+    const historical = await loadHistoricalH2HPayload();
+    const archived = historical ? extractHistoricalSeasonData(historical, season) : null;
+    return archived ? archived.raceResults : getAllSeasonResults(season);
+}
+
+/** Profile qualifying rows need position only; awards pages still use the API-backed helper for lap times. */
+export async function getDriverProfileSeasonQualifying(season: string): Promise<SeasonQualifyingResult[]> {
+    const historical = await loadHistoricalH2HPayload();
+    const archived = historical ? extractHistoricalSeasonData(historical, season) : null;
+    return archived ? archived.qualiResults : getAllSeasonQualifying(season);
 }
 
 export interface DriverCareerStint {

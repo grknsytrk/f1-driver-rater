@@ -3,7 +3,16 @@ import { getAllSeasonQualifying, getAllSeasonResults } from './f1Api';
 
 const apiGet = vi.hoisted(() => vi.fn());
 vi.mock('axios', () => ({
-    default: { create: () => ({ get: apiGet }), isAxiosError: () => false },
+    default: {
+        create: () => ({
+            get: apiGet,
+            interceptors: {
+                request: { use: () => undefined },
+                response: { use: () => undefined },
+            },
+        }),
+        isAxiosError: () => false,
+    },
 }));
 
 function driver(driverId: string) {

@@ -31,6 +31,11 @@ export interface CompactHistoricalH2HPayload {
     seasons: Record<string, CompactSeasonRoundTuple[]>;
 }
 
+export interface HistoricalSeasonData {
+    raceResults: SeasonRaceResult[];
+    qualiResults: SeasonQualifyingResult[];
+}
+
 let cachedPayload: CompactHistoricalH2HPayload | null = null;
 let inFlightPayloadPromise: Promise<CompactHistoricalH2HPayload | null> | null = null;
 
@@ -101,6 +106,64 @@ export function extractHistoricalDriverStints(
     }
 
     return stints;
+}
+
+export function extractHistoricalSeasonData(
+    payload: CompactHistoricalH2HPayload,
+    season: string,
+): HistoricalSeasonData | null {
+    const rounds = payload.seasons[season];
+    if (!rounds) return null;
+
+    const raceResults: SeasonRaceResult[] = [];
+    const qualiResults: SeasonQualifyingResult[] = [];
+
+    for (const [round, raceName, date, entries] of rounds) {
+        for (const [driverIdx, constructorIdx, gridPosition, position, points, statusIdx, startedFlag, qualiPosition] of entries) {
+            const driver = payload.drivers[driverIdx];
+            const constructor = payload.constructors[constructorIdx];
+            if (!driver || !constructor) continue;
+
+            const [driverId, driverName] = driver;
+            const [constructorId, constructorName] = constructor;
+            const status = payload.statuses[statusIdx] ?? 'Finished';
+
+            // Qualifying-only entries are stored in the compact archive as a
+            // placeholder "Did not start" race entry. Keep the profile's race
+            // log aligned with actual race result rows.
+            if (gridPosition !== null || position !== null || startedFlag === 1) {
+                raceResults.push({
+                    round,
+                    raceName,
+                    date,
+                    driverId,
+                    driverName,
+                    constructorId,
+                    constructorName,
+                    gridPosition,
+                    position,
+                    points,
+                    status,
+                    started: startedFlag === 1,
+                });
+            }
+
+            if (qualiPosition !== null) {
+                qualiResults.push({
+                    round,
+                    raceName,
+                    date,
+                    driverId,
+                    driverName,
+                    constructorId,
+                    constructorName,
+                    position: qualiPosition,
+                });
+            }
+        }
+    }
+
+    return { raceResults, qualiResults };
 }
 
 export function extractHistoricalConstructorSeasonH2H(
