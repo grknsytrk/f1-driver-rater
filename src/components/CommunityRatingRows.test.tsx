@@ -83,25 +83,25 @@ describe('CommunityRatingRows', () => {
     it('expands one driver at a time and preserves the existing community average', async () => {
         const buckets = Array.from({ length: 20 }, (_, index) => ({
             score: (index + 1) / 2,
-            count: (index + 1) / 2 === 5 ? 5 : 0,
+            count: (index + 1) / 2 === 5 ? 2 : 0,
         }));
         hookMock.result = {
             status: 'ready',
-            distribution: normalizeCommunityDistributions([
-                { driver_id: 'norris', round: '1', vote_count: 5, rating_distribution: buckets },
-            ], 'race')[0],
+            distribution: normalizeCommunityDistributions(Array.from({ length: 5 }, (_, index) => ({
+                driver_id: 'norris', round: String(index + 1), vote_count: 2, rating_distribution: buckets,
+            })), 'race')[0],
         };
-        await render();
+        await render([row(norris, 7.9, 10), row(piastri, 8, 4)]);
 
         expect(container.textContent).toContain('8.10');
         expect(container.textContent).toContain('7.90');
         await act(async () => toggle('norris').click());
         expect(toggle('norris').getAttribute('aria-expanded')).toBe('true');
         expect(container.textContent).toContain('POOLED AVG');
-        expect(container.textContent).toContain('CONSENSUS');
+        expect(container.textContent).toContain('VERY CLOSE RATINGS');
         expect(container.textContent).toContain('AGREEMENT');
         expect(container.textContent).toContain('100.0');
-        expect(container.textContent).toContain('1/1 RACES ASSESSED');
+        expect(container.textContent).toContain('5/5 RACES WITH 2+ VOTES');
         expect(container.textContent).toContain('Selected ratings may be included in this community data.');
         expect(container.querySelectorAll('[role="region"]')).toHaveLength(1);
         expect(hookMock.calls.at(-1)).toEqual(['race', '2025', 'norris']);
@@ -121,21 +121,22 @@ describe('CommunityRatingRows', () => {
     it('shows early data with one vote and does not request a distribution', async () => {
         await render([row(norris, 7.9, 1)]);
         await act(async () => toggle('norris').click());
-        expect(container.textContent).toContain('Early data · 1/2 votes');
+        expect(container.textContent).toContain('Too early to tell · 1/2 votes');
         expect(container.textContent).not.toContain('POOLED AVG');
         expect(container.textContent).toContain('Selected ratings may be included in this community data.');
         expect(hookMock.calls.at(-1)).toEqual(['race', '2025', null]);
     });
 
-    it('assesses two opinions about the same race', async () => {
+    it('keeps the score but waits for enough races before showing a label', async () => {
         const buckets = Array.from({ length: 20 }, (_, index) => ({ score: (index + 1) / 2, count: index === 15 ? 2 : 0 }));
         hookMock.result = { status: 'ready', distribution: normalizeCommunityDistributions([
             { driver_id: 'norris', round: '1', vote_count: 2, rating_distribution: buckets },
         ], 'race')[0] };
         await render([row(norris, 7.9, 2)]);
         await act(async () => toggle('norris').click());
-        expect(container.textContent).toContain('CONSENSUS');
+        expect(container.textContent).toContain('TOO EARLY TO TELL');
         expect(container.textContent).toContain('100.0');
+        expect(container.textContent).toContain('1/1 RACES WITH 2+ VOTES');
         expect(hookMock.calls.at(-1)).toEqual(['race', '2025', 'norris']);
     });
 
@@ -146,13 +147,13 @@ describe('CommunityRatingRows', () => {
         })), 'race')[0] };
         await render([row(norris, 7.9, 3)]);
         await act(async () => toggle('norris').click());
-        expect(container.textContent).toContain('EARLY DATA');
-        expect(container.textContent).toContain('0/3 RACES ASSESSED');
+        expect(container.textContent).toContain('TOO EARLY TO TELL');
+        expect(container.textContent).toContain('0/3 RACES WITH 2+ VOTES');
         expect(container.textContent).toContain('POOLED AVG');
-        expect(container.textContent).not.toContain('CONSENSUS');
+        expect(container.textContent).not.toContain('VERY CLOSE RATINGS');
     });
 
-    it('shows a zero score and low agreement for two distant Quick Rate votes', async () => {
+    it('shows a zero score but waits for more Quick Rate votes before labeling agreement', async () => {
         const buckets = Array.from({ length: 20 }, (_, index) => ({
             score: (index + 1) / 2, count: index === 0 || index === 19 ? 1 : 0,
         }));
@@ -161,7 +162,7 @@ describe('CommunityRatingRows', () => {
         ], 'quick')[0] };
         await render([row(norris, 7.9, 2)], 'quick');
         await act(async () => toggle('norris').click());
-        expect(container.textContent).toContain('LOW AGREEMENT');
+        expect(container.textContent).toContain('TOO EARLY TO TELL');
         expect(container.textContent).toContain('0.0');
         expect(container.textContent).toContain('Quick Rate votes');
         expect(container.textContent).not.toContain('RACES ASSESSED');

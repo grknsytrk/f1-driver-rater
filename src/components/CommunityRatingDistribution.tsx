@@ -1,6 +1,8 @@
 import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import type { CommunityDistributionStatus } from '../hooks/useCommunityRatings';
 import {
+    COMMUNITY_AGREEMENT_MIN_ASSESSED_RACES,
+    COMMUNITY_AGREEMENT_MIN_QUICK_VOTES,
     COMMUNITY_DISTRIBUTION_MIN_VOTES,
     summarizeCommunityDistribution,
     type CommunityRatingDistribution as Distribution,
@@ -9,10 +11,10 @@ import type { CommunityStatus } from '../utils/communityRatings';
 import { getRatingColor } from '../utils/ratingColor';
 
 const AGREEMENT_LABELS = {
-    consensus: 'CONSENSUS',
-    mostlyAgreed: 'MOSTLY AGREED',
-    mixed: 'MIXED',
-    lowAgreement: 'LOW AGREEMENT',
+    consensus: 'VERY CLOSE RATINGS',
+    mostlyAgreed: 'MOSTLY CLOSE RATINGS',
+    mixed: 'MIXED OPINIONS',
+    lowAgreement: 'RATINGS FAR APART',
 } as const;
 
 const AGREEMENT_COLORS = {
@@ -50,7 +52,7 @@ export function CommunityRatingDistribution({
         return (
             <div>
                 <p role="status" className="font-oxanium text-[10px] uppercase tracking-wider text-[var(--text-muted)]">
-                    Early data · {voteCount}/{COMMUNITY_DISTRIBUTION_MIN_VOTES} votes
+                    Too early to tell · {voteCount}/{COMMUNITY_DISTRIBUTION_MIN_VOTES} votes
                 </p>
                 {disclosure}
             </div>
@@ -105,14 +107,22 @@ export function CommunityRatingDistribution({
                         </div>
                         {summary.raceCount > 0 && (
                             <div className="mt-1 text-[8px] text-[var(--text-muted)]">
-                                {summary.assessedRaceCount}/{summary.raceCount} RACES ASSESSED
+                                {summary.assessedRaceCount}/{summary.raceCount} RACES WITH 2+ VOTES
                             </div>
+                        )}
+                        {summary.agreementStabilityInterval && (
+                            <div className="mt-1 text-[8px] text-[var(--text-muted)]">
+                                ESTIMATE RANGE {summary.agreementStabilityInterval.lower.toFixed(1)}–{summary.agreementStabilityInterval.upper.toFixed(1)}
+                            </div>
+                        )}
+                        {summary.agreementStability === 'borderline' && (
+                            <div className="mt-1 text-[8px] text-amber-300">LABEL MAY CHANGE</div>
                         )}
                     </div>
                 </div>
                 <span className={`border px-2 py-1 font-oxanium text-[9px] tracking-widest ${summary.agreement
                     ? AGREEMENT_COLORS[summary.agreement] : 'text-[var(--text-muted)] border-white/30'}`}>
-                    {summary.agreement ? AGREEMENT_LABELS[summary.agreement] : 'EARLY DATA'}
+                    {summary.agreement ? AGREEMENT_LABELS[summary.agreement] : 'TOO EARLY TO TELL'}
                 </span>
             </div>
 
@@ -120,10 +130,9 @@ export function CommunityRatingDistribution({
                 <summary className="cursor-pointer hover:text-white">About agreement</summary>
                 <p className="mt-1">
                     {summary.raceCount > 0
-                        ? 'Agreement compares votes within each race, then gives each assessed race equal weight. Each race needs at least 2 votes.'
-                        : 'Agreement compares Quick Rate votes. At least 2 votes are needed.'}
-                    {' '}Scores up to 1 point apart count as agreement; 3 or more points apart count as disagreement.
-                    {' '}This describes the available votes, including small samples.
+                        ? `The score reflects the average gap between pairs of ratings: 100 means the ratings match, while 0 means the biggest possible gap. Each race with at least 2 votes counts equally; a label appears after ${COMMUNITY_AGREEMENT_MIN_ASSESSED_RACES} races meet that requirement.`
+                        : `The score reflects the average gap between pairs of ratings: 100 means the ratings match, while 0 means the biggest possible gap. A label appears after ${COMMUNITY_AGREEMENT_MIN_QUICK_VOTES} Quick Rate votes.`}
+                    {summary.agreementStabilityInterval && ' The estimate range shows how the score shifts when the available races and votes are resampled.'}
                 </p>
             </details>
 

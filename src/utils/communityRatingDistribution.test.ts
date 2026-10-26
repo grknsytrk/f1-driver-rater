@@ -17,6 +17,10 @@ function rpcRow(values: number[], round: string | null = '1', driverId = 'norris
     return { driver_id: driverId, round, vote_count: values.length, rating_distribution: bucketCounts(values) };
 }
 
+function repeatedRaceRows(values: number[], rounds = 5) {
+    return Array.from({ length: rounds }, (_, index) => rpcRow(values, String(index + 1)));
+}
+
 function summary(rows: ReturnType<typeof rpcRow>[], kind: 'race' | 'quick' = 'race') {
     return summarizeCommunityDistribution(normalizeCommunityDistributions(rows, kind)[0])!;
 }
@@ -32,32 +36,36 @@ describe('community rating distribution', () => {
     });
 
     it.each([
-        [7.5, 100], [8, 100], [8.5, 75], [9, 50], [9.5, 25], [10, 0],
-    ])('assesses two votes and gradually scores the difference between 7 and %s', (rating, expected) => {
-        expect(summary([rpcRow([7, rating])])).toMatchObject({ agreementScore: expected, assessedRaceCount: 1, raceCount: 1 });
+        [7.5, 94.7368421053, 'consensus'], [8, 89.4736842105, 'mostlyAgreed'],
+        [8.5, 84.2105263158, 'mostlyAgreed'], [9, 78.9473684211, 'mostlyAgreed'],
+        [9.5, 73.6842105263, 'mixed'], [10, 68.4210526316, 'mixed'],
+    ])('scores the average rating gap between 7 and %s', (rating, expected, agreement) => {
+        expect(summary(repeatedRaceRows([7, rating]))).toMatchObject({
+            agreementScore: expected, agreement, assessedRaceCount: 5, raceCount: 5,
+        });
     });
 
     it('does not mistake good and bad races with unanimous opinions for disagreement', () => {
-        expect(summary([rpcRow([4, 4], '1'), rpcRow([9, 9, 9], '2')])).toEqual({
-            averageRating: 7, agreementScore: 100, agreement: 'consensus', assessedRaceCount: 2, raceCount: 2,
+        expect(summary([rpcRow([4, 4], '1'), rpcRow([9, 9, 9], '2')])).toMatchObject({
+            averageRating: 7, agreementScore: 100, agreement: null, assessedRaceCount: 2, raceCount: 2,
         });
     });
 
     it('gives races equal weight even when their vote counts differ', () => {
         const result = summary([rpcRow(Array(20).fill(8), '1'), rpcRow([0.5, 10], '2')]);
-        expect(result).toMatchObject({ averageRating: 7.75, agreementScore: 50, agreement: 'lowAgreement', assessedRaceCount: 2 });
+        expect(result).toMatchObject({ averageRating: 7.75, agreementScore: 50, agreement: null, assessedRaceCount: 2 });
     });
 
     it.each([
-        [1, 90, 'consensus'], [2, 81.0526315789, 'mostlyAgreed'], [4, 66.3157894737, 'mixed'],
+        [1, 91.5789473684, 'consensus'], [2, 84.0443213296, 'mostlyAgreed'], [4, 71.6343490305, 'mixed'],
     ])('retains %s extreme votes without letting their distance dominate agreement', (outliers, score, agreement) => {
-        const result = summary([rpcRow([...Array(20 - outliers).fill(8.5), ...Array(outliers).fill(0.5)])]);
+        const result = summary(repeatedRaceRows([...Array(20 - outliers).fill(8.5), ...Array(outliers).fill(0.5)]));
         expect(result.agreementScore).toBeCloseTo(score);
         expect(result.agreement).toBe(agreement);
     });
 
     it('recognizes substantial disagreement between equally sized distant groups', () => {
-        const result = summary([rpcRow([...Array(10).fill(3), ...Array(10).fill(9)])]);
+        const result = summary(repeatedRaceRows([...Array(10).fill(0.5), ...Array(10).fill(10)]));
         expect(result.agreementScore).toBeCloseTo(47.3684210526);
         expect(result.agreement).toBe('lowAgreement');
     });
@@ -69,14 +77,14 @@ describe('community rating distribution', () => {
     });
 
     it('does not create consensus by comparing single votes across different races', () => {
-        expect(summary([rpcRow([8], '1'), rpcRow([8], '2'), rpcRow([8], '3')])).toEqual({
+        expect(summary([rpcRow([8], '1'), rpcRow([8], '2'), rpcRow([8], '3')])).toMatchObject({
             averageRating: 8, agreementScore: null, agreement: null, assessedRaceCount: 0, raceCount: 3,
         });
     });
 
     it('assesses Quick Rate votes directly without inventing race coverage', () => {
-        expect(summary([rpcRow([7, 8], null)], 'quick')).toEqual({
-            averageRating: 7.5, agreementScore: 100, agreement: 'consensus', assessedRaceCount: 0, raceCount: 0,
+        expect(summary([rpcRow([7, 8], null)], 'quick')).toMatchObject({
+            averageRating: 7.5, agreementScore: 89.4736842105, agreement: null, assessedRaceCount: 0, raceCount: 0,
         });
     });
 

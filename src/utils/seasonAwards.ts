@@ -547,7 +547,7 @@ export function buildSeasonAwards(
         ? 'no-positive-movement' : 'insufficient-data';
 
     const mostPolarizing = selectByMetric(communityDistributions.flatMap(distribution => {
-        const summary = summarizeCommunityDistribution(distribution);
+        const summary = summarizeCommunityDistribution(distribution, { includeStabilityInterval: false });
         const profile = profilesById.get(distribution.driverId);
         if (!summary || summary.agreementScore === null || !profile) return [];
         const series = driverSeriesById.get(distribution.driverId) ?? {
