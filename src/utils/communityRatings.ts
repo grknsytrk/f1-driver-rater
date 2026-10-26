@@ -21,11 +21,81 @@ export function scopeAffectsQuery(scope: RatingScope, query: CommunityQuery): bo
         && (!scope.round || !query.round || scope.round === query.round);
 }
 
-export function createCommunityClient(client: SupabaseClient | null, ensureUser: () => Promise<unknown>, now = Date.now) {
-    const cache = new Map<string, { query: CommunityQuery; expires: number; promise: Promise<CommunityRating[]> }>();
-    const distributionCache = new Map<string, {
-        query: CommunityDistributionQuery; expires: number; promise: Promise<CommunityRatingDistribution[]>;
+export const COMMUNITY_CACHE_PREFIX = 'f1_community_cache_v1:';
+export const COMMUNITY_DIST_CACHE_PREFIX = 'f1_community_dist_cache_v1:';
+
+export interface CommunityClientOptions {
+    ttlMs?: number | ((season: string) => number);
+    storage?: Storage | null;
+}
+
+export function getCommunityCacheTtlMs(season: string, nowMs = Date.now()): number {
+    const parsedSeason = Number.parseInt(season, 10);
+    const currentYear = new Date(nowMs).getFullYear();
+    if (!Number.isFinite(parsedSeason) || parsedSeason >= currentYear) {
+        return 5 * 60_000; // 5 minutes for active season
+    }
+    return 30 * 60_000; // 30 minutes for past seasons
+}
+
+interface StoredCommunityEntry<T, Q> {
+    query: Q;
+    expires: number;
+    data: T;
+}
+
+export function createCommunityClient(
+    client: SupabaseClient | null,
+    ensureUser: () => Promise<unknown>,
+    now = Date.now,
+    options: CommunityClientOptions = {},
+) {
+    const storage = options.storage ?? null;
+    const resolveTtl = (season: string) =>
+        typeof options.ttlMs === 'function' ? options.ttlMs(season) : (options.ttlMs ?? 60_000);
+
+    const cache = new Map<string, {
+        query: CommunityQuery;
+        expires: number;
+        promise: Promise<CommunityRating[]>;
+        value?: CommunityRating[];
     }>();
+    const distributionCache = new Map<string, {
+        query: CommunityDistributionQuery;
+        expires: number;
+        promise: Promise<CommunityRatingDistribution[]>;
+        value?: CommunityRatingDistribution[];
+    }>();
+
+    function readStorage<T, Q>(storageKey: string): StoredCommunityEntry<T, Q> | null {
+        if (!storage) return null;
+        try {
+            const raw = storage.getItem(storageKey);
+            if (!raw) return null;
+            const parsed = JSON.parse(raw) as StoredCommunityEntry<T, Q>;
+            if (!parsed || typeof parsed.expires !== 'number' || !Array.isArray(parsed.data)) {
+                storage.removeItem(storageKey);
+                return null;
+            }
+            if (parsed.expires <= now()) {
+                storage.removeItem(storageKey);
+                return null;
+            }
+            return parsed;
+        } catch {
+            return null;
+        }
+    }
+
+    function writeStorage<T, Q>(storageKey: string, entry: StoredCommunityEntry<T, Q>) {
+        if (!storage) return;
+        try {
+            storage.setItem(storageKey, JSON.stringify(entry));
+        } catch {
+            // ignore storage quota / privacy errors
+        }
+    }
+
     function invalidate(scopes: RatingScope[]) {
         for (const [key, entry] of cache) {
             if (scopes.some(scope => scopeAffectsQuery(scope, entry.query))) cache.delete(key);
@@ -34,12 +104,90 @@ export function createCommunityClient(client: SupabaseClient | null, ensureUser:
             const query: CommunityQuery = entry.query;
             if (scopes.some(scope => scopeAffectsQuery(scope, query))) distributionCache.delete(key);
         }
+        if (storage) {
+            try {
+                const keysToDelete: string[] = [];
+                for (let i = 0; i < storage.length; i += 1) {
+                    const storageKey = storage.key(i);
+                    if (!storageKey) continue;
+                    if (
+                        storageKey.startsWith(COMMUNITY_CACHE_PREFIX)
+                        || storageKey.startsWith(COMMUNITY_DIST_CACHE_PREFIX)
+                    ) {
+                        const raw = storage.getItem(storageKey);
+                        if (!raw) continue;
+                        try {
+                            const parsed = JSON.parse(raw) as { query?: CommunityQuery };
+                            if (parsed?.query && scopes.some(scope => scopeAffectsQuery(scope, parsed.query!))) {
+                                keysToDelete.push(storageKey);
+                            }
+                        } catch {
+                            keysToDelete.push(storageKey);
+                        }
+                    }
+                }
+                keysToDelete.forEach(k => storage.removeItem(k));
+            } catch {
+                // ignore storage errors
+            }
+        }
     }
+
+    function getResolvedFullSeasonRaceRatings(season: string): { ratings: CommunityRating[]; expires: number } | null {
+        const fullSeasonQuery: CommunityQuery = { kind: 'race', season };
+        const fullSeasonKey = queryKey(fullSeasonQuery);
+        const mem = cache.get(fullSeasonKey);
+        if (mem && mem.value !== undefined && mem.expires > now()) {
+            return { ratings: mem.value, expires: mem.expires };
+        }
+        const stored = readStorage<CommunityRating[], CommunityQuery>(COMMUNITY_CACHE_PREFIX + fullSeasonKey);
+        if (stored) {
+            cache.set(fullSeasonKey, {
+                query: fullSeasonQuery,
+                expires: stored.expires,
+                promise: Promise.resolve(stored.data),
+                value: stored.data,
+            });
+            return { ratings: stored.data, expires: stored.expires };
+        }
+        return null;
+    }
+
     function load(query: CommunityQuery): Promise<CommunityRating[]> {
         if (!client) return Promise.resolve([]);
         const key = queryKey(query);
         const cached = cache.get(key);
         if (cached && cached.expires > now()) return cached.promise;
+
+        const stored = readStorage<CommunityRating[], CommunityQuery>(COMMUNITY_CACHE_PREFIX + key);
+        if (stored) {
+            const hydratedEntry = {
+                query,
+                expires: stored.expires,
+                promise: Promise.resolve(stored.data),
+                value: stored.data,
+            };
+            cache.set(key, hydratedEntry);
+            return hydratedEntry.promise;
+        }
+
+        // If a single race round is requested and the full season's race ratings are already resolved,
+        // slice the round directly from memory/sessionStorage with 0 Supabase egress.
+        if (query.kind === 'race' && query.round) {
+            const fullSeason = getResolvedFullSeasonRaceRatings(query.season);
+            if (fullSeason) {
+                const roundRatings = fullSeason.ratings.filter(row => row.round === query.round);
+                const derivedEntry = {
+                    query,
+                    expires: fullSeason.expires,
+                    promise: Promise.resolve(roundRatings),
+                    value: roundRatings,
+                };
+                cache.set(key, derivedEntry);
+                return derivedEntry.promise;
+            }
+        }
+
         const controller = new AbortController();
         let timeout: ReturnType<typeof setTimeout>;
         const deadline = new Promise<never>((_, reject) => {
@@ -59,9 +207,19 @@ export function createCommunityClient(client: SupabaseClient | null, ensureUser:
                 .filter(row => Number.isFinite(row.averageRating) && row.averageRating >= 0.5 && row.averageRating <= 10
                     && Number.isSafeInteger(row.voteCount) && row.voteCount > 0);
         })();
-        const entry = { query, expires: Infinity, promise: Promise.resolve([] as CommunityRating[]) };
+        const entry: {
+            query: CommunityQuery;
+            expires: number;
+            promise: Promise<CommunityRating[]>;
+            value?: CommunityRating[];
+        } = { query, expires: Infinity, promise: Promise.resolve([] as CommunityRating[]) };
         entry.promise = Promise.race([request, deadline]).then(ratings => {
-            entry.expires = now() + 60_000;
+            const expires = now() + resolveTtl(query.season);
+            entry.expires = expires;
+            entry.value = ratings;
+            if (cache.get(key) === entry) {
+                writeStorage(COMMUNITY_CACHE_PREFIX + key, { query, expires, data: ratings });
+            }
             return ratings;
         }).catch(error => {
             if (cache.get(key) === entry) cache.delete(key);
@@ -75,6 +233,21 @@ export function createCommunityClient(client: SupabaseClient | null, ensureUser:
         const key = JSON.stringify(['distribution', query.kind, query.season]);
         const cached = distributionCache.get(key);
         if (cached && cached.expires > now()) return cached.promise;
+
+        const stored = readStorage<CommunityRatingDistribution[], CommunityDistributionQuery>(
+            COMMUNITY_DIST_CACHE_PREFIX + key,
+        );
+        if (stored) {
+            const hydratedEntry = {
+                query,
+                expires: stored.expires,
+                promise: Promise.resolve(stored.data),
+                value: stored.data,
+            };
+            distributionCache.set(key, hydratedEntry);
+            return hydratedEntry.promise;
+        }
+
         const controller = new AbortController();
         let timeout: ReturnType<typeof setTimeout>;
         const deadline = new Promise<never>((_, reject) => {
@@ -89,9 +262,19 @@ export function createCommunityClient(client: SupabaseClient | null, ensureUser:
             if (error) throw error;
             return normalizeCommunityDistributions(data ?? [], query.kind);
         })();
-        const entry = { query, expires: Infinity, promise: Promise.resolve([] as CommunityRatingDistribution[]) };
+        const entry: {
+            query: CommunityDistributionQuery;
+            expires: number;
+            promise: Promise<CommunityRatingDistribution[]>;
+            value?: CommunityRatingDistribution[];
+        } = { query, expires: Infinity, promise: Promise.resolve([] as CommunityRatingDistribution[]) };
         entry.promise = Promise.race([request, deadline]).then(distributions => {
-            entry.expires = now() + 60_000;
+            const expires = now() + resolveTtl(query.season);
+            entry.expires = expires;
+            entry.value = distributions;
+            if (distributionCache.get(key) === entry) {
+                writeStorage(COMMUNITY_DIST_CACHE_PREFIX + key, { query, expires, data: distributions });
+            }
             return distributions;
         }).catch(error => {
             if (distributionCache.get(key) === entry) distributionCache.delete(key);
@@ -103,7 +286,18 @@ export function createCommunityClient(client: SupabaseClient | null, ensureUser:
     return { load, loadDistribution, invalidate, configured: client !== null };
 }
 
-export const communityClient = createCommunityClient(supabase, ensureGuestUser);
+function getDefaultSessionStorage(): Storage | null {
+    try {
+        return typeof window !== 'undefined' ? window.sessionStorage : null;
+    } catch {
+        return null;
+    }
+}
+
+export const communityClient = createCommunityClient(supabase, ensureGuestUser, Date.now, {
+    ttlMs: season => getCommunityCacheTtlMs(season),
+    storage: getDefaultSessionStorage(),
+});
 window.addEventListener(COMMUNITY_CHANGE_EVENT, event => {
     communityClient.invalidate((event as CustomEvent<RatingScope[]>).detail);
 });

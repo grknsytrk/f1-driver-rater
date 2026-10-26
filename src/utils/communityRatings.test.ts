@@ -1,6 +1,11 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { compareCommunity, createCommunityClient, type CommunityRating } from './communityRatings';
+import {
+    compareCommunity,
+    createCommunityClient,
+    getCommunityCacheTtlMs,
+    type CommunityRating,
+} from './communityRatings';
 import type { AverageRating, SeasonRatings } from '../types';
 
 const driver: AverageRating = { driverId: 'norris', driverName: 'Lando Norris', constructorId: 'mclaren', constructorName: 'McLaren', averageRating: 8, totalRaces: 3, ratings: [10, 8, 6] };
@@ -39,7 +44,10 @@ describe('community comparison', () => {
 });
 
 describe('community request cache', () => {
-    beforeEach(() => vi.useFakeTimers());
+    beforeEach(() => {
+        sessionStorage.clear();
+        vi.useFakeTimers();
+    });
     afterEach(() => vi.useRealTimers());
     const query = { kind: 'race' as const, season: '2026', round: '1' };
     function setup() {
@@ -69,6 +77,69 @@ describe('community request cache', () => {
         await Promise.all(queries.map(query => client.load(query)));
         expect(rpc).toHaveBeenCalledTimes(7);
         expect(rpc).toHaveBeenCalledWith('get_quick_community_ratings', { p_season: '2026' });
+    });
+    it('derives single-round race ratings from a resolved full-season cache with zero extra RPC calls', async () => {
+        const { client, rpc, response } = setup();
+        response.mockResolvedValue({
+            data: [
+                { driver_id: 'norris', round: '1', average_rating: '8.5', vote_count: '10' },
+                { driver_id: 'piastri', round: '2', average_rating: '9.0', vote_count: '8' },
+            ],
+            error: null,
+        });
+
+        const fullSeason = await client.load({ kind: 'race', season: '2026' });
+        expect(fullSeason).toHaveLength(2);
+        expect(rpc).toHaveBeenCalledTimes(1);
+
+        // Requesting round 1 and round 2 after full season is resolved should not trigger any RPC
+        const round1 = await client.load({ kind: 'race', season: '2026', round: '1' });
+        const round2 = await client.load({ kind: 'race', season: '2026', round: '2' });
+
+        expect(rpc).toHaveBeenCalledTimes(1);
+        expect(round1).toEqual([{ driverId: 'norris', round: '1', averageRating: 8.5, voteCount: 10 }]);
+        expect(round2).toEqual([{ driverId: 'piastri', round: '2', averageRating: 9, voteCount: 8 }]);
+    });
+    it('persists community ratings and distributions in sessionStorage across reloads and clears on invalidate', async () => {
+        const response = vi.fn().mockResolvedValue({
+            data: [{ driver_id: 'norris', round: '1', average_rating: '8.5', vote_count: '4' }],
+            error: null,
+        });
+        const rpc = vi.fn(() => ({ abortSignal: response }));
+        const ensureUser = vi.fn().mockResolvedValue({});
+
+        const nowMs = new Date('2026-05-01T12:00:00Z').getTime();
+        expect(getCommunityCacheTtlMs('2026', nowMs)).toBe(5 * 60_000);
+        expect(getCommunityCacheTtlMs('2024', nowMs)).toBe(30 * 60_000);
+
+        const clientA = createCommunityClient(
+            { rpc } as unknown as SupabaseClient,
+            ensureUser,
+            Date.now,
+            { storage: sessionStorage, ttlMs: season => getCommunityCacheTtlMs(season) },
+        );
+
+        await clientA.load({ kind: 'race', season: '2025' });
+        expect(rpc).toHaveBeenCalledTimes(1);
+
+        // Simulate page reload (new client instance reading from warm sessionStorage)
+        const clientB = createCommunityClient(
+            { rpc } as unknown as SupabaseClient,
+            ensureUser,
+            Date.now,
+            { storage: sessionStorage, ttlMs: season => getCommunityCacheTtlMs(season) },
+        );
+
+        const cachedSeason = await clientB.load({ kind: 'race', season: '2025' });
+        const cachedRound = await clientB.load({ kind: 'race', season: '2025', round: '1' });
+        expect(cachedSeason).toEqual([{ driverId: 'norris', round: '1', averageRating: 8.5, voteCount: 4 }]);
+        expect(cachedRound).toEqual([{ driverId: 'norris', round: '1', averageRating: 8.5, voteCount: 4 }]);
+        expect(rpc).toHaveBeenCalledTimes(1);
+
+        // Invalidating round 1 clears both memory and sessionStorage
+        clientB.invalidate([{ kind: 'race', season: '2025', round: '1' }]);
+        await clientB.load({ kind: 'race', season: '2025' });
+        expect(rpc).toHaveBeenCalledTimes(2);
     });
     it('times out even if guest authentication hangs, and allows retry', async () => {
         const ensureUser = vi.fn().mockImplementation(() => new Promise(() => {}));

@@ -190,4 +190,38 @@ describe('persistent guest sync journal', () => {
         expect(db.rows.user_quick_ratings[0]).toMatchObject({ rating: 8, user_id: 'guest-a' });
         expect(readStored(OUTBOX_KEY, [])).toEqual([]);
     });
+    it('skips remote table hydration and idle suspension RPCs for a freshly minted anonymous user', async () => {
+        const db = fakeDatabase();
+        const rpc = vi.fn().mockResolvedValue({ data: false, error: null });
+        const client = {
+            from: db.client.from,
+            rpc,
+            auth: {
+                getSession: vi.fn().mockResolvedValue({ data: { session: null }, error: null }),
+                signInAnonymously: vi.fn().mockResolvedValue({ data: { user: { id: 'fresh-anon-1' } }, error: null }),
+            },
+        } as unknown as SupabaseClient;
+
+        await createGuestSync(client).sync();
+
+        expect(db.client.from).not.toHaveBeenCalled();
+        expect(rpc).not.toHaveBeenCalled();
+    });
+    it('reuses sessionStorage hydration across reloads without re-downloading remote rating tables', async () => {
+        sessionStorage.clear();
+        const db = fakeDatabase();
+        db.rows.user_quick_ratings = [cloud(9)];
+
+        // First page load hydrates from Supabase
+        await createGuestSync(db.client, { sessionStorage }).sync();
+        expect(getQuickRatings('2026')?.[0].rating).toBe(9);
+        const initialFromCalls = (db.client.from as ReturnType<typeof vi.fn>).mock.calls.length;
+        expect(initialFromCalls).toBeGreaterThan(0);
+
+        // Second page load (F5) within the same session skips remote table SELECTs
+        (db.client.from as ReturnType<typeof vi.fn>).mockClear();
+        await createGuestSync(db.client, { sessionStorage }).sync();
+        expect(db.client.from).not.toHaveBeenCalled();
+        expect(getQuickRatings('2026')?.[0].rating).toBe(9);
+    });
 });

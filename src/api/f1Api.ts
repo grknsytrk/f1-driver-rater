@@ -49,6 +49,83 @@ type CacheRecord<T> = { expiresAt: number; data: T };
 type RaceLike = Pick<Race, 'round' | 'date'> & Partial<Pick<Race, 'time' | 'raceName' | 'Circuit'>>;
 
 const inFlightRequests = new Map<string, Promise<unknown>>();
+const MAX_MEMORY_CACHE_ENTRIES = 60;
+const MEMORY_EPOCH_KEY = 'jolpica:__epoch';
+const memoryCache = new Map<string, CacheRecord<unknown>>();
+let currentMemoryEpoch = `epoch-${Date.now()}`;
+
+function syncMemoryCacheWithStorage(): void {
+    try {
+        const storedEpoch = localStorage.getItem(MEMORY_EPOCH_KEY);
+        if (storedEpoch !== currentMemoryEpoch) {
+            memoryCache.clear();
+            localStorage.setItem(MEMORY_EPOCH_KEY, currentMemoryEpoch);
+        }
+    } catch {
+        // ignore storage errors
+    }
+}
+
+function setMemoryCacheRecord<T>(key: string, record: CacheRecord<T>): void {
+    syncMemoryCacheWithStorage();
+    if (memoryCache.has(key)) {
+        memoryCache.delete(key);
+    } else if (memoryCache.size >= MAX_MEMORY_CACHE_ENTRIES) {
+        const oldestKey = memoryCache.keys().next().value;
+        if (oldestKey !== undefined) {
+            memoryCache.delete(oldestKey);
+        }
+    }
+    memoryCache.set(key, record as CacheRecord<unknown>);
+}
+
+function pruneJolpicaStorageCache(now = Date.now()): void {
+    try {
+        const jolpicaKeys: Array<{ key: string; expiresAt: number; isRawPaginated: boolean }> = [];
+        for (let i = 0; i < localStorage.length; i += 1) {
+            const key = localStorage.key(i);
+            if (!key || !key.startsWith('jolpica:') || key === MEMORY_EPOCH_KEY) continue;
+            const raw = localStorage.getItem(key);
+            if (!raw) continue;
+            try {
+                const parsed = JSON.parse(raw) as CacheRecord<unknown>;
+                const expiresAt = typeof parsed?.expiresAt === 'number' ? parsed.expiresAt : 0;
+                jolpicaKeys.push({
+                    key,
+                    expiresAt,
+                    isRawPaginated: key.startsWith('jolpica:paginated:'),
+                });
+            } catch {
+                jolpicaKeys.push({ key, expiresAt: 0, isRawPaginated: true });
+            }
+        }
+
+        // 1. Remove all expired Jolpica entries first
+        const expired = jolpicaKeys.filter(entry => entry.expiresAt <= now);
+        expired.forEach(entry => {
+            localStorage.removeItem(entry.key);
+            memoryCache.delete(entry.key);
+        });
+
+        if (expired.length > 0) return;
+
+        // 2. If none were expired, evict the oldest raw paginated blobs first, then oldest entries overall
+        const remaining = jolpicaKeys.sort((a, b) => {
+            if (a.isRawPaginated !== b.isRawPaginated) {
+                return a.isRawPaginated ? -1 : 1;
+            }
+            return a.expiresAt - b.expiresAt;
+        });
+
+        const toEvict = remaining.slice(0, Math.max(1, Math.ceil(remaining.length * 0.25)));
+        toEvict.forEach(entry => {
+            localStorage.removeItem(entry.key);
+            memoryCache.delete(entry.key);
+        });
+    } catch {
+        // ignore storage errors
+    }
+}
 
 function dedupeInFlight<T>(key: string, fetcher: () => Promise<T>): Promise<T> {
     const existing = inFlightRequests.get(key) as Promise<T> | undefined;
@@ -65,12 +142,32 @@ function dedupeInFlight<T>(key: string, fetcher: () => Promise<T>): Promise<T> {
 }
 
 function getCache<T>(key: string): T | null {
+    const now = Date.now();
     try {
+        if (localStorage.getItem(MEMORY_EPOCH_KEY) === currentMemoryEpoch) {
+            const memRecord = memoryCache.get(key) as CacheRecord<T> | undefined;
+            if (memRecord) {
+                if (now <= memRecord.expiresAt) {
+                    // Refresh LRU position
+                    memoryCache.delete(key);
+                    memoryCache.set(key, memRecord as CacheRecord<unknown>);
+                    return memRecord.data ?? null;
+                }
+                memoryCache.delete(key);
+            }
+        } else {
+            memoryCache.clear();
+        }
+
         const raw = localStorage.getItem(key);
         if (!raw) return null;
         const parsed = JSON.parse(raw) as CacheRecord<T>;
         if (!parsed || typeof parsed.expiresAt !== 'number') return null;
-        if (Date.now() > parsed.expiresAt) return null;
+        if (now > parsed.expiresAt) {
+            localStorage.removeItem(key);
+            return null;
+        }
+        setMemoryCacheRecord(key, parsed);
         return parsed.data ?? null;
     } catch {
         return null;
@@ -79,6 +176,12 @@ function getCache<T>(key: string): T | null {
 
 function getStaleCache<T>(key: string): T | null {
     try {
+        if (localStorage.getItem(MEMORY_EPOCH_KEY) === currentMemoryEpoch) {
+            const memRecord = memoryCache.get(key) as CacheRecord<T> | undefined;
+            if (memRecord?.data !== undefined) {
+                return memRecord.data;
+            }
+        }
         const raw = localStorage.getItem(key);
         if (!raw) return null;
         const parsed = JSON.parse(raw) as CacheRecord<T>;
@@ -88,12 +191,22 @@ function getStaleCache<T>(key: string): T | null {
     }
 }
 
-function setCache<T>(key: string, data: T, ttlMs: number) {
+function setCache<T>(key: string, data: T, ttlMs: number, options?: { memoryOnly?: boolean }) {
+    const record: CacheRecord<T> = { expiresAt: Date.now() + ttlMs, data };
+    setMemoryCacheRecord(key, record);
+    if (options?.memoryOnly) return;
+
+    const serialized = JSON.stringify(record);
     try {
-        const record: CacheRecord<T> = { expiresAt: Date.now() + ttlMs, data };
-        localStorage.setItem(key, JSON.stringify(record));
+        localStorage.setItem(key, serialized);
     } catch {
-        // ignore storage failures (private mode, quota, etc.)
+        // Evict expired / largest raw paginated Jolpica entries and retry once
+        pruneJolpicaStorageCache();
+        try {
+            localStorage.setItem(key, serialized);
+        } catch {
+            // ignore storage failures (private mode, hard quota, etc.)
+        }
     }
 }
 
@@ -251,14 +364,33 @@ export async function getRaces(season: string): Promise<Race[]> {
 
 // Fetch race results with drivers
 export async function getRaceResults(season: string, round: string): Promise<RaceResult[]> {
-    try {
-        const response = await api.get(`/${season}/${round}/results.json`);
-        const races = normalizeRaceCalendar(response.data.MRData.RaceTable.Races as Race[]);
-        if (races.length > 0 && races[0].Results) {
-            return races[0].Results;
+    const cacheKey = `jolpica:race-results:${season}:${round}`;
+    const cached = getCache<RaceResult[]>(cacheKey);
+    if (cached) return cached;
+
+    // If full-season paginated results are already cached, slice this round without a network call
+    const cachedSeasonRaces = getCache<JolpicaRaceRecord[]>(`jolpica:paginated:/${season}/results.json`);
+    if (cachedSeasonRaces) {
+        const matchedRace = cachedSeasonRaces.find(race => race.round === round);
+        if (matchedRace?.Results && matchedRace.Results.length > 0) {
+            setCache(cacheKey, matchedRace.Results, getSeasonCacheTtlMs(season), { memoryOnly: true });
+            return matchedRace.Results;
         }
-        return [];
+    }
+
+    try {
+        return await dedupeInFlight(cacheKey, async () => {
+            const response = await api.get(`/${season}/${round}/results.json`);
+            const races = normalizeRaceCalendar(response.data.MRData.RaceTable.Races as Race[]);
+            if (races.length > 0 && races[0].Results) {
+                setCache(cacheKey, races[0].Results, getSeasonCacheTtlMs(season));
+                return races[0].Results;
+            }
+            return [];
+        });
     } catch (error) {
+        const stale = getStaleCache<RaceResult[]>(cacheKey);
+        if (stale) return stale;
         console.error(`Error fetching results for ${season} round ${round}:`, error);
         return [];
     }
@@ -400,11 +532,33 @@ function mapRaceResultToDriverCard(result: RaceResult, index: number): RaceDrive
 }
 
 export async function getRaceQualifyingResults(season: string, round: string): Promise<RaceQualifyingResult[]> {
+    const cacheKey = `jolpica:race-qualifying:${season}:${round}`;
+    const cached = getCache<RaceQualifyingResult[]>(cacheKey);
+    if (cached) return cached;
+
+    // If full-season paginated qualifying is already cached, slice this round without a network call
+    const cachedSeasonQuali = getCache<JolpicaRaceRecord[]>(`jolpica:paginated:/${season}/qualifying.json`);
+    if (cachedSeasonQuali) {
+        const matchedRace = cachedSeasonQuali.find(race => race.round === round);
+        if (matchedRace?.QualifyingResults && matchedRace.QualifyingResults.length > 0) {
+            setCache(cacheKey, matchedRace.QualifyingResults, getSeasonCacheTtlMs(season), { memoryOnly: true });
+            return matchedRace.QualifyingResults;
+        }
+    }
+
     try {
-        const response = await api.get(`/${season}/${round}/qualifying.json`);
-        const races = response.data.MRData.RaceTable.Races as Array<{ QualifyingResults?: RaceQualifyingResult[] }>;
-        return races[0]?.QualifyingResults || [];
+        return await dedupeInFlight(cacheKey, async () => {
+            const response = await api.get(`/${season}/${round}/qualifying.json`);
+            const races = response.data.MRData.RaceTable.Races as Array<{ QualifyingResults?: RaceQualifyingResult[] }>;
+            const qualiResults = races[0]?.QualifyingResults || [];
+            if (qualiResults.length > 0) {
+                setCache(cacheKey, qualiResults, getSeasonCacheTtlMs(season));
+            }
+            return qualiResults;
+        });
     } catch (error) {
+        const stale = getStaleCache<RaceQualifyingResult[]>(cacheKey);
+        if (stale) return stale;
         console.error(`Error fetching qualifying for ${season} round ${round}:`, error);
         return [];
     }
@@ -548,7 +702,10 @@ export interface DriverSeasonStats {
 
 // Helper function to fetch all paginated results from Jolpica API
 // The API has a max limit of 100 per request, so we need pagination
-async function fetchAllPaginated(endpoint: string): Promise<JolpicaRaceRecord[]> {
+async function fetchAllPaginated(
+    endpoint: string,
+    options?: { cacheRaw?: boolean },
+): Promise<JolpicaRaceRecord[]> {
     const cacheKey = `jolpica:paginated:${endpoint}`;
     const cached = getCache<JolpicaRaceRecord[]>(cacheKey);
     if (cached) return cached;
@@ -604,7 +761,7 @@ async function fetchAllPaginated(endpoint: string): Promise<JolpicaRaceRecord[]>
         }
 
         // Cache the combined dataset for a short time to prevent repeated heavy pagination calls.
-        setCache(cacheKey, allRaces, ttlMs);
+        setCache(cacheKey, allRaces, ttlMs, { memoryOnly: options?.cacheRaw === false });
         return allRaces;
     });
 }
@@ -959,7 +1116,8 @@ export async function getDriverCareerStints(driverId: string): Promise<DriverCar
     if (cached) return cached;
 
     try {
-        const allDriverRaces = await fetchAllPaginated(`/drivers/${driverId}/results.json`);
+        // Keep raw driver career results in memory only; the compact stints array is persisted to localStorage
+        const allDriverRaces = await fetchAllPaginated(`/drivers/${driverId}/results.json`, { cacheRaw: false });
         const seen = new Set<string>();
         const stints: DriverCareerStint[] = [];
 
@@ -1006,9 +1164,16 @@ export async function getConstructorSeasonH2HRaw(
     if (cached) return cached;
 
     try {
+        const cachedFullSeasonRaces = getCache<JolpicaRaceRecord[]>(`jolpica:paginated:/${season}/results.json`);
+        const cachedFullSeasonQuali = getCache<JolpicaRaceRecord[]>(`jolpica:paginated:/${season}/qualifying.json`);
+
         const [rawRaces, rawQualifying] = await Promise.all([
-            fetchAllPaginated(`/${season}/constructors/${constructorId}/results.json`),
-            fetchAllPaginated(`/${season}/constructors/${constructorId}/qualifying.json`),
+            cachedFullSeasonRaces
+                ? Promise.resolve(cachedFullSeasonRaces)
+                : fetchAllPaginated(`/${season}/constructors/${constructorId}/results.json`, { cacheRaw: false }),
+            cachedFullSeasonQuali
+                ? Promise.resolve(cachedFullSeasonQuali)
+                : fetchAllPaginated(`/${season}/constructors/${constructorId}/qualifying.json`, { cacheRaw: false }),
         ]);
 
         const raceResults: SeasonRaceResult[] = [];
@@ -1017,6 +1182,7 @@ export async function getConstructorSeasonH2HRaw(
         rawRaces.forEach(race => {
             const raceEntries = race.Results ?? [];
             raceEntries.forEach(result => {
+                if (result.Constructor?.constructorId !== constructorId) return;
                 const isClassified = isClassifiedRaceResult(result);
                 const parsedPosition = Number.parseInt(result.position, 10);
                 const parsedGridPosition = Number.parseInt(result.grid, 10);
@@ -1042,6 +1208,7 @@ export async function getConstructorSeasonH2HRaw(
         const qualiResults: SeasonQualifyingResult[] = [];
         rawQualifying.forEach(race => {
             race.QualifyingResults?.forEach(result => {
+                if (result.Constructor?.constructorId !== constructorId) return;
                 resolvedConstructorName = result.Constructor?.name || resolvedConstructorName;
                 qualiResults.push({
                     round: race.round,

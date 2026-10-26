@@ -9,16 +9,34 @@ export const COMMUNITY_CHANGE_EVENT = 'f1:community-change';
 export const GUEST_SYNC_ISSUE_EVENT = 'f1:guest-sync-issue';
 export const COMMUNITY_RATING_MONITORING_EVENT = 'f1:community-rating-monitoring';
 export const OUTBOX_KEY = 'f1_rating_outbox_v2';
+export const GUEST_HYDRATED_SESSION_KEY = 'f1_guest_hydrated_user_v1';
+export const GUEST_SUSPENSION_SESSION_KEY = 'f1_guest_suspension_check_v1';
 export type GuestSyncIssue = 'anonymous-rate-limited' | 'community-suspended' | null;
+
+const RACE_SELECT_COLUMNS =
+    'season,round,race_name,race_date,driver_id,driver_name,constructor_id,constructor_name,rating,community_eligible';
+const QUICK_SELECT_COLUMNS =
+    'season,driver_id,driver_name,constructor_id,constructor_name,rating,community_eligible';
+
 type Mutation = { id: string } & (
     | { operation: 'upsert'; entry: RatingEntry }
     | { operation: 'delete'; scope: RatingScope }
     | { operation: 'policy-acceptance'; policyVersion: string; acceptedAt: string }
 );
 interface CloudRating {
-    user_id: string; season: string; round?: string; race_name?: string; race_date?: string;
+    user_id?: string; season: string; round?: string; race_name?: string; race_date?: string;
     driver_id: string; driver_name: string; constructor_id: string; constructor_name: string;
     rating: number; community_eligible?: boolean;
+}
+
+export interface GuestSyncOptions {
+    sessionStorage?: Storage | null;
+}
+
+interface CachedSuspensionCheck {
+    checkedAt: number;
+    suspended: boolean;
+    monitoringUntil: string | null;
 }
 
 function toCloud(entry: RatingEntry, userId: string): CloudRating {
@@ -50,8 +68,10 @@ function isRateLimitError(error: unknown): boolean {
 
 // Persistent operations retain offline edits/deletes across reloads. Injecting the
 // client lets tests exercise real journal and merge behavior with controlled I/O.
-export function createGuestSync(client: SupabaseClient | null) {
+export function createGuestSync(client: SupabaseClient | null, options: GuestSyncOptions = {}) {
+    const sessionStore = options.sessionStorage ?? null;
     let userPromise: Promise<User> | null = null;
+    let freshlyCreatedUserId: string | null = null;
     let running: Promise<void> | null = null;
     let hydrated = false;
     let listening = false;
@@ -80,24 +100,67 @@ export function createGuestSync(client: SupabaseClient | null) {
         return entryKey(entry) === entryKey(mutation.entry);
     });
 
-    async function refreshSuspensionStatus() {
+    function readSessionSuspensionCache(now: number, maxAgeMs: number): CachedSuspensionCheck | null {
+        if (!sessionStore) return null;
+        try {
+            const raw = sessionStore.getItem(GUEST_SUSPENSION_SESSION_KEY);
+            if (!raw) return null;
+            const parsed = JSON.parse(raw) as CachedSuspensionCheck;
+            if (!parsed || typeof parsed.checkedAt !== 'number') return null;
+            if (now - parsed.checkedAt >= maxAgeMs) return null;
+            return parsed;
+        } catch {
+            return null;
+        }
+    }
+
+    function writeSessionSuspensionCache(record: CachedSuspensionCheck) {
+        if (!sessionStore) return;
+        try {
+            sessionStore.setItem(GUEST_SUSPENSION_SESSION_KEY, JSON.stringify(record));
+        } catch {
+            // ignore storage errors
+        }
+    }
+
+    async function refreshSuspensionStatus(hasPendingMutations = false) {
         if (!client || typeof client.rpc !== 'function') return;
         const now = Date.now();
+        const cooldownMs = hasPendingMutations ? 60_000 : 300_000;
         if (lastSuspensionCheckAt !== 0 && now - lastSuspensionCheckAt < 60_000) return;
+
+        const sessionCached = readSessionSuspensionCache(now, cooldownMs);
+        if (sessionCached) {
+            lastSuspensionCheckAt = sessionCached.checkedAt;
+            setIssue(sessionCached.suspended ? 'community-suspended' : null);
+            setCommunityRatingMonitoringUntil(sessionCached.monitoringUntil);
+            return;
+        }
+
         lastSuspensionCheckAt = now;
         try {
             const [suspension, monitoring] = await Promise.all([
                 client.rpc('get_community_suspension_status'),
                 client.rpc('get_community_rating_monitoring_until'),
             ]);
-            if (!suspension.error) setIssue(suspension.data === true ? 'community-suspended' : null);
+            const isSuspended = !suspension.error && suspension.data === true;
+            if (!suspension.error) setIssue(isSuspended ? 'community-suspended' : null);
+            let resolvedUntil: string | null = communityRatingMonitoringUntil;
             if (!monitoring.error) {
-                const until = typeof monitoring.data === 'string' && Number.isFinite(Date.parse(monitoring.data))
+                resolvedUntil = typeof monitoring.data === 'string' && Number.isFinite(Date.parse(monitoring.data))
                     ? monitoring.data
                     : null;
-                setCommunityRatingMonitoringUntil(until);
+                setCommunityRatingMonitoringUntil(resolvedUntil);
             }
-            if (suspension.error || monitoring.error) lastSuspensionCheckAt = 0;
+            if (suspension.error || monitoring.error) {
+                lastSuspensionCheckAt = 0;
+            } else {
+                writeSessionSuspensionCache({
+                    checkedAt: now,
+                    suspended: isSuspended,
+                    monitoringUntil: resolvedUntil,
+                });
+            }
         } catch {
             lastSuspensionCheckAt = 0;
         }
@@ -118,6 +181,7 @@ export function createGuestSync(client: SupabaseClient | null) {
                     throw anonymous.error;
                 }
                 if (!anonymous.data.user) throw new Error('Guest session unavailable.');
+                freshlyCreatedUserId = anonymous.data.user.id;
                 return anonymous.data.user;
             })().catch(error => { userPromise = null; throw error; });
         }
@@ -129,17 +193,36 @@ export function createGuestSync(client: SupabaseClient | null) {
     }
 
     async function hydrate(userId: string) {
+        if (sessionStore) {
+            try {
+                if (sessionStore.getItem(GUEST_HYDRATED_SESSION_KEY) === userId) {
+                    hydrated = true;
+                    notifyLocalRatings();
+                    window.dispatchEvent(new Event('f1:guest-sync'));
+                    return;
+                }
+            } catch {
+                // ignore storage errors
+            }
+        }
+
         const remote: RatingEntry[] = [];
-        for (const kind of ['race', 'quick'] as const) {
-            for (let offset = 0; ; offset += 1000) {
-                let query = client!.from(kind === 'race' ? 'user_race_ratings' : 'user_quick_ratings')
-                    .select('*').eq('user_id', userId).order('season').order('driver_id');
-                if (kind === 'race') query = query.order('round');
-                const { data, error } = await query.range(offset, offset + 999).abortSignal(AbortSignal.timeout(8000));
-                if (error) throw error;
-                remote.push(...((data ?? []) as CloudRating[]).map(row => fromCloud(row, kind))
-                    .filter(entry => validRatings([entry.rating]).length > 0));
-                if (!data || data.length < 1000) break;
+        const isBrandNewAnonymousUser = freshlyCreatedUserId === userId;
+        if (isBrandNewAnonymousUser) {
+            freshlyCreatedUserId = null;
+        } else {
+            for (const kind of ['race', 'quick'] as const) {
+                const columns = kind === 'race' ? RACE_SELECT_COLUMNS : QUICK_SELECT_COLUMNS;
+                for (let offset = 0; ; offset += 1000) {
+                    let query = client!.from(kind === 'race' ? 'user_race_ratings' : 'user_quick_ratings')
+                        .select<string, CloudRating>(columns).eq('user_id', userId).order('season').order('driver_id');
+                    if (kind === 'race') query = query.order('round');
+                    const { data, error } = await query.range(offset, offset + 999).abortSignal(AbortSignal.timeout(8000));
+                    if (error) throw error;
+                    remote.push(...(data ?? []).map(row => fromCloud(row, kind))
+                        .filter(entry => validRatings([entry.rating]).length > 0));
+                    if (!data || data.length < 1000) break;
+                }
             }
         }
         // Read after I/O: the user may have changed local values while it was pending.
@@ -155,14 +238,25 @@ export function createGuestSync(client: SupabaseClient | null) {
             if (!protects(entry, pending)) mergeRemoteEntry(entry);
         }
         hydrated = true;
+        if (sessionStore) {
+            try {
+                sessionStore.setItem(GUEST_HYDRATED_SESSION_KEY, userId);
+            } catch {
+                // ignore storage errors
+            }
+        }
         notifyLocalRatings();
         window.dispatchEvent(new Event('f1:guest-sync'));
     }
 
     async function flush() {
         const user = await ensureUser();
-        void refreshSuspensionStatus();
+        const wasFreshAnonymousUser = freshlyCreatedUserId === user.id;
         if (!hydrated) await hydrate(user.id);
+        const hasPendingMutations = outbox().length > 0;
+        if (!wasFreshAnonymousUser || hasPendingMutations) {
+            void refreshSuspensionStatus(hasPendingMutations);
+        }
         for (;;) {
             const pending = outbox();
             const first = pending[0];
@@ -294,7 +388,17 @@ export function createGuestSync(client: SupabaseClient | null) {
     };
 }
 
-const guestSync = createGuestSync(supabase);
+function getDefaultSessionStorage(): Storage | null {
+    try {
+        return typeof window !== 'undefined' ? window.sessionStorage : null;
+    } catch {
+        return null;
+    }
+}
+
+const guestSync = createGuestSync(supabase, {
+    sessionStorage: getDefaultSessionStorage(),
+});
 export const initializeGuestSync = guestSync.initialize;
 export const ensureGuestUser = guestSync.ensureUser;
 export const getGuestSyncIssue = guestSync.getIssue;

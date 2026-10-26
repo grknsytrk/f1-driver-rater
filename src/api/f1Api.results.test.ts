@@ -2,7 +2,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
     getAllSeasonResults,
     getAllSeasonSprints,
+    getConstructorSeasonH2HRaw,
+    getDriverCareerStints,
     getDriverSeasonStats,
+    getRaceQualifyingResults,
+    getRaceResults,
     getRaces,
 } from './f1Api';
 
@@ -216,5 +220,105 @@ describe('Jolpica API caching, in-flight deduplication and pagination integrity'
         const results = await getAllSeasonResults('2023', { throwOnError: true });
         expect(results.map(r => r.round)).toEqual(['1', '2', '3']);
         expect(results.map(r => r.driverId)).toEqual(['driver_1', 'driver_2', 'driver_3']);
+    });
+
+    it('reuses cached full-season results/qualifying for constructor H2H and single-race queries without extra network calls', async () => {
+        const sampleRace = {
+            season: '2024',
+            round: '1',
+            date: '2024-03-02',
+            raceName: 'Bahrain Grand Prix',
+            Circuit: {
+                circuitId: 'bahrain',
+                circuitName: 'Bahrain International Circuit',
+                url: '',
+                Location: { locality: 'Sakhir', country: 'Bahrain' },
+            },
+            Results: [
+                {
+                    number: '4',
+                    position: '1',
+                    positionText: '1',
+                    points: '25',
+                    grid: '1',
+                    laps: '57',
+                    status: 'Finished',
+                    Driver: { driverId: 'norris', givenName: 'Lando', familyName: 'Norris', code: 'NOR', url: '' },
+                    Constructor: { constructorId: 'mclaren', name: 'McLaren', url: '' },
+                },
+                {
+                    number: '81',
+                    position: '2',
+                    positionText: '2',
+                    points: '18',
+                    grid: '2',
+                    laps: '57',
+                    status: 'Finished',
+                    Driver: { driverId: 'piastri', givenName: 'Oscar', familyName: 'Piastri', code: 'PIA', url: '' },
+                    Constructor: { constructorId: 'mclaren', name: 'McLaren', url: '' },
+                },
+                {
+                    number: '1',
+                    position: '3',
+                    positionText: '3',
+                    points: '15',
+                    grid: '3',
+                    laps: '57',
+                    status: 'Finished',
+                    Driver: { driverId: 'max_verstappen', givenName: 'Max', familyName: 'Verstappen', code: 'VER', url: '' },
+                    Constructor: { constructorId: 'red_bull', name: 'Red Bull', url: '' },
+                },
+            ],
+            QualifyingResults: [
+                {
+                    position: '1',
+                    Driver: { driverId: 'norris', givenName: 'Lando', familyName: 'Norris', code: 'NOR', url: '' },
+                    Constructor: { constructorId: 'mclaren', name: 'McLaren', url: '' },
+                },
+                {
+                    position: '2',
+                    Driver: { driverId: 'piastri', givenName: 'Oscar', familyName: 'Piastri', code: 'PIA', url: '' },
+                    Constructor: { constructorId: 'mclaren', name: 'McLaren', url: '' },
+                },
+            ],
+        };
+
+        apiGet.mockImplementation(async (url: string) => {
+            if (url === '/2024/driverStandings.json') {
+                return { data: { MRData: { StandingsTable: { StandingsLists: [{ DriverStandings: [] }] } } } };
+            }
+            if (url.startsWith('/2024/results.json')) {
+                return { data: { MRData: { total: '3', RaceTable: { Races: [sampleRace] } } } };
+            }
+            if (url.startsWith('/2024/qualifying.json')) {
+                return { data: { MRData: { total: '2', RaceTable: { Races: [sampleRace] } } } };
+            }
+            if (url.startsWith('/drivers/norris/results.json')) {
+                return { data: { MRData: { total: '1', RaceTable: { Races: [sampleRace] } } } };
+            }
+            throw new Error(`Unexpected URL ${url}`);
+        });
+
+        await getDriverSeasonStats('2024');
+        apiGet.mockClear();
+
+        // Now constructor H2H, single-race results, and single-race qualifying should all derive from warm cache
+        const [h2h, roundResults, roundQuali] = await Promise.all([
+            getConstructorSeasonH2HRaw('2024', 'mclaren', 'McLaren'),
+            getRaceResults('2024', '1'),
+            getRaceQualifyingResults('2024', '1'),
+        ]);
+
+        expect(apiGet).not.toHaveBeenCalled();
+        expect(h2h.raceResults.map(r => r.driverId)).toEqual(['norris', 'piastri']);
+        expect(h2h.qualiResults.map(r => r.driverId)).toEqual(['norris', 'piastri']);
+        expect(roundResults).toHaveLength(3);
+        expect(roundQuali).toHaveLength(2);
+
+        // Career stints should persist compact stints in localStorage without persisting raw paginated driver results
+        const stints = await getDriverCareerStints('norris');
+        expect(stints).toEqual([{ season: '2024', constructorId: 'mclaren', constructorName: 'McLaren' }]);
+        expect(localStorage.getItem('jolpica:driver-career-stints:norris:v1')).not.toBeNull();
+        expect(localStorage.getItem('jolpica:paginated:/drivers/norris/results.json')).toBeNull();
     });
 });

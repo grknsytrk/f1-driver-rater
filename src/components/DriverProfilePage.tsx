@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { motion } from 'framer-motion';
 import {
     Trophy,
@@ -244,7 +244,30 @@ export function DriverProfilePage({
         return compareCommunity(target, personalRaces, community.ratings, communitySource, 'season');
     }, [personalDriverAvg, driverId, driverIdentity, personalRaces, community.ratings, communitySource]);
 
-    const shouldLoadDistribution = communityComparison.voteCount >= COMMUNITY_DISTRIBUTION_MIN_VOTES;
+    const distributionSectionRef = useRef<HTMLDivElement | null>(null);
+    const [isDistributionInView, setIsDistributionInView] = useState(
+        () => typeof IntersectionObserver === 'undefined',
+    );
+
+    useEffect(() => {
+        if (isDistributionInView || typeof IntersectionObserver === 'undefined') return;
+        const node = distributionSectionRef.current;
+        if (!node) return;
+        const observer = new IntersectionObserver(
+            entries => {
+                if (entries.some(entry => entry.isIntersecting)) {
+                    setIsDistributionInView(true);
+                    observer.disconnect();
+                }
+            },
+            { rootMargin: '250px' },
+        );
+        observer.observe(node);
+        return () => observer.disconnect();
+    }, [isDistributionInView, loading]);
+
+    const shouldLoadDistribution =
+        isDistributionInView && communityComparison.voteCount >= COMMUNITY_DISTRIBUTION_MIN_VOTES;
     const distributionState = useCommunityRatingDistribution(
         communitySource,
         season,
@@ -1038,6 +1061,7 @@ export function DriverProfilePage({
 
             {/* 3. SECTION: COMMUNITY VOTE DISTRIBUTION */}
             <motion.div
+                ref={distributionSectionRef}
                 initial={{ opacity: 0, y: 16 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.15 }}
