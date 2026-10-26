@@ -2,9 +2,12 @@ import { useState, useEffect, useRef, type CSSProperties } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence, useAnimation } from 'framer-motion';
 import { toPng } from 'html-to-image';
-import { Swords, RotateCcw, Flag, Timer, Loader2, Download, Share2, ImageDown } from 'lucide-react';
+import { Swords, RotateCcw, Flag, Timer, Loader2, Download, Share2, ImageDown, User, Users } from 'lucide-react';
 import { useExportImage } from '../hooks/useExportImage';
-import { calculateAverages } from '../utils/storage';
+import { useCommunityRatings, useRatingStorage } from '../hooks/useCommunityRatings';
+import { calculateAverages, getQuickRatings, getSeasonRatings } from '../utils/storage';
+import { validRatings } from '../utils/ratingData';
+import { buildTeammateCommunityAverages } from '../utils/teamVersus';
 import { getAllSeasonResults, getAllSeasonQualifying, getConstructorStandings, getDriverStandings } from '../api/f1Api';
 import type { SeasonRaceResult, SeasonQualifyingResult, ConstructorStanding, DriverStanding } from '../api/f1Api';
 import { RateLimitError } from '../api/f1Api';
@@ -58,8 +61,19 @@ function getDriverGivenName(driverName: string): string {
     return parts[0]?.toUpperCase() || driverName.toUpperCase();
 }
 
+type TeammateRatingSource = 'personal' | 'community';
+
 export function TeammateWars({ season }: TeammateWarsProps) {
+    useRatingStorage();
     const averages = calculateAverages(season);
+    const personalRaces = getSeasonRatings(season);
+    const hasPersonalRaceRatings = Boolean(
+        personalRaces?.races.some(race => race.completed && validRatings(race.ratings).length > 0),
+    );
+    const hasPersonalQuickRatings = !hasPersonalRaceRatings && (getQuickRatings(season)?.length ?? 0) > 0;
+    const communitySource = hasPersonalQuickRatings ? 'quick' as const : 'race' as const;
+    const community = useCommunityRatings(communitySource, season);
+    const [ratingSource, setRatingSource] = useState<TeammateRatingSource>('personal');
 
     const [searchParams, setSearchParams] = useSearchParams();
     const mode: VersusMode = searchParams.get('mode') === 'teams' ? 'teams' : 'drivers';
@@ -244,15 +258,23 @@ export function TeammateWars({ season }: TeammateWarsProps) {
         });
     }
 
-    // Step 2: Merge with averages to add scores for rated drivers
-    const averagesMap = new Map<string, number>(); // key: driverId_constructorId -> averageRating
+    // Step 2: Merge with selected rating source (personal vs community) to add scores for rated drivers
+    const personalAveragesMap = new Map<string, number>(); // key: driverId_constructorId -> averageRating
     averages.forEach(avg => {
         const key = `${avg.driverId}_${avg.constructorId}`;
-        averagesMap.set(key, avg.averageRating);
+        personalAveragesMap.set(key, avg.averageRating);
     });
+    const communityAveragesMap = buildTeammateCommunityAverages(
+        community.ratings,
+        communitySource,
+        raceResults,
+        qualiResults,
+        averages,
+    );
+    const activeRatingsMap = ratingSource === 'community' ? communityAveragesMap : personalAveragesMap;
 
     rosterFromApi.forEach((driver, key) => {
-        const score = averagesMap.get(key);
+        const score = activeRatingsMap.get(key);
         if (score !== undefined) {
             driver.averageRating = score;
         }
@@ -272,12 +294,13 @@ export function TeammateWars({ season }: TeammateWarsProps) {
             if (!teams[driver.constructorId]) {
                 teams[driver.constructorId] = [];
             }
+            const key = `${driver.driverId}_${driver.constructorId}`;
             teams[driver.constructorId].push({
                 driverId: driver.driverId,
                 driverName: driver.driverName,
                 constructorId: driver.constructorId,
                 constructorName: driver.constructorName,
-                averageRating: driver.averageRating,
+                averageRating: activeRatingsMap.get(key) ?? null,
                 totalRaces: driver.totalRaces,
             });
         });
@@ -471,6 +494,57 @@ export function TeammateWars({ season }: TeammateWarsProps) {
                 </motion.div>
                 <div className="h-1 w-24 bg-[var(--accent-red)] mx-auto" />
                 {modeToggle}
+                <div className="mt-3 flex flex-col items-center gap-2 hide-on-export">
+                    <div
+                        role="group"
+                        aria-label="Teammate rating source"
+                        className="inline-grid grid-cols-2 gap-1 border border-[var(--border-color)] bg-[var(--bg-darker)] p-1"
+                    >
+                        <button
+                            type="button"
+                            aria-pressed={ratingSource === 'personal'}
+                            onClick={() => {
+                                setRatingSource('personal');
+                                setCardImage(null);
+                            }}
+                            className={`flex items-center justify-center gap-1.5 px-3 md:px-4 py-1.5 font-display text-[10px] md:text-xs uppercase tracking-wider transition-colors ${
+                                ratingSource === 'personal'
+                                    ? 'bg-[var(--accent-red)] text-white'
+                                    : 'text-[var(--text-secondary)] hover:text-white'
+                            }`}
+                        >
+                            <User size={13} className="hidden md:inline-block" />
+                            <span>MY RATINGS</span>
+                        </button>
+                        <button
+                            type="button"
+                            aria-pressed={ratingSource === 'community'}
+                            onClick={() => {
+                                setRatingSource('community');
+                                setCardImage(null);
+                            }}
+                            className={`flex items-center justify-center gap-1.5 px-3 md:px-4 py-1.5 font-display text-[10px] md:text-xs uppercase tracking-wider transition-colors ${
+                                ratingSource === 'community'
+                                    ? 'bg-[var(--accent-yellow)] text-black'
+                                    : 'text-[var(--text-secondary)] hover:text-white'
+                            }`}
+                        >
+                            <Users size={13} className="hidden md:inline-block" />
+                            <span>COMMUNITY</span>
+                        </button>
+                    </div>
+                    {ratingSource === 'community' && community.status === 'loading' && (
+                        <div className="flex items-center justify-center gap-2 text-[var(--text-muted)]" role="status">
+                            <Loader2 size={12} className="animate-spin" />
+                            <span className="font-oxanium text-[10px] uppercase tracking-wider">Loading community ratings...</span>
+                        </div>
+                    )}
+                    {ratingSource === 'community' && (community.status === 'unavailable' || community.status === 'disabled') && (
+                        <p role="status" className="font-oxanium text-[10px] uppercase tracking-wider text-[var(--text-muted)]">
+                            Community ratings unavailable
+                        </p>
+                    )}
+                </div>
                 {loading && (
                     <div className="mt-4 flex items-center justify-center gap-2 text-[var(--text-muted)]">
                         <Loader2 size={14} className="animate-spin" />
@@ -674,7 +748,7 @@ export function TeammateWars({ season }: TeammateWarsProps) {
                                     <div className="mb-2 flex min-h-[40px] items-end justify-center">
                                         <AnimatePresence mode="wait">
                                             <motion.span
-                                                key={driverA.driverId}
+                                                key={`${driverA.driverId}-${ratingSource}`}
                                                 initial={{ opacity: 0, y: -10 }}
                                                 animate={{ opacity: 1, y: 0 }}
                                                 exit={{ opacity: 0, y: 10 }}
@@ -723,7 +797,7 @@ export function TeammateWars({ season }: TeammateWarsProps) {
                                     <div className="mb-2 flex min-h-[40px] items-end justify-center">
                                         <AnimatePresence mode="wait">
                                             <motion.span
-                                                key={driverB.driverId}
+                                                key={`${driverB.driverId}-${ratingSource}`}
                                                 initial={{ opacity: 0, y: -10 }}
                                                 animate={{ opacity: 1, y: 0 }}
                                                 exit={{ opacity: 0, y: 10 }}
@@ -828,7 +902,9 @@ export function TeammateWars({ season }: TeammateWarsProps) {
                     <div className="border-l-4 border-[#e10600] pl-4 mb-6">
                         <div className="text-[10px] text-[#e10600] tracking-[0.3em] mb-1">TEAMMATE WARS</div>
                         <div className="text-5xl font-black text-white tracking-tight">{season} H2H</div>
-                        <div className="text-xs text-gray-500 mt-1">{cardMatchups.length} TEAMMATE BATTLES</div>
+                        <div className="text-xs text-gray-500 mt-1">
+                            {cardMatchups.length} TEAMMATE BATTLES • {ratingSource === 'community' ? 'COMMUNITY AVG' : 'MY RATINGS'}
+                        </div>
                     </div>
 
                     {/* H2H Matchups */}

@@ -3,6 +3,7 @@ import type { ConstructorStanding, SeasonQualifyingResult, SeasonRaceResult } fr
 import type { AverageRating } from '../types';
 import {
     buildComparisonRows,
+    buildTeammateCommunityAverages,
     buildTeamOptions,
     buildTeamStats,
     calculateTeamH2H,
@@ -232,5 +233,49 @@ describe('buildComparisonRows', () => {
         const rows = buildComparisonRows(a, b, h2h);
 
         expect(countCategoryWins(rows)).toEqual([5, 2]);
+    });
+});
+
+describe('buildTeammateCommunityAverages', () => {
+    it('computes equal-weight race community averages per driver and team stint', () => {
+        const results = [
+            race('1', 'ant', 'mercedes', 1),
+            race('1', 'rus', 'mercedes', 2),
+            race('2', 'ant', 'mercedes', 1),
+            race('2', 'rus', 'mercedes', 3),
+            race('1', 'law', 'red_bull', 10),
+            race('2', 'law', 'rb', 7),
+        ];
+        const ratings = [
+            { driverId: 'ant', round: '1', averageRating: 8.5, voteCount: 20 },
+            { driverId: 'ant', round: '2', averageRating: 9.0, voteCount: 15 },
+            { driverId: 'rus', round: '1', averageRating: 7.0, voteCount: 20 },
+            { driverId: 'rus', round: '2', averageRating: 7.5, voteCount: 15 },
+            { driverId: 'law', round: '1', averageRating: 5.5, voteCount: 12 },
+            { driverId: 'law', round: '2', averageRating: 8.0, voteCount: 14 },
+        ];
+
+        const map = buildTeammateCommunityAverages(ratings, 'race', results);
+
+        expect(map.get('ant_mercedes')).toBe(8.75);
+        expect(map.get('rus_mercedes')).toBe(7.25);
+        expect(map.get('law_red_bull')).toBe(5.5);
+        expect(map.get('law_rb')).toBe(8);
+    });
+
+    it('supports quick community ratings mapped to the driver latest team', () => {
+        const results = [
+            race('1', 'lec', 'ferrari', 2),
+            race('1', 'ham', 'ferrari', 4),
+        ];
+        const ratings = [
+            { driverId: 'lec', averageRating: 8.4, voteCount: 10 },
+            { driverId: 'ham', averageRating: 7.9, voteCount: 10 },
+        ];
+
+        const map = buildTeammateCommunityAverages(ratings, 'quick', results);
+
+        expect(map.get('lec_ferrari')).toBe(8.4);
+        expect(map.get('ham_ferrari')).toBe(7.9);
     });
 });

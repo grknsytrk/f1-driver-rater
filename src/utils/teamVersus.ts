@@ -194,6 +194,92 @@ export function buildTeamCommunityAverage(
     return { averageRating: roundTo2(weightedTotal / voteCount), voteCount };
 }
 
+function normalizeRoundKey(round: string): string {
+    const parsed = Number.parseInt(round, 10);
+    return Number.isFinite(parsed) ? String(parsed) : round;
+}
+
+/**
+ * Compute per-(driverId, constructorId) season community average ratings for Teammate Wars.
+ * Each rated Grand Prix in which the driver competed for that team counts equally.
+ */
+export function buildTeammateCommunityAverages(
+    ratings: CommunityRating[],
+    source: 'race' | 'quick',
+    raceResults: SeasonRaceResult[],
+    qualiResults: SeasonQualifyingResult[] = [],
+    averages: AverageRating[] = [],
+): Map<string, number> {
+    const result = new Map<string, number>();
+    if (ratings.length === 0) return result;
+
+    const activity = raceResults.length > 0 ? raceResults : qualiResults;
+    const teamByDriverRound = new Map<string, string>();
+    const teamsByDriver = new Map<string, Set<string>>();
+    const latestTeamByDriver = new Map<string, string>();
+
+    for (const entry of [...activity].sort((a, b) => Number(a.round) - Number(b.round))) {
+        const roundKey = `${normalizeRoundKey(entry.round)}:${entry.driverId}`;
+        teamByDriverRound.set(roundKey, entry.constructorId);
+        const driverTeams = teamsByDriver.get(entry.driverId) ?? new Set<string>();
+        driverTeams.add(entry.constructorId);
+        teamsByDriver.set(entry.driverId, driverTeams);
+        latestTeamByDriver.set(entry.driverId, entry.constructorId);
+    }
+
+    for (const avg of averages) {
+        if (!latestTeamByDriver.has(avg.driverId)) {
+            latestTeamByDriver.set(avg.driverId, avg.constructorId);
+        }
+        const driverTeams = teamsByDriver.get(avg.driverId) ?? new Set<string>();
+        driverTeams.add(avg.constructorId);
+        teamsByDriver.set(avg.driverId, driverTeams);
+    }
+
+    const scoresByKey = new Map<string, number[]>();
+    const addScore = (driverId: string, constructorId: string, score: number) => {
+        const key = `${driverId}_${constructorId}`;
+        const list = scoresByKey.get(key) ?? [];
+        list.push(score);
+        scoresByKey.set(key, list);
+    };
+
+    for (const rating of ratings) {
+        if (!Number.isFinite(rating.averageRating) || rating.averageRating < 0.5 || rating.averageRating > 10
+            || !Number.isSafeInteger(rating.voteCount) || rating.voteCount <= 0) {
+            continue;
+        }
+
+        if (source === 'race') {
+            if (!rating.round) continue;
+            const roundTeam = teamByDriverRound.get(`${normalizeRoundKey(rating.round)}:${rating.driverId}`);
+            if (roundTeam) {
+                addScore(rating.driverId, roundTeam, rating.averageRating);
+                continue;
+            }
+            const knownTeams = teamsByDriver.get(rating.driverId);
+            if (knownTeams?.size === 1) {
+                addScore(rating.driverId, [...knownTeams][0], rating.averageRating);
+            }
+        } else {
+            if (rating.round !== undefined) continue;
+            const teamId = latestTeamByDriver.get(rating.driverId);
+            if (teamId) {
+                addScore(rating.driverId, teamId, rating.averageRating);
+            }
+        }
+    }
+
+    scoresByKey.forEach((scores, key) => {
+        if (scores.length > 0) {
+            const mean = scores.reduce((sum, val) => sum + val, 0) / scores.length;
+            result.set(key, roundTo2(mean));
+        }
+    });
+
+    return result;
+}
+
 function bestPositionByRound(
     entries: Array<{ round: string; constructorId: string; position: number | null }>,
     teamId: string,
