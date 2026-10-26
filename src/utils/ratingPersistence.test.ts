@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { calculateAverages, exportRatings, getQuickRatings, getRaceRatings, importRatings, markQuickRatingsCommunityEligible, markRaceRatingsCommunityEligible, saveQuickDriverRating, saveRaceDriverRating } from './storage';
+import { calculateAverages, exportRatings, getQuickRatings, getRaceRatings, importRatings, markQuickRatingsCommunityEligible, markRaceRatingsCommunityEligible, removeQuickDriverRating, removeRaceDriverRating, saveQuickDriverRating, saveRaceDriverRating } from './storage';
+import { fetchWithMinDelay, delay } from './delay';
 import { OUTBOX_KEY } from './guestSync';
 import { QUICK_STORAGE_KEY, RACE_STORAGE_KEY, readStored } from './ratingData';
 
@@ -71,5 +72,31 @@ describe('explicit rating persistence', () => {
         const before = localStorage.getItem(RACE_STORAGE_KEY);
         expect(importRatings(JSON.stringify({ season: '2026', raceRatings: { races: [] }, quickRatings: [{ ...driver, rating: 100 }] })).success).toBe(false);
         expect(localStorage.getItem(RACE_STORAGE_KEY)).toBe(before);
+    });
+    it('removes a driver rating when toggled off and queues a cloud delete', () => {
+        saveRaceDriverRating('2026', '1', 'GP', '2026-01-01', driver);
+        removeRaceDriverRating('2026', '1', 'GP', '2026-01-01', 'norris');
+        expect(getRaceRatings('2026', '1')?.ratings).toEqual([]);
+        expect(getRaceRatings('2026', '1')?.completed).toBe(false);
+
+        saveQuickDriverRating('2026', driver);
+        removeQuickDriverRating('2026', 'norris');
+        expect(getQuickRatings('2026')).toEqual([]);
+    });
+    it('skips artificial minimum delay on fast cache hits while enforcing it on slower network calls', async () => {
+        const fastStart = performance.now();
+        const fastResult = await fetchWithMinDelay(async () => 'cached-payload', 800, 50);
+        const fastElapsed = performance.now() - fastStart;
+        expect(fastResult).toBe('cached-payload');
+        expect(fastElapsed).toBeLessThan(40);
+
+        const slowStart = performance.now();
+        const slowResult = await fetchWithMinDelay(async () => {
+            await delay(65);
+            return 'network-payload';
+        }, 140, 50);
+        const slowElapsed = performance.now() - slowStart;
+        expect(slowResult).toBe('network-payload');
+        expect(slowElapsed).toBeGreaterThanOrEqual(120);
     });
 });

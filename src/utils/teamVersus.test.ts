@@ -6,6 +6,7 @@ import {
     buildTeammateCommunityAverages,
     buildTeamOptions,
     buildTeamStats,
+    calculateTeammateRatingH2H,
     calculateTeamH2H,
     countCategoryWins,
     getTeamDrivers,
@@ -277,5 +278,126 @@ describe('buildTeammateCommunityAverages', () => {
 
         expect(map.get('lec_ferrari')).toBe(8.4);
         expect(map.get('ham_ferrari')).toBe(7.9);
+    });
+});
+
+describe('calculateTeammateRatingH2H', () => {
+    it('computes personal and community rating H2H and race-by-race round battles', () => {
+        const results = [
+            { ...race('1', 'lec', 'ferrari', 1), raceName: 'Australian Grand Prix' },
+            { ...race('1', 'ham', 'ferrari', 3), raceName: 'Australian Grand Prix' },
+            { ...race('2', 'lec', 'ferrari', 4), raceName: 'Chinese Grand Prix' },
+            { ...race('2', 'ham', 'ferrari', 2), raceName: 'Chinese Grand Prix' },
+            { ...race('3', 'lec', 'ferrari', 2), raceName: 'Japanese Grand Prix' },
+            { ...race('3', 'ham', 'ferrari', 3), raceName: 'Japanese Grand Prix' },
+        ];
+        const personalRaces = {
+            season: '2025',
+            races: [
+                {
+                    round: '1',
+                    raceName: 'Australian Grand Prix',
+                    date: '2025-03-16',
+                    completed: true,
+                    ratings: [
+                        { driverId: 'lec', driverName: 'Charles Leclerc', constructorId: 'ferrari', constructorName: 'Ferrari', rating: 9.0 },
+                        { driverId: 'ham', driverName: 'Lewis Hamilton', constructorId: 'ferrari', constructorName: 'Ferrari', rating: 7.5 },
+                    ],
+                },
+                {
+                    round: '2',
+                    raceName: 'Chinese Grand Prix',
+                    date: '2025-03-23',
+                    completed: true,
+                    ratings: [
+                        { driverId: 'lec', driverName: 'Charles Leclerc', constructorId: 'ferrari', constructorName: 'Ferrari', rating: 7.0 },
+                        { driverId: 'ham', driverName: 'Lewis Hamilton', constructorId: 'ferrari', constructorName: 'Ferrari', rating: 8.5 },
+                    ],
+                },
+                {
+                    round: '3',
+                    raceName: 'Japanese Grand Prix',
+                    date: '2025-04-06',
+                    completed: true,
+                    ratings: [
+                        { driverId: 'lec', driverName: 'Charles Leclerc', constructorId: 'ferrari', constructorName: 'Ferrari', rating: 8.0 },
+                        { driverId: 'ham', driverName: 'Lewis Hamilton', constructorId: 'ferrari', constructorName: 'Ferrari', rating: 8.0 },
+                    ],
+                },
+            ],
+        };
+        const communityRatings = [
+            { driverId: 'lec', round: '1', averageRating: 8.8, voteCount: 25 },
+            { driverId: 'ham', round: '1', averageRating: 7.4, voteCount: 25 },
+            { driverId: 'lec', round: '2', averageRating: 8.2, voteCount: 30 },
+            { driverId: 'ham', round: '2', averageRating: 7.9, voteCount: 30 },
+        ];
+
+        const personalH2H = calculateTeammateRatingH2H(
+            'lec',
+            'ham',
+            'ferrari',
+            'personal',
+            personalRaces,
+            communityRatings,
+            results,
+        );
+
+        expect(personalH2H.winsA).toBe(1);
+        expect(personalH2H.winsB).toBe(1);
+        expect(personalH2H.ties).toBe(1);
+        expect(personalH2H.totalSharedRaces).toBe(3);
+        expect(personalH2H.rounds).toEqual([
+            {
+                round: '1',
+                raceName: 'Australian Grand Prix',
+                countryCode: 'AU',
+                ratingA: 9,
+                ratingB: 7.5,
+                diff: 1.5,
+                winner: 'a',
+            },
+            {
+                round: '2',
+                raceName: 'Chinese Grand Prix',
+                countryCode: 'CN',
+                ratingA: 7,
+                ratingB: 8.5,
+                diff: -1.5,
+                winner: 'b',
+            },
+            {
+                round: '3',
+                raceName: 'Japanese Grand Prix',
+                countryCode: 'JP',
+                ratingA: 8,
+                ratingB: 8,
+                diff: 0,
+                winner: 'tie',
+            },
+        ]);
+
+        const communityH2H = calculateTeammateRatingH2H(
+            'lec',
+            'ham',
+            'ferrari',
+            'community',
+            personalRaces,
+            communityRatings,
+            results,
+        );
+
+        expect(communityH2H.winsA).toBe(2);
+        expect(communityH2H.winsB).toBe(0);
+        expect(communityH2H.ties).toBe(0);
+        expect(communityH2H.totalSharedRaces).toBe(2);
+        expect(communityH2H.rounds[0]).toMatchObject({
+            round: '1',
+            countryCode: 'AU',
+            ratingA: 8.8,
+            ratingB: 7.4,
+            diff: 1.4,
+            winner: 'a',
+        });
     });
 });

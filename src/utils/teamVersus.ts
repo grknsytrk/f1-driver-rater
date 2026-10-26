@@ -1,6 +1,8 @@
 import type { ConstructorStanding, SeasonQualifyingResult, SeasonRaceResult } from '../api/f1Api';
-import type { AverageRating } from '../types';
+import type { AverageRating, SeasonRatings } from '../types';
 import type { CommunityRating, CommunityStatus } from './communityRatings';
+import { validRatings } from './ratingData';
+import { getCountryCode } from './storage';
 
 export type DataStatus = 'idle' | 'ok' | 'rate_limited' | 'error';
 
@@ -62,6 +64,24 @@ export interface VersusRowOptions {
 export interface TeamCommunityAverage {
     averageRating: number | null;
     voteCount: number;
+}
+
+export interface TeammateRatingRoundBattle {
+    round: string;
+    raceName: string;
+    countryCode: string;
+    ratingA: number;
+    ratingB: number;
+    diff: number;
+    winner: 'a' | 'b' | 'tie';
+}
+
+export interface TeammateRatingH2H {
+    winsA: number;
+    winsB: number;
+    ties: number;
+    totalSharedRaces: number;
+    rounds: TeammateRatingRoundBattle[];
 }
 
 /** Teams that appear in the season, ordered by WCC position (then points, then name). */
@@ -278,6 +298,161 @@ export function buildTeammateCommunityAverages(
     });
 
     return result;
+}
+
+/**
+ * Compute race-by-race Rating H2H between two teammates for a specific constructor
+ * in either 'personal' or 'community' mode.
+ */
+export function calculateTeammateRatingH2H(
+    driverAId: string,
+    driverBId: string,
+    constructorId: string,
+    ratingSource: 'personal' | 'community',
+    personalRaces: SeasonRatings | null,
+    communityRatings: CommunityRating[],
+    raceResults: SeasonRaceResult[] = [],
+): TeammateRatingH2H {
+    const raceNameByRound = new Map<string, string>();
+    const teamByDriverRound = new Map<string, string>();
+    const knownTeamsByDriver = new Map<string, Set<string>>();
+
+    const addKnownTeam = (driverId: string, teamId: string) => {
+        if (!driverId || !teamId) return;
+        const set = knownTeamsByDriver.get(driverId) ?? new Set<string>();
+        set.add(teamId);
+        knownTeamsByDriver.set(driverId, set);
+    };
+
+    for (const r of raceResults) {
+        const normRound = normalizeRoundKey(r.round);
+        if (r.raceName && !raceNameByRound.has(normRound)) {
+            raceNameByRound.set(normRound, r.raceName);
+        }
+        teamByDriverRound.set(`${normRound}:${r.driverId}`, r.constructorId);
+        addKnownTeam(r.driverId, r.constructorId);
+    }
+
+    for (const race of personalRaces?.races ?? []) {
+        const normRound = normalizeRoundKey(race.round);
+        if (race.raceName && !raceNameByRound.has(normRound)) {
+            raceNameByRound.set(normRound, race.raceName);
+        }
+        for (const rating of validRatings(race.ratings)) {
+            const key = `${normRound}:${rating.driverId}`;
+            if (!teamByDriverRound.has(key)) {
+                teamByDriverRound.set(key, rating.constructorId);
+            }
+            addKnownTeam(rating.driverId, rating.constructorId);
+        }
+    }
+
+    const droveForTeamInRound = (normRound: string, driverId: string): boolean => {
+        const roundTeam = teamByDriverRound.get(`${normRound}:${driverId}`);
+        if (roundTeam !== undefined) {
+            return roundTeam === constructorId;
+        }
+        const knownTeams = knownTeamsByDriver.get(driverId);
+        if (knownTeams?.size === 1) {
+            return knownTeams.has(constructorId);
+        }
+        return false;
+    };
+
+    const rawRounds: Array<{ round: string; raceName: string; ratingA: number; ratingB: number }> = [];
+
+    if (ratingSource === 'personal') {
+        const completedRaces = (personalRaces?.races ?? []).filter(race => race.completed);
+        for (const race of completedRaces) {
+            const normRound = normalizeRoundKey(race.round);
+            const ratings = validRatings(race.ratings);
+            const entryA = ratings.find(
+                r => r.driverId === driverAId && (r.constructorId === constructorId || droveForTeamInRound(normRound, driverAId)),
+            );
+            const entryB = ratings.find(
+                r => r.driverId === driverBId && (r.constructorId === constructorId || droveForTeamInRound(normRound, driverBId)),
+            );
+            if (!entryA || !entryB) continue;
+
+            rawRounds.push({
+                round: normRound,
+                raceName: race.raceName || raceNameByRound.get(normRound) || `Round ${normRound}`,
+                ratingA: roundTo2(entryA.rating),
+                ratingB: roundTo2(entryB.rating),
+            });
+        }
+    } else {
+        const communityByRound = new Map<string, Map<string, number>>();
+        for (const rating of communityRatings) {
+            if (
+                !rating.round
+                || !Number.isFinite(rating.averageRating)
+                || rating.averageRating < 0.5
+                || rating.averageRating > 10
+                || !Number.isSafeInteger(rating.voteCount)
+                || rating.voteCount <= 0
+            ) {
+                continue;
+            }
+            const normRound = normalizeRoundKey(rating.round);
+            const roundMap = communityByRound.get(normRound) ?? new Map<string, number>();
+            roundMap.set(rating.driverId, rating.averageRating);
+            communityByRound.set(normRound, roundMap);
+        }
+
+        communityByRound.forEach((roundMap, normRound) => {
+            if (!droveForTeamInRound(normRound, driverAId) || !droveForTeamInRound(normRound, driverBId)) {
+                return;
+            }
+            const ratingA = roundMap.get(driverAId);
+            const ratingB = roundMap.get(driverBId);
+            if (ratingA === undefined || ratingB === undefined) return;
+
+            rawRounds.push({
+                round: normRound,
+                raceName: raceNameByRound.get(normRound) || `Round ${normRound}`,
+                ratingA: roundTo2(ratingA),
+                ratingB: roundTo2(ratingB),
+            });
+        });
+    }
+
+    rawRounds.sort((a, b) => Number.parseInt(a.round, 10) - Number.parseInt(b.round, 10));
+
+    let winsA = 0;
+    let winsB = 0;
+    let ties = 0;
+
+    const rounds: TeammateRatingRoundBattle[] = rawRounds.map(entry => {
+        const diff = roundTo2(entry.ratingA - entry.ratingB);
+        const winner: 'a' | 'b' | 'tie' = entry.ratingA > entry.ratingB
+            ? 'a'
+            : entry.ratingB > entry.ratingA
+                ? 'b'
+                : 'tie';
+
+        if (winner === 'a') winsA++;
+        else if (winner === 'b') winsB++;
+        else ties++;
+
+        return {
+            round: entry.round,
+            raceName: entry.raceName,
+            countryCode: getCountryCode(entry.raceName),
+            ratingA: entry.ratingA,
+            ratingB: entry.ratingB,
+            diff,
+            winner,
+        };
+    });
+
+    return {
+        winsA,
+        winsB,
+        ties,
+        totalSharedRaces: rounds.length,
+        rounds,
+    };
 }
 
 function bestPositionByRound(

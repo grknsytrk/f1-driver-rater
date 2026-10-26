@@ -2,12 +2,17 @@ import { useState, useEffect, useRef, type CSSProperties } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence, useAnimation } from 'framer-motion';
 import { toPng } from 'html-to-image';
-import { Swords, RotateCcw, Flag, Timer, Loader2, Download, Share2, ImageDown, User, Users } from 'lucide-react';
+import { Swords, RotateCcw, Flag, Timer, Star, Loader2, Download, Share2, ImageDown, User, Users } from 'lucide-react';
 import { useExportImage } from '../hooks/useExportImage';
 import { useCommunityRatings, useRatingStorage } from '../hooks/useCommunityRatings';
 import { calculateAverages, getQuickRatings, getSeasonRatings } from '../utils/storage';
 import { validRatings } from '../utils/ratingData';
-import { buildTeammateCommunityAverages } from '../utils/teamVersus';
+import {
+    buildTeammateCommunityAverages,
+    calculateTeammateRatingH2H,
+    type TeammateRatingH2H,
+} from '../utils/teamVersus';
+import { CountryFlag } from '../utils/countryFlags';
 import { getAllSeasonResults, getAllSeasonQualifying, getConstructorStandings, getDriverStandings } from '../api/f1Api';
 import type { SeasonRaceResult, SeasonQualifyingResult, ConstructorStanding, DriverStanding } from '../api/f1Api';
 import { RateLimitError } from '../api/f1Api';
@@ -49,6 +54,7 @@ interface H2HCardMatchup {
     driverA: TeamDriver;
     driverB: TeamDriver;
     h2h: H2HStats | null;
+    ratingH2H: TeammateRatingH2H;
 }
 
 function getDriverFamilyName(driverName: string): string {
@@ -374,6 +380,15 @@ export function TeammateWars({ season }: TeammateWarsProps) {
             driverA,
             driverB,
             h2h: dataLoaded ? calculateH2H(driverA.driverId, driverB.driverId, teamId) : null,
+            ratingH2H: calculateTeammateRatingH2H(
+                driverA.driverId,
+                driverB.driverId,
+                teamId,
+                ratingSource,
+                personalRaces,
+                community.ratings,
+                raceResults,
+            ),
         };
     });
 
@@ -618,8 +633,18 @@ export function TeammateWars({ season }: TeammateWarsProps) {
 
                     // Calculate real H2H
                     const h2h = dataLoaded ? calculateH2H(driverA.driverId, driverB.driverId, teamId) : null;
+                    const ratingH2H = calculateTeammateRatingH2H(
+                        driverA.driverId,
+                        driverB.driverId,
+                        teamId,
+                        ratingSource,
+                        personalRaces,
+                        community.ratings,
+                        raceResults,
+                    );
                     const showRaceH2H = raceStatus === 'ok' && (h2h?.totalRaces ?? 0) > 0;
                     const showQualiH2H = qualiStatus === 'ok' && (h2h?.totalQualis ?? 0) > 0;
+                    const showRatingH2H = ratingH2H.totalSharedRaces > 0;
 
                     const qualiFooter =
                         qualiStatus === 'rate_limited'
@@ -833,46 +858,160 @@ export function TeammateWars({ season }: TeammateWarsProps) {
                                         className="overflow-hidden border-t border-[var(--border-color)] bg-[var(--bg-darker)]"
                                     >
                                         {h2h ? (
-                                            <div className="p-4 grid grid-cols-2 gap-4">
-                                                {/* Race H2H */}
-                                                <div className="flex flex-col items-center p-3 bg-black/20 rounded">
-                                                    <div className="flex items-center gap-2 mb-3">
-                                                        <Flag size={12} className="text-[var(--text-muted)]" />
-                                                        <span className="font-oxanium text-[10px] text-[var(--text-muted)] uppercase tracking-widest">Race H2H</span>
+                                            <div className="p-4 space-y-4">
+                                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                                    {/* Race H2H */}
+                                                    <div className="flex flex-col items-center p-3 bg-black/20 rounded">
+                                                        <div className="flex items-center gap-2 mb-3">
+                                                            <Flag size={12} className="text-[var(--text-muted)]" />
+                                                            <span className="font-oxanium text-[10px] text-[var(--text-muted)] uppercase tracking-widest">Race H2H</span>
+                                                        </div>
+                                                        <div className="flex items-center gap-4">
+                                                            <span className={`font-display text-3xl ${showRaceH2H && h2h.raceWinsA > h2h.raceWinsB ? 'text-[var(--accent-yellow)]' : showRaceH2H ? 'text-white' : 'text-[var(--text-muted)]'}`}>
+                                                                {showRaceH2H ? h2h.raceWinsA : '—'}
+                                                            </span>
+                                                            <span className="font-oxanium text-xs text-[var(--text-muted)]">-</span>
+                                                            <span className={`font-display text-3xl ${showRaceH2H && h2h.raceWinsB > h2h.raceWinsA ? 'text-[var(--accent-yellow)]' : showRaceH2H ? 'text-white' : 'text-[var(--text-muted)]'}`}>
+                                                                {showRaceH2H ? h2h.raceWinsB : '—'}
+                                                            </span>
+                                                        </div>
+                                                        <p className="font-oxanium text-[9px] text-[var(--text-muted)] mt-2 text-center">
+                                                            {showRaceH2H ? `${h2h.totalRaces} races (DNF excluded)` : raceFooter}
+                                                        </p>
                                                     </div>
-                                                    <div className="flex items-center gap-4">
-                                                        <span className={`font-display text-3xl ${showRaceH2H && h2h.raceWinsA > h2h.raceWinsB ? 'text-[var(--accent-yellow)]' : showRaceH2H ? 'text-white' : 'text-[var(--text-muted)]'}`}>
-                                                            {showRaceH2H ? h2h.raceWinsA : '—'}
-                                                        </span>
-                                                        <span className="font-oxanium text-xs text-[var(--text-muted)]">-</span>
-                                                        <span className={`font-display text-3xl ${showRaceH2H && h2h.raceWinsB > h2h.raceWinsA ? 'text-[var(--accent-yellow)]' : showRaceH2H ? 'text-white' : 'text-[var(--text-muted)]'}`}>
-                                                            {showRaceH2H ? h2h.raceWinsB : '—'}
-                                                        </span>
+
+                                                    {/* Quali H2H */}
+                                                    <div className="flex flex-col items-center p-3 bg-black/20 rounded">
+                                                        <div className="flex items-center gap-2 mb-3">
+                                                            <Timer size={12} className="text-[var(--text-muted)]" />
+                                                            <span className="font-oxanium text-[10px] text-[var(--text-muted)] uppercase tracking-widest">Quali H2H</span>
+                                                        </div>
+                                                        <div className="flex items-center gap-4">
+                                                            <span className={`font-display text-3xl ${showQualiH2H && h2h.qualiWinsA > h2h.qualiWinsB ? 'text-[var(--accent-yellow)]' : showQualiH2H ? 'text-white' : 'text-[var(--text-muted)]'}`}>
+                                                                {showQualiH2H ? h2h.qualiWinsA : '—'}
+                                                            </span>
+                                                            <span className="font-oxanium text-xs text-[var(--text-muted)]">-</span>
+                                                            <span className={`font-display text-3xl ${showQualiH2H && h2h.qualiWinsB > h2h.qualiWinsA ? 'text-[var(--accent-yellow)]' : showQualiH2H ? 'text-white' : 'text-[var(--text-muted)]'}`}>
+                                                                {showQualiH2H ? h2h.qualiWinsB : '—'}
+                                                            </span>
+                                                        </div>
+                                                        <p className="font-oxanium text-[9px] text-[var(--text-muted)] mt-2 text-center">
+                                                            {showQualiH2H ? `${h2h.totalQualis} qualifying sessions` : qualiFooter}
+                                                        </p>
                                                     </div>
-                                                    <p className="font-oxanium text-[9px] text-[var(--text-muted)] mt-2">
-                                                        {showRaceH2H ? `${h2h.totalRaces} races (DNF excluded)` : raceFooter}
-                                                    </p>
+
+                                                    {/* Rating H2H */}
+                                                    <div className="flex flex-col items-center p-3 bg-black/20 rounded" data-testid={`rating-h2h-${teamId}`}>
+                                                        <div className="flex items-center gap-2 mb-3">
+                                                            <Star size={12} className="text-[var(--accent-yellow)]" />
+                                                            <span className="font-oxanium text-[10px] text-[var(--text-muted)] uppercase tracking-widest">Rating H2H</span>
+                                                        </div>
+                                                        <div className="flex items-center gap-4">
+                                                            <span className={`font-display text-3xl ${showRatingH2H && ratingH2H.winsA > ratingH2H.winsB ? 'text-[var(--accent-yellow)]' : showRatingH2H ? 'text-white' : 'text-[var(--text-muted)]'}`}>
+                                                                {showRatingH2H ? ratingH2H.winsA : '—'}
+                                                            </span>
+                                                            <span className="font-oxanium text-xs text-[var(--text-muted)]">-</span>
+                                                            <span className={`font-display text-3xl ${showRatingH2H && ratingH2H.winsB > ratingH2H.winsA ? 'text-[var(--accent-yellow)]' : showRatingH2H ? 'text-white' : 'text-[var(--text-muted)]'}`}>
+                                                                {showRatingH2H ? ratingH2H.winsB : '—'}
+                                                            </span>
+                                                        </div>
+                                                        <p className="font-oxanium text-[9px] text-[var(--text-muted)] mt-2 text-center">
+                                                            {showRatingH2H
+                                                                ? `${ratingH2H.totalSharedRaces} shared races${ratingH2H.ties > 0 ? ` (${ratingH2H.ties} tied)` : ''}`
+                                                                : ratingSource === 'community'
+                                                                    ? 'No shared community ratings'
+                                                                    : 'No shared personal ratings'}
+                                                        </p>
+                                                    </div>
                                                 </div>
 
-                                                {/* Quali H2H */}
-                                                <div className="flex flex-col items-center p-3 bg-black/20 rounded">
-                                                    <div className="flex items-center gap-2 mb-3">
-                                                        <Timer size={12} className="text-[var(--text-muted)]" />
-                                                        <span className="font-oxanium text-[10px] text-[var(--text-muted)] uppercase tracking-widest">Quali H2H</span>
+                                                {/* Race-by-Race Rating Comparison Strip */}
+                                                {ratingH2H.rounds.length > 0 && (
+                                                    <div
+                                                        onClick={e => e.stopPropagation()}
+                                                        className="border-t border-[var(--border-color)] pt-3 cursor-default"
+                                                        aria-label={`Race-by-race rating comparison for ${teamName}`}
+                                                    >
+                                                        <div className="mb-2 flex items-center justify-between gap-2">
+                                                            <span className="font-oxanium text-[9px] uppercase tracking-widest text-[var(--text-muted)]">
+                                                                RACE-BY-RACE RATING BATTLES • {ratingSource === 'community' ? 'COMMUNITY AVG' : 'MY RATINGS'}
+                                                            </span>
+                                                            <span className="font-oxanium text-[9px] uppercase tracking-wider text-[var(--text-muted)]">
+                                                                {driverAFamilyName.slice(0, 3)} vs {driverBFamilyName.slice(0, 3)}
+                                                            </span>
+                                                        </div>
+                                                        <div className="flex gap-2 overflow-x-auto pb-1.5 custom-scrollbar">
+                                                            {ratingH2H.rounds.map(battle => {
+                                                                const shortRaceName = battle.raceName
+                                                                    .replace(' Grand Prix', '')
+                                                                    .replace(' GP', '');
+                                                                const codeA = driverAFamilyName.slice(0, 3);
+                                                                const codeB = driverBFamilyName.slice(0, 3);
+                                                                const decimals = ratingSource === 'community' ? 2 : 1;
+                                                                const absDiff = Math.abs(battle.diff).toFixed(decimals);
+
+                                                                return (
+                                                                    <div
+                                                                        key={battle.round}
+                                                                        title={`${battle.raceName} (Round ${battle.round})`}
+                                                                        className="min-w-[116px] shrink-0 border border-[var(--border-color)] bg-black/30 p-2"
+                                                                        style={{
+                                                                            borderTopWidth: '2px',
+                                                                            borderTopColor: battle.winner === 'tie' ? 'var(--border-color)' : teamColor,
+                                                                        }}
+                                                                    >
+                                                                        <div className="flex items-center justify-between gap-1.5 border-b border-white/10 pb-1.5 mb-1.5">
+                                                                            <div className="flex items-center gap-1.5 min-w-0">
+                                                                                {battle.countryCode !== 'XX' && (
+                                                                                    <CountryFlag country={battle.countryCode} size="sm" />
+                                                                                )}
+                                                                                <span className="truncate font-ui text-[9px] font-bold uppercase text-white">
+                                                                                    {shortRaceName}
+                                                                                </span>
+                                                                            </div>
+                                                                            <span className="shrink-0 font-oxanium text-[8px] text-[var(--text-muted)]">
+                                                                                R{battle.round}
+                                                                            </span>
+                                                                        </div>
+
+                                                                        <div className="space-y-1 font-oxanium text-[10px]">
+                                                                            <div className="flex items-center justify-between gap-2">
+                                                                                <span className={battle.winner === 'a' ? 'font-bold text-white' : 'text-[var(--text-muted)]'}>
+                                                                                    {codeA}
+                                                                                </span>
+                                                                                <span className={`tabular-nums ${battle.winner === 'a' ? 'font-bold text-[var(--accent-yellow)]' : 'text-[var(--text-secondary)]'}`}>
+                                                                                    {battle.ratingA.toFixed(decimals)}
+                                                                                </span>
+                                                                            </div>
+                                                                            <div className="flex items-center justify-between gap-2">
+                                                                                <span className={battle.winner === 'b' ? 'font-bold text-white' : 'text-[var(--text-muted)]'}>
+                                                                                    {codeB}
+                                                                                </span>
+                                                                                <span className={`tabular-nums ${battle.winner === 'b' ? 'font-bold text-[var(--accent-yellow)]' : 'text-[var(--text-secondary)]'}`}>
+                                                                                    {battle.ratingB.toFixed(decimals)}
+                                                                                </span>
+                                                                            </div>
+                                                                        </div>
+
+                                                                        <div className="mt-1.5 border-t border-white/10 pt-1 text-center font-oxanium text-[9px] uppercase tracking-wider">
+                                                                            {battle.winner === 'a' ? (
+                                                                                <span className="font-bold text-white">
+                                                                                    {codeA} <span className="text-[var(--accent-yellow)]">+{absDiff}</span>
+                                                                                </span>
+                                                                            ) : battle.winner === 'b' ? (
+                                                                                <span className="font-bold text-white">
+                                                                                    {codeB} <span className="text-[var(--accent-yellow)]">+{absDiff}</span>
+                                                                                </span>
+                                                                            ) : (
+                                                                                <span className="text-[var(--text-muted)]">TIED</span>
+                                                                            )}
+                                                                        </div>
+                                                                    </div>
+                                                                );
+                                                            })}
+                                                        </div>
                                                     </div>
-                                                    <div className="flex items-center gap-4">
-                                                        <span className={`font-display text-3xl ${showQualiH2H && h2h.qualiWinsA > h2h.qualiWinsB ? 'text-[var(--accent-yellow)]' : showQualiH2H ? 'text-white' : 'text-[var(--text-muted)]'}`}>
-                                                            {showQualiH2H ? h2h.qualiWinsA : '—'}
-                                                        </span>
-                                                        <span className="font-oxanium text-xs text-[var(--text-muted)]">-</span>
-                                                        <span className={`font-display text-3xl ${showQualiH2H && h2h.qualiWinsB > h2h.qualiWinsA ? 'text-[var(--accent-yellow)]' : showQualiH2H ? 'text-white' : 'text-[var(--text-muted)]'}`}>
-                                                            {showQualiH2H ? h2h.qualiWinsB : '—'}
-                                                        </span>
-                                                    </div>
-                                                    <p className="font-oxanium text-[9px] text-[var(--text-muted)] mt-2">
-                                                        {showQualiH2H ? `${h2h.totalQualis} qualifying sessions` : qualiFooter}
-                                                    </p>
-                                                </div>
+                                                )}
                                             </div>
                                         ) : (
                                             <div className="p-4 flex items-center justify-center gap-2 text-[var(--text-muted)]">
@@ -912,11 +1051,15 @@ export function TeammateWars({ season }: TeammateWarsProps) {
                         {cardMatchups.map((matchup, index) => {
                             const hasRaceH2H = raceStatus === 'ok' && (matchup.h2h?.totalRaces ?? 0) > 0;
                             const hasQualiH2H = qualiStatus === 'ok' && (matchup.h2h?.totalQualis ?? 0) > 0;
+                            const hasRatingH2H = matchup.ratingH2H.totalSharedRaces > 0;
                             const raceH2H = hasRaceH2H
                                 ? `${matchup.h2h!.raceWinsA} - ${matchup.h2h!.raceWinsB}`
                                 : '—';
                             const qualiH2H = hasQualiH2H
                                 ? `${matchup.h2h!.qualiWinsA} - ${matchup.h2h!.qualiWinsB}`
+                                : '—';
+                            const ratingH2HDisplay = hasRatingH2H
+                                ? `${matchup.ratingH2H.winsA} - ${matchup.ratingH2H.winsB}`
                                 : '—';
 
                             return (
@@ -963,6 +1106,10 @@ export function TeammateWars({ season }: TeammateWarsProps) {
                                         <div>
                                             <span className="text-gray-600">QUALI </span>
                                             <span className="text-white">{qualiH2H}</span>
+                                        </div>
+                                        <div>
+                                            <span className="text-gray-600">RATING </span>
+                                            <span className="text-white">{ratingH2HDisplay}</span>
                                         </div>
                                     </div>
                                 </div>
