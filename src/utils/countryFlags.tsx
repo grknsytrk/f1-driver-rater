@@ -1,5 +1,9 @@
-import * as Flags from 'country-flag-icons/react/3x2';
-import { COUNTRY_CODES, COUNTRY_CODE_ALIASES } from './countryCodes';
+import {
+    COUNTRY_CODES,
+    COUNTRY_CODE_ALIASES,
+    FLAG_COMPONENTS,
+    type SupportedFlagCode,
+} from './countryCodes';
 
 interface CountryFlagProps {
     country: string;
@@ -11,9 +15,9 @@ export function CountryFlag({ country, className = '', size = 'md' }: CountryFla
     const normalizedInput = country.trim();
     const isCountryCode = normalizedInput.length === 2 && normalizedInput === normalizedInput.toUpperCase();
 
-    let countryCode: keyof typeof Flags | undefined;
+    let countryCode: string | undefined;
     if (isCountryCode) {
-        countryCode = COUNTRY_CODE_ALIASES[normalizedInput] ?? (normalizedInput as keyof typeof Flags);
+        countryCode = COUNTRY_CODE_ALIASES[normalizedInput] ?? normalizedInput;
     } else {
         countryCode = COUNTRY_CODES[normalizedInput];
     }
@@ -32,7 +36,7 @@ export function CountryFlag({ country, className = '', size = 'md' }: CountryFla
         );
     }
 
-    const FlagComponent = Flags[countryCode];
+    const FlagComponent = FLAG_COMPONENTS[countryCode as SupportedFlagCode];
 
     if (!FlagComponent) {
         return (

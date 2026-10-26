@@ -48,6 +48,22 @@ function getEndpointSeason(endpoint: string): string | null {
 type CacheRecord<T> = { expiresAt: number; data: T };
 type RaceLike = Pick<Race, 'round' | 'date'> & Partial<Pick<Race, 'time' | 'raceName' | 'Circuit'>>;
 
+const inFlightRequests = new Map<string, Promise<unknown>>();
+
+function dedupeInFlight<T>(key: string, fetcher: () => Promise<T>): Promise<T> {
+    const existing = inFlightRequests.get(key) as Promise<T> | undefined;
+    if (existing) return existing;
+
+    const request = fetcher().finally(() => {
+        if (inFlightRequests.get(key) === request) {
+            inFlightRequests.delete(key);
+        }
+    });
+
+    inFlightRequests.set(key, request);
+    return request;
+}
+
 function getCache<T>(key: string): T | null {
     try {
         const raw = localStorage.getItem(key);
@@ -177,11 +193,21 @@ export function applyCanonicalRounds<T extends RaceLike>(races: T[], calendar: R
 
 // Fetch available seasons (2020-current)
 export async function getSeasons(): Promise<Season[]> {
+    const cacheKey = 'jolpica:seasons';
+    const cached = getCache<Season[]>(cacheKey);
+    if (cached) return cached;
+
     try {
-        const response = await api.get('/seasons.json?limit=10&offset=70');
-        const seasons = response.data.MRData.SeasonTable.Seasons as Season[];
-        // Filter to recent seasons and reverse for newest first
-        return seasons.filter(s => parseInt(s.season) >= 2020).reverse();
+        return await dedupeInFlight(cacheKey, async () => {
+            const response = await api.get('/seasons.json?limit=10&offset=70');
+            const seasons = response.data.MRData.SeasonTable.Seasons as Season[];
+            // Filter to recent seasons and reverse for newest first
+            const filtered = seasons.filter(s => parseInt(s.season) >= 2020).reverse();
+            if (filtered.length > 0) {
+                setCache(cacheKey, filtered, 24 * 60 * 60 * 1000);
+            }
+            return filtered;
+        });
     } catch (error) {
         console.error('Error fetching seasons:', error);
         // Return fallback seasons
@@ -199,11 +225,25 @@ export async function getSeasons(): Promise<Season[]> {
 
 // Fetch all races for a season
 export async function getRaces(season: string): Promise<Race[]> {
+    const cacheKey = `jolpica:races:${season}`;
+    const cached = getCache<Race[]>(cacheKey);
+    if (cached) return cached;
+
     try {
-        const response = await api.get(`/${season}.json?limit=100`);
-        const races = response.data.MRData.RaceTable.Races as Race[];
-        return normalizeRaceCalendar(races);
+        return await dedupeInFlight(cacheKey, async () => {
+            const response = await api.get(`/${season}.json?limit=100`);
+            const races = response.data.MRData.RaceTable.Races as Race[];
+            const normalized = normalizeRaceCalendar(races);
+            if (normalized.length > 0) {
+                setCache(cacheKey, normalized, getSeasonCacheTtlMs(season));
+            }
+            return normalized;
+        });
     } catch (error) {
+        if (isRateLimitAxiosError(error)) {
+            const stale = getStaleCache<Race[]>(cacheKey);
+            if (stale) return stale;
+        }
         console.error(`Error fetching races for ${season}:`, error);
         return [];
     }
@@ -430,10 +470,24 @@ export async function getConstructors(season: string): Promise<Constructor[]> {
 
 // Fetch driver standings
 export async function getDriverStandings(season: string): Promise<DriverStanding[]> {
+    const cacheKey = `jolpica:driver-standings:${season}`;
+    const cached = getCache<DriverStanding[]>(cacheKey);
+    if (cached) return cached;
+
     try {
-        const response = await api.get<StandingsResponse>(`/${season}/driverStandings.json`);
-        return response.data.MRData.StandingsTable.StandingsLists[0]?.DriverStandings ?? [];
+        return await dedupeInFlight(cacheKey, async () => {
+            const response = await api.get<StandingsResponse>(`/${season}/driverStandings.json`);
+            const standings = response.data.MRData.StandingsTable.StandingsLists[0]?.DriverStandings ?? [];
+            if (standings.length > 0) {
+                setCache(cacheKey, standings, getSeasonCacheTtlMs(season));
+            }
+            return standings;
+        });
     } catch (error) {
+        if (isRateLimitAxiosError(error)) {
+            const stale = getStaleCache<DriverStanding[]>(cacheKey);
+            if (stale) return stale;
+        }
         console.error(`Error fetching standings for ${season}:`, error);
         return [];
     }
@@ -495,59 +549,64 @@ export interface DriverSeasonStats {
 // Helper function to fetch all paginated results from Jolpica API
 // The API has a max limit of 100 per request, so we need pagination
 async function fetchAllPaginated(endpoint: string): Promise<JolpicaRaceRecord[]> {
-    const allRaces: JolpicaRaceRecord[] = [];
-    let offset = 0;
-    const limit = 100; // API max limit
-    let hasMore = true;
     const cacheKey = `jolpica:paginated:${endpoint}`;
+    const cached = getCache<JolpicaRaceRecord[]>(cacheKey);
+    if (cached) return cached;
 
-    // Season-aware TTL: current season refreshes frequently; past seasons are stable.
-    const endpointSeason = getEndpointSeason(endpoint);
-    const ttlMs = endpointSeason ? getSeasonCacheTtlMs(endpointSeason) : 10 * 60 * 1000; // fallback 10 minutes
+    return dedupeInFlight(cacheKey, async () => {
+        const allRaces: JolpicaRaceRecord[] = [];
+        let offset = 0;
+        const limit = 100; // API max limit
+        let hasMore = true;
 
-    while (hasMore) {
-        const url = `${endpoint}?limit=${limit}&offset=${offset}`;
-        let response: { data: PaginatedRaceResponse } | null = null;
-        try {
-            // Retry a couple of times on 429 with exponential backoff (best-effort).
-            const maxRetries = 2;
-            for (let attempt = 0; attempt <= maxRetries; attempt++) {
-                try {
-                    response = await api.get<PaginatedRaceResponse>(url);
-                    break;
-                } catch (err) {
-                    if (!isRateLimitAxiosError(err) || attempt === maxRetries) throw err;
-                    const backoffMs = 500 * Math.pow(2, attempt) + Math.floor(Math.random() * 250);
-                    await sleep(backoffMs);
+        // Season-aware TTL: current season refreshes frequently; past seasons are stable.
+        const endpointSeason = getEndpointSeason(endpoint);
+        const ttlMs = endpointSeason ? getSeasonCacheTtlMs(endpointSeason) : 10 * 60 * 1000; // fallback 10 minutes
+
+        while (hasMore) {
+            const url = `${endpoint}?limit=${limit}&offset=${offset}`;
+            let response: { data: PaginatedRaceResponse } | null = null;
+            try {
+                // Retry a couple of times on 429 with exponential backoff (best-effort).
+                const maxRetries = 2;
+                for (let attempt = 0; attempt <= maxRetries; attempt++) {
+                    try {
+                        response = await api.get<PaginatedRaceResponse>(url);
+                        break;
+                    } catch (err) {
+                        if (!isRateLimitAxiosError(err) || attempt === maxRetries) throw err;
+                        const backoffMs = 500 * Math.pow(2, attempt) + Math.floor(Math.random() * 250);
+                        await sleep(backoffMs);
+                    }
                 }
+
+                if (!response) {
+                    throw new Error('Jolpica API returned no response');
+                }
+
+                const races = response.data.MRData.RaceTable?.Races ?? [];
+                const total = parseInt(response.data.MRData.total) || 0;
+
+                allRaces.push(...races);
+                offset += limit;
+
+                // Check if we've fetched all available data
+                hasMore = offset < total && races.length > 0;
+            } catch (error) {
+                // If we get rate-limited, try cache (fresh, then stale) and otherwise surface a typed error.
+                if (isRateLimitAxiosError(error)) {
+                    const fallback = getCache<JolpicaRaceRecord[]>(cacheKey) ?? getStaleCache<JolpicaRaceRecord[]>(cacheKey);
+                    if (fallback) return fallback;
+                    throw new RateLimitError('API rate limit reached (429). Please try again shortly.');
+                }
+                throw error;
             }
-
-            if (!response) {
-                throw new Error('Jolpica API returned no response');
-            }
-
-            const races = response.data.MRData.RaceTable?.Races ?? [];
-            const total = parseInt(response.data.MRData.total) || 0;
-
-            allRaces.push(...races);
-            offset += limit;
-
-            // Check if we've fetched all available data
-            hasMore = offset < total && races.length > 0;
-        } catch (error) {
-            // If we get rate-limited, try cache (fresh, then stale) and otherwise surface a typed error.
-            if (isRateLimitAxiosError(error)) {
-                const cached = getCache<JolpicaRaceRecord[]>(cacheKey) ?? getStaleCache<JolpicaRaceRecord[]>(cacheKey);
-                if (cached) return cached;
-                throw new RateLimitError('API rate limit reached (429). Please try again shortly.');
-            }
-            throw error;
         }
-    }
 
-    // Cache the combined dataset for a short time to prevent repeated heavy pagination calls.
-    setCache(cacheKey, allRaces, ttlMs);
-    return allRaces;
+        // Cache the combined dataset for a short time to prevent repeated heavy pagination calls.
+        setCache(cacheKey, allRaces, ttlMs);
+        return allRaces;
+    });
 }
 
 export interface ConstructorStanding {
@@ -567,35 +626,37 @@ export async function getConstructorStandings(season: string): Promise<Construct
     if (cached) return cached;
 
     try {
-        const maxRetries = 2;
-        let response: { data: StandingsResponse } | null = null;
-        for (let attempt = 0; attempt <= maxRetries; attempt++) {
-            try {
-                response = await api.get<StandingsResponse>(endpoint);
-                break;
-            } catch (err) {
-                if (!isRateLimitAxiosError(err) || attempt === maxRetries) throw err;
-                const backoffMs = 500 * Math.pow(2, attempt) + Math.floor(Math.random() * 250);
-                await sleep(backoffMs);
+        return await dedupeInFlight(cacheKey, async () => {
+            const maxRetries = 2;
+            let response: { data: StandingsResponse } | null = null;
+            for (let attempt = 0; attempt <= maxRetries; attempt++) {
+                try {
+                    response = await api.get<StandingsResponse>(endpoint);
+                    break;
+                } catch (err) {
+                    if (!isRateLimitAxiosError(err) || attempt === maxRetries) throw err;
+                    const backoffMs = 500 * Math.pow(2, attempt) + Math.floor(Math.random() * 250);
+                    await sleep(backoffMs);
+                }
             }
-        }
 
-        if (!response) {
-            throw new Error('Jolpica API returned no response');
-        }
+            if (!response) {
+                throw new Error('Jolpica API returned no response');
+            }
 
-        const standings = response.data.MRData.StandingsTable.StandingsLists[0]?.ConstructorStandings ?? [];
+            const standings = response.data.MRData.StandingsTable.StandingsLists[0]?.ConstructorStandings ?? [];
 
-        const normalized: ConstructorStanding[] = standings.map((s: ConstructorStandingApi) => ({
-            constructorId: s.Constructor?.constructorId ?? 'unknown',
-            constructorName: s.Constructor?.name ?? 'Unknown',
-            position: parseInt(s.position) || 0,
-            points: parseFloat(s.points) || 0,
-            wins: parseInt(s.wins) || 0,
-        }));
+            const normalized: ConstructorStanding[] = standings.map((s: ConstructorStandingApi) => ({
+                constructorId: s.Constructor?.constructorId ?? 'unknown',
+                constructorName: s.Constructor?.name ?? 'Unknown',
+                position: parseInt(s.position) || 0,
+                points: parseFloat(s.points) || 0,
+                wins: parseInt(s.wins) || 0,
+            }));
 
-        setCache(cacheKey, normalized, ttlMs);
-        return normalized;
+            setCache(cacheKey, normalized, ttlMs);
+            return normalized;
+        });
     } catch (error) {
         if (isRateLimitAxiosError(error)) {
             const stale = getStaleCache<ConstructorStanding[]>(cacheKey);
@@ -609,14 +670,12 @@ export async function getConstructorStandings(season: string): Promise<Construct
 
 export async function getDriverSeasonStats(season: string): Promise<DriverSeasonStats[]> {
     try {
-        // Fetch standings (This is reliable for Points, Position and Wins)
-        const standings = await getDriverStandings(season);
-
-        // Fetch ALL race results for podiums using pagination
-        const allRaces = await fetchAllPaginated(`/${season}/results.json`);
-
-        // Fetch ALL qualifying results for poles using pagination
-        const allQualifying = await fetchAllPaginated(`/${season}/qualifying.json`);
+        // Fetch standings, race results (for podiums), and qualifying results (for poles) concurrently
+        const [standings, allRaces, allQualifying] = await Promise.all([
+            getDriverStandings(season),
+            fetchAllPaginated(`/${season}/results.json`),
+            fetchAllPaginated(`/${season}/qualifying.json`),
+        ]);
 
         // Map to store calculated stats
         const driverStats: Map<string, { poles: number; podiums: number }> = new Map();

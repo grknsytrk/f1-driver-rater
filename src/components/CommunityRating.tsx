@@ -10,21 +10,29 @@ import {
 } from '../utils/guestSync';
 import { getRatingColor } from '../utils/ratingColor';
 
+function normalizeActiveMonitoringUntil(value: string | null): string | null {
+    if (!value) return null;
+    const expiration = Date.parse(value);
+    return Number.isFinite(expiration) && expiration > Date.now() ? value : null;
+}
+
+function getInitialActiveMonitoringUntil(): string | null {
+    return normalizeActiveMonitoringUntil(getCommunityRatingMonitoringUntil());
+}
+
 export function CommunityNotice({ status, legacy = false }: { status: CommunityStatus; legacy?: boolean }) {
     const [issue, setIssue] = useState<GuestSyncIssue>(getGuestSyncIssue);
-    const [monitoringUntil, setMonitoringUntil] = useState<string | null>(getCommunityRatingMonitoringUntil);
+    const [monitoringUntil, setMonitoringUntil] = useState<string | null>(getInitialActiveMonitoringUntil);
 
     useEffect(() => {
         const handleIssue = (event: Event) => {
             setIssue((event as CustomEvent<GuestSyncIssue>).detail);
         };
         const handleMonitoring = (event: Event) => {
-            setMonitoringUntil((event as CustomEvent<string | null>).detail);
+            setMonitoringUntil(normalizeActiveMonitoringUntil((event as CustomEvent<string | null>).detail));
         };
         window.addEventListener(GUEST_SYNC_ISSUE_EVENT, handleIssue);
         window.addEventListener(COMMUNITY_RATING_MONITORING_EVENT, handleMonitoring);
-        setIssue(getGuestSyncIssue());
-        setMonitoringUntil(getCommunityRatingMonitoringUntil());
         return () => {
             window.removeEventListener(GUEST_SYNC_ISSUE_EVENT, handleIssue);
             window.removeEventListener(COMMUNITY_RATING_MONITORING_EVENT, handleMonitoring);
@@ -34,20 +42,17 @@ export function CommunityNotice({ status, legacy = false }: { status: CommunityS
     useEffect(() => {
         if (!monitoringUntil) return;
         const expiration = Date.parse(monitoringUntil);
-        if (!Number.isFinite(expiration)) {
-            setMonitoringUntil(null);
-            return;
-        }
+        const delayMs = Number.isFinite(expiration) ? Math.max(0, expiration - Date.now() + 100) : 0;
         const timeout = window.setTimeout(() => {
             setMonitoringUntil(null);
             window.dispatchEvent(new CustomEvent(COMMUNITY_CHANGE_EVENT, { detail: [{}] }));
-        }, Math.max(0, expiration - Date.now() + 100));
+        }, delayMs);
         return () => window.clearTimeout(timeout);
     }, [monitoringUntil]);
 
     const rateLimited = issue === 'anonymous-rate-limited';
     const communitySuspended = issue === 'community-suspended';
-    const underNewAccountMonitoring = monitoringUntil !== null && Date.parse(monitoringUntil) > Date.now();
+    const underNewAccountMonitoring = monitoringUntil !== null;
     const showRateLimitCard = rateLimited;
 
     return (
