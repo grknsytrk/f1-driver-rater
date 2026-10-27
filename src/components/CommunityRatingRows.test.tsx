@@ -98,7 +98,7 @@ describe('CommunityRatingRows', () => {
         await act(async () => toggle('norris').click());
         expect(toggle('norris').getAttribute('aria-expanded')).toBe('true');
         expect(container.textContent).toContain('POOLED AVG');
-        expect(container.textContent).toContain('VERY CLOSE RATINGS');
+        expect(container.textContent).toContain('VERY SIMILAR RATINGS');
         expect(container.textContent).toContain('AGREEMENT');
         expect(container.textContent).toContain('100.0');
         expect(container.textContent).toContain('5/5 RACES WITH 2+ VOTES');
@@ -150,7 +150,7 @@ describe('CommunityRatingRows', () => {
         expect(container.textContent).toContain('TOO EARLY TO TELL');
         expect(container.textContent).toContain('0/3 RACES WITH 2+ VOTES');
         expect(container.textContent).toContain('POOLED AVG');
-        expect(container.textContent).not.toContain('VERY CLOSE RATINGS');
+        expect(container.textContent).not.toContain('VERY SIMILAR RATINGS');
     });
 
     it('shows a zero score but waits for more Quick Rate votes before labeling agreement', async () => {

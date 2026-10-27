@@ -11,10 +11,10 @@ import type { CommunityStatus } from '../utils/communityRatings';
 import { getRatingColor } from '../utils/ratingColor';
 
 const AGREEMENT_LABELS = {
-    consensus: 'VERY CLOSE RATINGS',
-    mostlyAgreed: 'MOSTLY CLOSE RATINGS',
-    mixed: 'MIXED OPINIONS',
-    lowAgreement: 'RATINGS FAR APART',
+    consensus: 'VERY SIMILAR RATINGS',
+    mostlyAgreed: 'MOSTLY SIMILAR RATINGS',
+    mixed: 'MIXED RATINGS',
+    lowAgreement: 'VERY DIFFERENT RATINGS',
 } as const;
 
 const AGREEMENT_COLORS = {
