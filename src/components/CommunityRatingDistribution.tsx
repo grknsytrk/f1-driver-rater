@@ -12,7 +12,7 @@ import { getRatingColor } from '../utils/ratingColor';
 
 const AGREEMENT_LABELS = {
     consensus: 'VERY SIMILAR RATINGS',
-    mostlyAgreed: 'MOSTLY SIMILAR RATINGS',
+    mostlyAgreed: 'SIMILAR RATINGS',
     mixed: 'MIXED RATINGS',
     lowAgreement: 'VERY DIFFERENT RATINGS',
 } as const;
