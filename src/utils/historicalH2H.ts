@@ -36,6 +36,10 @@ export interface HistoricalSeasonData {
     qualiResults: SeasonQualifyingResult[];
 }
 
+function hasClassifiedFinishStatus(status: string): boolean {
+    return /^(finished|lapped|\+\s*\d+\s*lap(?:s)?)$/i.test(status.trim());
+}
+
 let cachedPayload: CompactHistoricalH2HPayload | null = null;
 let inFlightPayloadPromise: Promise<CompactHistoricalH2HPayload | null> | null = null;
 
@@ -127,6 +131,7 @@ export function extractHistoricalSeasonData(
             const [driverId, driverName] = driver;
             const [constructorId, constructorName] = constructor;
             const status = payload.statuses[statusIdx] ?? 'Finished';
+            const classifiedPosition = hasClassifiedFinishStatus(status) ? position : null;
 
             // Qualifying-only entries are stored in the compact archive as a
             // placeholder "Did not start" race entry. Keep the profile's race
@@ -141,7 +146,7 @@ export function extractHistoricalSeasonData(
                     constructorId,
                     constructorName,
                     gridPosition,
-                    position,
+                    position: classifiedPosition,
                     points,
                     status,
                     started: startedFlag === 1,
@@ -189,6 +194,7 @@ export function extractHistoricalConstructorSeasonH2H(
             if (!driverTuple) continue;
             const [driverId, driverName] = driverTuple;
             const status = payload.statuses[statusIdx] ?? 'Finished';
+            const classifiedPosition = hasClassifiedFinishStatus(status) ? racePos : null;
 
             if (gridPos !== null || racePos !== null || startedFlag === 1) {
                 raceResults.push({
@@ -200,7 +206,7 @@ export function extractHistoricalConstructorSeasonH2H(
                     constructorId,
                     constructorName: resolvedConstructorName,
                     gridPosition: gridPos,
-                    position: racePos,
+                    position: classifiedPosition,
                     points,
                     status,
                     started: startedFlag === 1,

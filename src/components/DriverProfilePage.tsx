@@ -1493,6 +1493,18 @@ export function DriverProfilePage({
     );
 }
 
+function h2hRaceResultLabel(position: number | null, status?: string): string {
+    if (position !== null) return `P${position}`;
+    const normalizedStatus = status?.trim().toLowerCase() ?? '';
+    if (!normalizedStatus) return '—';
+    if (/\b(disqualified|dsq|dq)\b/.test(normalizedStatus)) return 'DSQ';
+    if (/\bexcluded\b/.test(normalizedStatus)) return 'EXC';
+    if (/^(did not qualify|failed to qualify|not qualified|dnq|dnpq)\b/.test(normalizedStatus)) return 'DNQ';
+    if (/^(withdrew|withdrawn|wdr|wd)\b/.test(normalizedStatus)) return 'WDR';
+    if (/^(did not start|not started|dns)\b/.test(normalizedStatus)) return 'DNS';
+    return 'DNF';
+}
+
 interface CareerTeammateH2HColumnProps {
     mode: 'qualifying' | 'race';
     driverName: string;
@@ -1711,14 +1723,14 @@ function CareerTeammateH2HColumn({
                                                             className={`text-center font-oxanium text-xs tabular-nums ${driverCellColor}`}
                                                             title={roundItem.driverStatus}
                                                         >
-                                                            {roundItem.driverPosition !== null ? `P${roundItem.driverPosition}` : '—'}
+                                                            {h2hRaceResultLabel(roundItem.driverPosition, roundItem.driverStatus)}
                                                         </div>
 
                                                         <div
                                                             className={`text-center font-oxanium text-xs tabular-nums ${teammateCellColor}`}
                                                             title={roundItem.teammateStatus}
                                                         >
-                                                            {roundItem.teammatePosition !== null ? `P${roundItem.teammatePosition}` : '—'}
+                                                            {h2hRaceResultLabel(roundItem.teammatePosition, roundItem.teammateStatus)}
                                                         </div>
                                                     </div>
                                                 );

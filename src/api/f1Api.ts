@@ -565,7 +565,12 @@ function createRaceRecapEntry(driver: Driver, constructor: Constructor): RaceRec
 }
 
 function isClassifiedRaceResult(result: RaceResult): boolean {
-    return !UNCLASSIFIED_POSITION_TEXT.has(result.positionText)
+    const positionText = result.positionText?.trim().toUpperCase();
+    const status = result.status?.trim();
+    const hasClassifiedStatus = !status || /^(finished|lapped|\+\s*\d+\s*lap(?:s)?)$/i.test(status);
+
+    return !UNCLASSIFIED_POSITION_TEXT.has(positionText ?? '')
+        && hasClassifiedStatus
         && Number.isFinite(Number.parseInt(result.position, 10));
 }
 
@@ -990,7 +995,10 @@ export interface SeasonRaceResult {
     constructorName: string;
     /** Official starting-grid position; 0 can represent a pit-lane start. */
     gridPosition?: number | null;
-    position: number | null; // null = DNF/DSQ
+    /** Numeric official classification when present; null means no numeric place. Use status to distinguish DNS/DSQ/DNF. */
+    position: number | null;
+    /** Jolpica's compact classification marker (for example R, D, E, W, F, or N). */
+    positionText?: string;
     points: number;
     status: string;
     started?: boolean;
@@ -1054,6 +1062,7 @@ export async function getAllSeasonResults(season: string, options: { throwOnErro
                     constructorName: result.Constructor.name,
                     gridPosition: Number.isFinite(parsedGridPosition) ? parsedGridPosition : null,
                     position: isClassified && Number.isFinite(parsedPosition) ? parsedPosition : null,
+                    positionText: result.positionText,
                     points: parseFloat(result.points) || 0,
                     status: result.status,
                     started: didStartRace(result),
@@ -1080,7 +1089,10 @@ export interface SeasonSprintResult {
     driverName: string;
     constructorId: string;
     constructorName: string;
-    position: number | null; // null = DNF/DSQ
+    /** Numeric official classification when present; null means no numeric place. Use status to distinguish DNS/DSQ/DNF. */
+    position: number | null;
+    /** Jolpica's compact classification marker (for example R, D, E, W, F, or N). */
+    positionText?: string;
     points: number;
     status: string;
 }
@@ -1107,6 +1119,7 @@ export async function getAllSeasonSprints(season: string, options: { throwOnErro
                     constructorId: result.Constructor.constructorId,
                     constructorName: result.Constructor.name,
                     position: isClassified ? parseInt(result.position) : null,
+                    positionText: result.positionText,
                     points: parseFloat(result.points) || 0,
                     status: result.status,
                 });
@@ -1329,6 +1342,7 @@ export async function getConstructorSeasonH2HRaw(
                     constructorName: result.Constructor.name,
                     gridPosition: Number.isFinite(parsedGridPosition) ? parsedGridPosition : null,
                     position: isClassified && Number.isFinite(parsedPosition) ? parsedPosition : null,
+                    positionText: result.positionText,
                     points: parseFloat(result.points) || 0,
                     status: result.status,
                     started: didStartRace(result),

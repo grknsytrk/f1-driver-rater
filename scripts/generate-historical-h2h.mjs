@@ -129,6 +129,10 @@ function parsePosition(value) {
     return Number.isFinite(parsed) ? parsed : null;
 }
 
+function hasClassifiedFinishStatus(status) {
+    return /^(finished|lapped|\+\s*\d+\s*lap(?:s)?)$/i.test(status.trim());
+}
+
 function toCompactSeason(payload, raceTable, qualifyingTable) {
     const driverIndexes = new Map(payload.drivers.map(([id], index) => [id, index]));
     const constructorIndexes = new Map(payload.constructors.map(([id], index) => [id, index]));
@@ -154,7 +158,9 @@ function toCompactSeason(payload, raceTable, qualifyingTable) {
                 const statusIdx = ensureStatusIndex(payload, statusIndexes, status);
                 const positionText = result.positionText ?? '';
                 const numericPosition = parsePosition(result.position);
-                const racePosition = !UNCLASSIFIED_POSITION_TEXT.has(positionText) && numericPosition !== null
+                const racePosition = !UNCLASSIFIED_POSITION_TEXT.has(positionText)
+                    && hasClassifiedFinishStatus(status)
+                    && numericPosition !== null
                     ? numericPosition
                     : null;
                 const started = !/^(did not start|did not qualify|not started|withdrawn|dns)\b/i.test(status.trim());

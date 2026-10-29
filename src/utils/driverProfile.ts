@@ -121,6 +121,13 @@ function normalizeRound(round: string): string {
     return Number.isFinite(parsed) ? String(parsed) : round;
 }
 
+function classifiedRacePosition(result: SeasonRaceResult | undefined): number | null {
+    if (!result || result.position === null) return null;
+    const status = result.status?.trim();
+    if (!status) return result.position;
+    return /^(finished|lapped|\+\s*\d+\s*lap(?:s)?)$/i.test(status) ? result.position : null;
+}
+
 /**
  * Compute per-(driverId, constructorId) personal race averages for a season.
  */
@@ -248,10 +255,12 @@ export function buildDriverTeammateComparisons(
 
                 if (raceD && raceT) {
                     sharedRacesCount++;
-                    if (raceD.position !== null && raceT.position !== null) {
+                    const driverPosition = classifiedRacePosition(raceD);
+                    const teammatePosition = classifiedRacePosition(raceT);
+                    if (driverPosition !== null && teammatePosition !== null) {
                         totalClassifiedSharedRaces++;
-                        if (raceD.position < raceT.position) raceWinsDriver++;
-                        else if (raceT.position < raceD.position) raceWinsTeammate++;
+                        if (driverPosition < teammatePosition) raceWinsDriver++;
+                        else if (teammatePosition < driverPosition) raceWinsTeammate++;
                     }
                 }
 
@@ -428,8 +437,8 @@ export function buildSeasonTeammateH2HEntries(
 
             // Race round comparison
             if (raceD || raceT) {
-                const dPos = raceD?.position ?? null;
-                const tPos = raceT?.position ?? null;
+                const dPos = classifiedRacePosition(raceD);
+                const tPos = classifiedRacePosition(raceT);
                 let winner: 'driver' | 'teammate' | 'unclassified' = 'unclassified';
 
                 if (dPos !== null && tPos !== null) {
