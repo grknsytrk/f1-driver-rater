@@ -246,28 +246,19 @@ function CardRaceRow({ race }: { race: CardRace }) {
     return (
         <div className="relative flex h-[106px] items-center" aria-label={`${race.raceName}: ${position}`}>
             <CountryFlag country={country} size="lg" className="!h-[56px] !w-[84px] !rounded-md !border-white/35" />
-            <div className="ml-5 flex h-[56px] min-w-0 flex-col justify-center">
-                {sprintPosition ? (
-                    <>
-                        <div className="season-card-bold flex items-center gap-[5px] whitespace-nowrap text-[14px] leading-none uppercase tracking-wide text-[#c4ccda]">
-                            <span className="inline-flex items-center gap-[2px]">SPRINT<CardColon size={2.5} gap={2} /></span>
-                            <span style={{ color: sprintColor }}>{sprintPosition}</span>
-                        </div>
-                        <div
-                            className="season-card-bold mt-1 text-[40px] leading-[0.88]"
-                            style={{ color: positionColor }}
-                        >
-                            {position}
-                        </div>
-                    </>
-                ) : (
-                    <div
-                        className="season-card-bold text-[46px] leading-none"
-                        style={{ color: positionColor }}
-                    >
-                        {position}
+            <div className="relative ml-5 flex h-[56px] min-w-0 items-center">
+                {sprintPosition && (
+                    <div className="season-card-bold absolute -top-[18px] left-0 flex items-center gap-[5px] whitespace-nowrap text-[19px] leading-none uppercase tracking-wide text-[#c4ccda]">
+                        <span className="inline-flex items-center gap-[2px]">SPRINT<CardColon size={3} gap={2} /></span>
+                        <span style={{ color: sprintColor }}>{sprintPosition}</span>
                     </div>
                 )}
+                <div
+                    className={`season-card-bold text-[46px] leading-none ${sprintPosition ? 'translate-y-[3px]' : ''}`}
+                    style={{ color: positionColor }}
+                >
+                    {position}
+                </div>
             </div>
         </div>
     );
