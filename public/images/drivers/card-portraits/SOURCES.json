@@ -1,0 +1,14 @@
+{
+  "source": "User-provided images in Codex chat",
+  "season": "2026",
+  "retrievedOn": "2026-10-27",
+  "portraits": [
+    { "driverId": "leclerc", "name": "Charles Leclerc", "file": "charles-leclerc-2026.webp", "attachment": "previous upload" },
+    { "driverId": "hamilton", "name": "Lewis Hamilton", "file": "lewis-hamilton-2026.webp", "attachment": 1 },
+    { "driverId": "max_verstappen", "name": "Max Verstappen", "file": "max-verstappen-2026.webp", "attachment": 2 },
+    { "driverId": "antonelli", "name": "Kimi Antonelli", "file": "kimi-antonelli-2026.webp", "attachment": 3 },
+    { "driverId": "russell", "name": "George Russell", "file": "george-russell-2026.webp", "attachment": 4 },
+    { "driverId": "norris", "name": "Lando Norris", "file": "lando-norris-2026.webp", "attachment": 5 },
+    { "driverId": "piastri", "name": "Oscar Piastri", "file": "oscar-piastri-2026.webp", "attachment": 6 }
+  ]
+}

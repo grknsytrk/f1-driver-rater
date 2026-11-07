@@ -215,6 +215,17 @@ h6 {
   font-weight: 400;
 }
 
+/* Keep the generated season-card typography in the heavier F1 display faces. */
+.season-share-card .season-card-bold {
+  font-family: 'Formula1-Bold', 'Formula1', sans-serif !important;
+  font-weight: 700 !important;
+}
+
+.season-share-card .season-card-black {
+  font-family: 'Formula1-Black', 'Formula1-Bold', sans-serif !important;
+  font-weight: 900 !important;
+}
+
 /* ─────────────────────────────────────────────────────────────────────────
    COMPONENTS & UTILITIES
 ────────────────────────────────────────────────────────────────────────── */

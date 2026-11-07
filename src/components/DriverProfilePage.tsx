@@ -65,6 +65,7 @@ import { CountryFlag } from '../utils/countryFlags';
 import { PodiumFlagBackdrop } from './PodiumFlagBackdrop';
 import { DriverBattlePortrait } from './DriverBattlePortrait';
 import { CommunityRatingDistribution } from './CommunityRatingDistribution';
+import { DriverSeasonCardGenerator } from './DriverSeasonCardGenerator';
 
 interface DriverProfilePageProps {
     season: string;
@@ -78,6 +79,32 @@ type ProfileRatingMode = 'personal' | 'community';
 
 function getTeamColor(constructorId: string): string {
     return TEAM_COLORS[constructorId] || '#888888';
+}
+
+// Frozen constructor order based on the 2026 team standings. Keep this local and
+// explicit so the driver selector never reshuffles when live points change.
+const DRIVER_SELECTOR_TEAM_ORDER = [
+    'mercedes',
+    'ferrari',
+    'red_bull',
+    'mclaren',
+    'racing_bulls',
+    'alpine',
+    'haas',
+    'audi',
+    'williams',
+    'aston_martin',
+    'cadillac',
+] as const;
+
+const DRIVER_SELECTOR_TEAM_ALIASES: Record<string, string> = {
+    rb: 'racing_bulls',
+};
+
+function getDriverSelectorTeamRank(constructorId: string): number {
+    const canonicalId = DRIVER_SELECTOR_TEAM_ALIASES[constructorId] ?? constructorId;
+    const rank = DRIVER_SELECTOR_TEAM_ORDER.indexOf(canonicalId as typeof DRIVER_SELECTOR_TEAM_ORDER[number]);
+    return rank === -1 ? DRIVER_SELECTOR_TEAM_ORDER.length : rank;
 }
 
 function getFamilyCode(driverName: string): string {
@@ -199,15 +226,26 @@ export function DriverProfilePage({
 
     // All selectable drivers in this season for the top switcher
     const allDriversInSeason = useMemo(() => {
-        const map = new Map<string, { driverId: string; driverName: string; constructorName: string }>();
+        const map = new Map<string, {
+            driverId: string;
+            driverName: string;
+            constructorId: string;
+            constructorName: string;
+        }>();
         for (const s of driverStats) {
-            map.set(s.driverId, { driverId: s.driverId, driverName: s.driverName, constructorName: s.constructorName });
+            map.set(s.driverId, {
+                driverId: s.driverId,
+                driverName: s.driverName,
+                constructorId: s.constructorId,
+                constructorName: s.constructorName,
+            });
         }
         for (const d of seasonDrivers) {
             if (!map.has(d.driverId)) {
                 map.set(d.driverId, {
                     driverId: d.driverId,
                     driverName: `${d.givenName} ${d.familyName}`,
+                    constructorId: d.constructorId,
                     constructorName: d.constructorName,
                 });
             }
@@ -217,6 +255,7 @@ export function DriverProfilePage({
                 map.set(avg.driverId, {
                     driverId: avg.driverId,
                     driverName: avg.driverName,
+                    constructorId: avg.constructorId,
                     constructorName: avg.constructorName,
                 });
             }
@@ -225,10 +264,15 @@ export function DriverProfilePage({
             map.set(driverId, {
                 driverId,
                 driverName: driverIdentity.driverName,
+                constructorId: driverIdentity.constructorId,
                 constructorName: driverIdentity.constructorName,
             });
         }
-        return [...map.values()];
+        return [...map.values()].sort((a, b) =>
+            getDriverSelectorTeamRank(a.constructorId) - getDriverSelectorTeamRank(b.constructorId)
+            || a.constructorName.localeCompare(b.constructorName, 'en', { sensitivity: 'base' })
+            || a.driverName.localeCompare(b.driverName, 'en', { sensitivity: 'base' }),
+        );
     }, [driverStats, seasonDrivers, averages, driverId, driverIdentity]);
 
     // Community comparison for this driver
@@ -820,6 +864,19 @@ export function DriverProfilePage({
                     </div>
                 </div>
             </motion.div>
+
+            <DriverSeasonCardGenerator
+                season={season}
+                driverId={driverId}
+                driverName={driverIdentity.driverName}
+                fallbackConstructorId={driverIdentity.constructorId}
+                fallbackConstructorName={driverIdentity.constructorName}
+                stats={driverIdentity.stats}
+                calendar={calendar}
+                raceResults={raceResults}
+                sprintResults={sprintResults}
+                portraitUrl={portrait}
+            />
 
             {/* 2. SECTION: TEAMMATE H2H BATTLES */}
             <motion.div
