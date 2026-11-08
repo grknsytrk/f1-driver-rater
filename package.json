@@ -8,6 +8,7 @@
     "build": "node scripts/generate-sitemap.mjs && tsc -b && vite build",
     "build:prerender": "node scripts/generate-sitemap.mjs && tsc -b && vite build && node scripts/prerender.mjs",
     "generate-sitemap": "node scripts/generate-sitemap.mjs",
+    "generate-seasons": "node scripts/generate-season-data.mjs",
     "prerender": "node scripts/prerender.mjs",
     "lint": "eslint .",
     "preview": "vite preview",

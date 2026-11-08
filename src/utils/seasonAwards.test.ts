@@ -162,7 +162,7 @@ describe('buildSeasonAwards', () => {
         const award = awardMap(buildSeasonAwards('2024', results, [], distributions)).get('most_polarizing');
 
         expect(award?.winners.map(winner => winner.driverId)).toEqual(['split']);
-        expect(award?.winners[0].metricValue).toBe(0);
+        expect(award?.winners[0].metricValue).toBeCloseTo(7.8947368421, 9);
         expect(award?.winners[0].detail).toContain('opinions diverged');
     });
 

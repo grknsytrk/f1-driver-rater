@@ -1,0 +1,62 @@
+{
+  "version": 1,
+  "generatedAt": "2026-11-08T12:52:53.795Z",
+  "seasons": {
+    "2020": {
+      "season": "2020",
+      "isArchived": true,
+      "lastCompletedRound": 17,
+      "totalRounds": 17,
+      "generatedAt": "2026-11-08T12:51:11.500Z",
+      "bundleUrl": "/data/seasons/2020.json"
+    },
+    "2021": {
+      "season": "2021",
+      "isArchived": true,
+      "lastCompletedRound": 22,
+      "totalRounds": 22,
+      "generatedAt": "2026-11-08T12:51:22.141Z",
+      "bundleUrl": "/data/seasons/2021.json"
+    },
+    "2022": {
+      "season": "2022",
+      "isArchived": true,
+      "lastCompletedRound": 22,
+      "totalRounds": 22,
+      "generatedAt": "2026-11-08T12:51:32.914Z",
+      "bundleUrl": "/data/seasons/2022.json"
+    },
+    "2023": {
+      "season": "2023",
+      "isArchived": true,
+      "lastCompletedRound": 22,
+      "totalRounds": 22,
+      "generatedAt": "2026-11-08T12:51:44.255Z",
+      "bundleUrl": "/data/seasons/2023.json"
+    },
+    "2024": {
+      "season": "2024",
+      "isArchived": true,
+      "lastCompletedRound": 24,
+      "totalRounds": 24,
+      "generatedAt": "2026-11-08T12:51:55.769Z",
+      "bundleUrl": "/data/seasons/2024.json"
+    },
+    "2025": {
+      "season": "2025",
+      "isArchived": true,
+      "lastCompletedRound": 24,
+      "totalRounds": 24,
+      "generatedAt": "2026-11-08T12:52:14.117Z",
+      "bundleUrl": "/data/seasons/2025.json"
+    },
+    "2026": {
+      "season": "2026",
+      "isArchived": false,
+      "lastCompletedRound": 5,
+      "totalRounds": 23,
+      "generatedAt": "2026-11-08T12:52:53.790Z",
+      "bundleUrl": "/data/seasons/2026.json"
+    }
+  }
+}

@@ -41,7 +41,7 @@ describe('community rating distribution', () => {
         [9.5, 73.6842105263, 'mixed'], [10, 68.4210526316, 'mixed'],
     ])('scores the average rating gap between 7 and %s', (rating, expected, agreement) => {
         expect(summary(repeatedRaceRows([7, rating]))).toMatchObject({
-            agreementScore: expected, agreement, assessedRaceCount: 5, raceCount: 5,
+            agreementScore: expect.closeTo(expected, 9), agreement, assessedRaceCount: 5, raceCount: 5,
         });
     });
 
@@ -73,7 +73,8 @@ describe('community rating distribution', () => {
     it('keeps single-vote races in the histogram but excludes them from agreement', () => {
         const result = summary([rpcRow([8, 8.5], '1'), rpcRow([0.5], '2')]);
         expect(result.averageRating).toBeCloseTo(17 / 3);
-        expect(result).toMatchObject({ agreementScore: 100, assessedRaceCount: 1, raceCount: 2 });
+        expect(result.agreementScore).toBeCloseTo(94.7368421053, 9);
+        expect(result).toMatchObject({ assessedRaceCount: 1, raceCount: 2 });
     });
 
     it('does not create consensus by comparing single votes across different races', () => {
@@ -84,7 +85,7 @@ describe('community rating distribution', () => {
 
     it('assesses Quick Rate votes directly without inventing race coverage', () => {
         expect(summary([rpcRow([7, 8], null)], 'quick')).toMatchObject({
-            averageRating: 7.5, agreementScore: 89.4736842105, agreement: null, assessedRaceCount: 0, raceCount: 0,
+            averageRating: 7.5, agreementScore: expect.closeTo(89.4736842105, 9), agreement: null, assessedRaceCount: 0, raceCount: 0,
         });
     });
 

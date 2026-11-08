@@ -38,9 +38,36 @@ export const preloadTeammateWarsRoute = teammateWarsRoute.preload;
 export const preloadStandingsRoute = standingsRoute.preload;
 export const preloadAwardsRoute = awardsRoute.preload;
 export const preloadDriverProfileRoute = driverProfileRoute.preload;
-// Modal routes now use eager wrappers so the shell never remounts during load.
-export const preloadQuickRateRoute = () => undefined;
-export const preloadRaceRatingRoute = () => undefined;
+import { getRaceRatingContext, getDriverSeasonStats } from '../api/f1Api';
+
+const prefetchedRaceRatings = new Set<string>();
+const prefetchedQuickRates = new Set<string>();
+
+export function resetRoutePrefetchCache(): void {
+    prefetchedRaceRatings.clear();
+    prefetchedQuickRates.clear();
+}
+
+export function preloadRaceRatingRoute(season?: string, round?: string): void {
+    if (!season || !round) return;
+    const key = `${season}:${round}`;
+    if (prefetchedRaceRatings.has(key)) return;
+    prefetchedRaceRatings.add(key);
+
+    void getRaceRatingContext(season, round, { priority: 'low' }).catch(() => {
+        prefetchedRaceRatings.delete(key);
+    });
+}
+
+export function preloadQuickRateRoute(season?: string): void {
+    if (!season) return;
+    if (prefetchedQuickRates.has(season)) return;
+    prefetchedQuickRates.add(season);
+
+    void getDriverSeasonStats(season, { priority: 'low' }).catch(() => {
+        prefetchedQuickRates.delete(season);
+    });
+}
 
 export function preloadSeasonRouteChunks() {
     preloadResultsRoute();

@@ -2,6 +2,8 @@
 // Ensures minimum loading time for better UX on network requests while skipping
 // artificial delays when data resolves immediately from cache.
 
+import { resetCacheSignal, wasLastResponseFromCache } from '../api/f1Api';
+
 export const FAST_CACHE_THRESHOLD_MS = 50;
 
 /**
@@ -11,23 +13,31 @@ export function delay(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+export interface DelayOptions {
+    isCacheHit?: () => boolean;
+}
+
 /**
  * Wraps an async function to ensure minimum execution time only when a real
  * asynchronous/network wait occurred (> fastThresholdMs). When data resolves
- * nearly instantaneously from cache (<= fastThresholdMs), returns immediately
- * without any artificial delay.
+ * nearly instantaneously from cache (<= fastThresholdMs) or directly from API cache,
+ * returns immediately without any artificial delay.
  */
 export async function withMinimumDelay<T>(
     asyncFn: () => Promise<T>,
     minimumMs: number = 800,
     fastThresholdMs: number = FAST_CACHE_THRESHOLD_MS,
+    options?: DelayOptions,
 ): Promise<T> {
     const now = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
+    resetCacheSignal();
     const startTime = now();
     const result = await asyncFn();
     const elapsed = now() - startTime;
 
-    if (elapsed <= fastThresholdMs) {
+    const isHit = options?.isCacheHit ? options.isCacheHit() : wasLastResponseFromCache();
+
+    if (isHit || elapsed <= fastThresholdMs) {
         return result;
     }
 
@@ -46,6 +56,8 @@ export async function fetchWithMinDelay<T>(
     fetcher: () => Promise<T>,
     minimumMs: number = 800,
     fastThresholdMs: number = FAST_CACHE_THRESHOLD_MS,
+    options?: DelayOptions,
 ): Promise<T> {
-    return withMinimumDelay(fetcher, minimumMs, fastThresholdMs);
+    return withMinimumDelay(fetcher, minimumMs, fastThresholdMs, options);
 }
+

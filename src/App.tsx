@@ -426,7 +426,7 @@ function App() {
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 onClick={() => navigate(`/${currentSeason}/quick-rate`)}
-                {...primeRoute(preloadQuickRateRoute)}
+                {...primeRoute(() => preloadQuickRateRoute(currentSeason || undefined))}
                 className="group flex w-full items-center justify-center gap-2 px-2 md:px-4 py-2 md:py-1.5 bg-[var(--accent-yellow)]/10 border border-[var(--accent-yellow)]/30 hover:border-[var(--accent-yellow)] transition-all min-h-[44px] md:min-w-0 md:w-auto md:min-h-0"
               >
                 <Zap size={16} className="text-[var(--accent-yellow)]" />

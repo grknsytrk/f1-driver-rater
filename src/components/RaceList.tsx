@@ -12,13 +12,23 @@ interface RaceCardProps {
     season: string;
     index: number;
     onClick: () => void;
-    onPrefetch?: () => void;
+    onPrefetch?: (season: string, round: string) => void;
 }
 
 function RaceCard({ race, season, index, onClick, onPrefetch }: RaceCardProps) {
     const completed = isRaceCompleted(race.date);
     const rated = isRaceRated(season, race.round);
     const country = race.Circuit.Location.country;
+    const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    useEffect(() => {
+        return () => {
+            if (hoverTimerRef.current !== null) {
+                clearTimeout(hoverTimerRef.current);
+                hoverTimerRef.current = null;
+            }
+        };
+    }, []);
 
     // Determine status
     let status: 'rated' | 'pending' | 'locked' = 'locked';
@@ -49,6 +59,51 @@ function RaceCard({ race, season, index, onClick, onPrefetch }: RaceCardProps) {
     const config = statusConfig[status];
     const isClickable = status !== 'locked';
 
+    const handleMouseEnter = () => {
+        if (!isClickable || !onPrefetch) return;
+        if (hoverTimerRef.current !== null) {
+            clearTimeout(hoverTimerRef.current);
+        }
+        hoverTimerRef.current = setTimeout(() => {
+            onPrefetch(season, race.round);
+            hoverTimerRef.current = null;
+        }, 75);
+    };
+
+    const handleMouseLeave = () => {
+        if (hoverTimerRef.current !== null) {
+            clearTimeout(hoverTimerRef.current);
+            hoverTimerRef.current = null;
+        }
+    };
+
+    const handleFocus = () => {
+        if (!isClickable || !onPrefetch) return;
+        if (hoverTimerRef.current !== null) {
+            clearTimeout(hoverTimerRef.current);
+        }
+        hoverTimerRef.current = setTimeout(() => {
+            onPrefetch(season, race.round);
+            hoverTimerRef.current = null;
+        }, 75);
+    };
+
+    const handleBlur = () => {
+        if (hoverTimerRef.current !== null) {
+            clearTimeout(hoverTimerRef.current);
+            hoverTimerRef.current = null;
+        }
+    };
+
+    const handleClick = () => {
+        if (!isClickable) return;
+        if (hoverTimerRef.current !== null) {
+            clearTimeout(hoverTimerRef.current);
+            hoverTimerRef.current = null;
+        }
+        onClick();
+    };
+
     // Format date for display
     const raceDate = new Date(race.date);
     const dateStr = raceDate.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }).toUpperCase();
@@ -63,13 +118,15 @@ function RaceCard({ race, season, index, onClick, onPrefetch }: RaceCardProps) {
                 ease: "circOut",
             }}
             whileHover={isClickable ? { x: 4, backgroundColor: 'var(--bg-panel-hover)' } : {}}
-            onClick={isClickable ? onClick : undefined}
-            onMouseEnter={isClickable ? onPrefetch : undefined}
-            onFocus={isClickable ? onPrefetch : undefined}
+            onClick={isClickable ? handleClick : undefined}
+            onMouseEnter={isClickable ? handleMouseEnter : undefined}
+            onMouseLeave={isClickable ? handleMouseLeave : undefined}
+            onFocus={isClickable ? handleFocus : undefined}
+            onBlur={isClickable ? handleBlur : undefined}
             onKeyDown={isClickable ? (event) => {
                 if (event.key === 'Enter' || event.key === ' ') {
                     event.preventDefault();
-                    onClick();
+                    handleClick();
                 }
             } : undefined}
             role={isClickable ? 'button' : undefined}
@@ -203,7 +260,7 @@ interface RaceListProps {
     races: Race[];
     season: string;
     onSelectRace: (race: Race) => void;
-    onRacePrefetch?: () => void;
+    onRacePrefetch?: (season: string, round: string) => void;
     loading?: boolean;
 }
 
