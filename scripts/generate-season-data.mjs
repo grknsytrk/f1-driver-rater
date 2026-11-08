@@ -177,7 +177,7 @@ function buildMockSeasonBundle(seasonStr) {
     const season = String(seasonStr);
     const is2026 = season === '2026';
     const totalRounds = is2026 ? 23 : (season === '2020' ? 17 : 24);
-    const lastCompletedRound = is2026 ? 5 : totalRounds;
+    const lastCompletedRound = is2026 ? 19 : totalRounds;
     const isArchived = !is2026;
 
     const mockDrivers = [
@@ -310,6 +310,11 @@ function buildMockSeasonBundle(seasonStr) {
         generatedAt: new Date().toISOString(),
         isArchived,
         lastCompletedRound,
+        lastResultsRound: lastCompletedRound,
+        lastQualifyingRound: lastCompletedRound,
+        lastSprintsRound: lastCompletedRound,
+        lastDriverStandingsRound: lastCompletedRound,
+        lastConstructorStandingsRound: lastCompletedRound,
         totalRounds,
         races,
         results,
@@ -354,8 +359,8 @@ async function generateSeasonBundle(seasonStr, options = {}) {
     // Jolpica only publishes results/qualifying/sprints for sessions that have actually occurred.
     const maxAllowedRound = totalRounds;
 
-    const roundResults = {};
-    const results = [];
+    // Group race chunks by round
+    const racesByRound = new Map();
     let maxCompletedRound = 0;
 
     resultsRaces.forEach(race => {
@@ -368,8 +373,42 @@ async function generateSeasonBundle(seasonStr, options = {}) {
             maxCompletedRound = roundNum;
         }
 
-        const raceEntries = race.Results ?? [];
-        roundResults[race.round] = raceEntries;
+        const roundKey = String(race.round);
+        if (!racesByRound.has(roundKey)) {
+            racesByRound.set(roundKey, {
+                ...race,
+                Results: [],
+            });
+        }
+
+        const entry = racesByRound.get(roundKey);
+        const existingDriverIds = new Set(entry.Results.map(r => r.Driver?.driverId).filter(Boolean));
+        for (const res of (race.Results ?? [])) {
+            const dId = res.Driver?.driverId;
+            if (!dId || !existingDriverIds.has(dId)) {
+                if (dId) existingDriverIds.add(dId);
+                entry.Results.push(res);
+            }
+        }
+    });
+
+    const roundResults = {};
+    const results = [];
+
+    const sortedRounds = Array.from(racesByRound.keys()).sort((a, b) => Number.parseInt(a, 10) - Number.parseInt(b, 10));
+    sortedRounds.forEach(roundKey => {
+        const race = racesByRound.get(roundKey);
+        race.Results.sort((a, b) => {
+            const posA = Number.parseInt(a.position, 10);
+            const posB = Number.parseInt(b.position, 10);
+            if (Number.isFinite(posA) && Number.isFinite(posB)) return posA - posB;
+            if (Number.isFinite(posA)) return -1;
+            if (Number.isFinite(posB)) return 1;
+            return 0;
+        });
+
+        const raceEntries = race.Results;
+        roundResults[roundKey] = raceEntries;
 
         const winnerElapsedSeconds = getWinnerElapsedSeconds(raceEntries);
         raceEntries.forEach(result => {
@@ -407,17 +446,49 @@ async function generateSeasonBundle(seasonStr, options = {}) {
     const rawQualifyingRaces = await fetchAllPaginated(`${API_BASE}/${season}/qualifying.json`);
     const qualifyingRaces = stripUrls(rawQualifyingRaces);
 
-    const roundQualifying = {};
-    const qualifying = [];
-
+    const qualifyingByRound = new Map();
     qualifyingRaces.forEach(race => {
         const roundNum = Number.parseInt(race.round, 10);
         if (Number.isFinite(roundNum) && roundNum > maxAllowedRound) {
             return;
         }
 
-        const qualiEntries = race.QualifyingResults ?? [];
-        roundQualifying[race.round] = qualiEntries;
+        const roundKey = String(race.round);
+        if (!qualifyingByRound.has(roundKey)) {
+            qualifyingByRound.set(roundKey, {
+                ...race,
+                QualifyingResults: [],
+            });
+        }
+
+        const entry = qualifyingByRound.get(roundKey);
+        const existingDriverIds = new Set(entry.QualifyingResults.map(r => r.Driver?.driverId).filter(Boolean));
+        for (const res of (race.QualifyingResults ?? [])) {
+            const dId = res.Driver?.driverId;
+            if (!dId || !existingDriverIds.has(dId)) {
+                if (dId) existingDriverIds.add(dId);
+                entry.QualifyingResults.push(res);
+            }
+        }
+    });
+
+    const roundQualifying = {};
+    const qualifying = [];
+
+    const sortedQualiRounds = Array.from(qualifyingByRound.keys()).sort((a, b) => Number.parseInt(a, 10) - Number.parseInt(b, 10));
+    sortedQualiRounds.forEach(roundKey => {
+        const race = qualifyingByRound.get(roundKey);
+        race.QualifyingResults.sort((a, b) => {
+            const posA = Number.parseInt(a.position, 10);
+            const posB = Number.parseInt(b.position, 10);
+            if (Number.isFinite(posA) && Number.isFinite(posB)) return posA - posB;
+            if (Number.isFinite(posA)) return -1;
+            if (Number.isFinite(posB)) return 1;
+            return 0;
+        });
+
+        const qualiEntries = race.QualifyingResults;
+        roundQualifying[roundKey] = qualiEntries;
 
         qualiEntries.forEach(result => {
             const bestTime = [result.Q1, result.Q2, result.Q3]
@@ -444,19 +515,54 @@ async function generateSeasonBundle(seasonStr, options = {}) {
     // 4. Fetch Sprint Results (Seasons 2021+)
     console.log(`[4/5] Fetching sprint results for ${season}...`);
     const sprints = [];
+    let maxSprintRound = 0;
     if (Number.parseInt(season, 10) >= 2021) {
         try {
             const rawSprintRaces = await fetchAllPaginated(`${API_BASE}/${season}/sprint.json`);
             const sprintRaces = stripUrls(rawSprintRaces);
 
+            const sprintsByRound = new Map();
             sprintRaces.forEach(race => {
                 const roundNum = Number.parseInt(race.round, 10);
                 if (Number.isFinite(roundNum) && roundNum > maxAllowedRound) {
                     return;
                 }
 
-                const sprintResults = race.SprintResults ?? [];
-                sprintResults.forEach(result => {
+                const roundKey = String(race.round);
+                if (!sprintsByRound.has(roundKey)) {
+                    sprintsByRound.set(roundKey, {
+                        ...race,
+                        SprintResults: [],
+                    });
+                }
+
+                const entry = sprintsByRound.get(roundKey);
+                const existingDriverIds = new Set(entry.SprintResults.map(r => r.Driver?.driverId).filter(Boolean));
+                for (const res of (race.SprintResults ?? [])) {
+                    const dId = res.Driver?.driverId;
+                    if (!dId || !existingDriverIds.has(dId)) {
+                        if (dId) existingDriverIds.add(dId);
+                        entry.SprintResults.push(res);
+                    }
+                }
+            });
+
+            const sortedSprintRounds = Array.from(sprintsByRound.keys()).sort((a, b) => Number.parseInt(a, 10) - Number.parseInt(b, 10));
+            if (sortedSprintRounds.length > 0) {
+                maxSprintRound = Number.parseInt(sortedSprintRounds[sortedSprintRounds.length - 1], 10) || 0;
+            }
+            sortedSprintRounds.forEach(roundKey => {
+                const race = sprintsByRound.get(roundKey);
+                race.SprintResults.sort((a, b) => {
+                    const posA = Number.parseInt(a.position, 10);
+                    const posB = Number.parseInt(b.position, 10);
+                    if (Number.isFinite(posA) && Number.isFinite(posB)) return posA - posB;
+                    if (Number.isFinite(posA)) return -1;
+                    if (Number.isFinite(posB)) return 1;
+                    return 0;
+                });
+
+                race.SprintResults.forEach(result => {
                     const positionText = result.positionText ?? '';
                     const isClassified = !['R', 'D', 'E', 'W', 'F', 'N'].includes(positionText.toUpperCase());
 
@@ -473,7 +579,7 @@ async function generateSeasonBundle(seasonStr, options = {}) {
                     });
                 });
             });
-            console.log(`  Processed ${sprints.length} sprint results.`);
+            console.log(`  Processed ${sprints.length} sprint results across ${sortedSprintRounds.length} rounds.`);
         } catch (sprintErr) {
             console.warn(`  Warning: sprint fetch failed for ${season}: ${sprintErr.message}`);
         }
@@ -485,10 +591,14 @@ async function generateSeasonBundle(seasonStr, options = {}) {
     console.log(`[5/5] Fetching championship standings for ${season}...`);
     let driverStandings = [];
     let constructorStandings = [];
+    let driverStandingsRound = 0;
+    let constrStandingsRound = 0;
 
     try {
         const driverStandingsPayload = await getJson(`${API_BASE}/${season}/driverStandings.json`);
-        const rawDriverStandings = driverStandingsPayload.MRData?.StandingsTable?.StandingsLists?.[0]?.DriverStandings ?? [];
+        const standingsList = driverStandingsPayload.MRData?.StandingsTable?.StandingsLists?.[0];
+        const rawDriverStandings = standingsList?.DriverStandings ?? [];
+        driverStandingsRound = Number.parseInt(standingsList?.round ?? '', 10) || 0;
         driverStandings = stripUrls(rawDriverStandings);
     } catch (driverStandingsErr) {
         console.warn(`  Warning: driver standings fetch failed for ${season}: ${driverStandingsErr.message}`);
@@ -496,7 +606,9 @@ async function generateSeasonBundle(seasonStr, options = {}) {
 
     try {
         const constrStandingsPayload = await getJson(`${API_BASE}/${season}/constructorStandings.json`);
-        const rawConstrStandings = constrStandingsPayload.MRData?.StandingsTable?.StandingsLists?.[0]?.ConstructorStandings ?? [];
+        const constrList = constrStandingsPayload.MRData?.StandingsTable?.StandingsLists?.[0];
+        const rawConstrStandings = constrList?.ConstructorStandings ?? [];
+        constrStandingsRound = Number.parseInt(constrList?.round ?? '', 10) || 0;
         constructorStandings = rawConstrStandings.map(s => ({
             constructorId: s.Constructor?.constructorId ?? 'unknown',
             constructorName: s.Constructor?.name ?? 'Unknown',
@@ -510,12 +622,19 @@ async function generateSeasonBundle(seasonStr, options = {}) {
 
     console.log(`  Processed ${driverStandings.length} driver standings, ${constructorStandings.length} constructor standings.`);
 
+    const maxQualifyingRound = sortedQualiRounds.length > 0 ? Number.parseInt(sortedQualiRounds[sortedQualiRounds.length - 1], 10) : 0;
+
     return {
         season,
         version: 1,
         generatedAt: new Date().toISOString(),
         isArchived,
         lastCompletedRound,
+        lastResultsRound: maxCompletedRound > 0 ? maxCompletedRound : null,
+        lastQualifyingRound: maxQualifyingRound > 0 ? maxQualifyingRound : null,
+        lastSprintsRound: maxSprintRound > 0 ? maxSprintRound : null,
+        lastDriverStandingsRound: Number.isFinite(driverStandingsRound) && driverStandingsRound > 0 ? driverStandingsRound : lastCompletedRound,
+        lastConstructorStandingsRound: Number.isFinite(constrStandingsRound) && constrStandingsRound > 0 ? constrStandingsRound : lastCompletedRound,
         totalRounds,
         races,
         results,
@@ -528,7 +647,53 @@ async function generateSeasonBundle(seasonStr, options = {}) {
     };
 }
 
+function validateSeasonBundle(bundle) {
+    const issues = [];
+    const roundResultsKeys = Object.keys(bundle.roundResults || {});
+    for (const round of roundResultsKeys) {
+        const roundRes = bundle.roundResults[round] || [];
+        const aggRes = bundle.results.filter(r => String(r.round) === String(round));
+        if (roundRes.length !== aggRes.length) {
+            issues.push(`Round ${round} roundResults count (${roundRes.length}) !== aggregate count (${aggRes.length})`);
+        }
+        const hasP1 = roundRes.some(r => String(r.position) === '1');
+        if (!hasP1 && roundRes.length > 0) {
+            issues.push(`Round ${round} roundResults is missing position 1 (winner)`);
+        }
+    }
+
+    const roundQualiKeys = Object.keys(bundle.roundQualifying || {});
+    for (const round of roundQualiKeys) {
+        const roundQuali = bundle.roundQualifying[round] || [];
+        const aggQuali = bundle.qualifying.filter(q => String(q.round) === String(round));
+        if (roundQuali.length !== aggQuali.length) {
+            issues.push(`Round ${round} roundQualifying count (${roundQuali.length}) !== aggregate count (${aggQuali.length})`);
+        }
+        const hasP1 = roundQuali.some(q => String(q.position) === '1');
+        if (!hasP1 && roundQuali.length > 0) {
+            issues.push(`Round ${round} roundQualifying is missing position 1 (pole)`);
+        }
+    }
+
+    const sprintRounds = [...new Set((bundle.sprints || []).map(s => String(s.round)))];
+    for (const round of sprintRounds) {
+        const sprintEntries = (bundle.sprints || []).filter(s => String(s.round) === String(round));
+        const hasP1 = sprintEntries.some(s => String(s.position) === '1');
+        if (!hasP1 && sprintEntries.length > 0) {
+            issues.push(`Round ${round} sprints is missing position 1`);
+        }
+    }
+
+    if (issues.length > 0) {
+        console.error(`[Validation Failed] Season ${bundle.season} has ${issues.length} data integrity issues:\n  - ` + issues.join('\n  - '));
+        throw new Error(`Season bundle validation failed for ${bundle.season}: ${issues.join('; ')}`);
+    } else {
+        console.log(`  [Validation Passed] Season ${bundle.season} passed all integrity checks (${roundResultsKeys.length} result rounds, ${roundQualiKeys.length} quali rounds, ${sprintRounds.length} sprint rounds).`);
+    }
+}
+
 async function writeBundleAtomic(season, bundle, dryRun = false) {
+    validateSeasonBundle(bundle);
     const filename = `${season}.json`;
     const targetPath = resolve(OUTPUT_DIR, filename);
     const tempPath = resolve(OUTPUT_DIR, `${filename}.tmp`);

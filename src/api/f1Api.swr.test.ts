@@ -219,6 +219,30 @@ describe('Stale-While-Revalidate (swrFetch) engine', () => {
             }, 60000, { throwOnError: true }),
         ).rejects.toBe(networkError);
     });
+
+    it('passes priority: low and isBackground: true during background revalidation, but foreground receives high', async () => {
+        const staleKey = 'jolpica:swr-priority-test';
+        setCache(staleKey, ['stale'], -5000);
+
+        const receivedContexts: Array<{ priority?: string; isBackground?: boolean } | undefined> = [];
+        const fetcher = async (ctx?: { priority?: string; isBackground?: boolean }) => {
+            receivedContexts.push(ctx);
+            return ['fresh'];
+        };
+
+        // Stale read triggers background revalidation
+        await swrFetch(staleKey, fetcher, 60000);
+        await delay(10);
+
+        expect(receivedContexts).toHaveLength(1);
+        expect(receivedContexts[0]).toEqual({ priority: 'low', isBackground: true });
+
+        // Foreground cold fetch passes priority: high and isBackground: false
+        const coldKey = 'jolpica:swr-cold-priority';
+        await swrFetch(coldKey, fetcher, 60000);
+        expect(receivedContexts).toHaveLength(2);
+        expect(receivedContexts[1]).toEqual({ priority: 'high', isBackground: false });
+    });
 });
 
 describe('Cache-hit signaling and zero-delay elimination in delay.ts', () => {

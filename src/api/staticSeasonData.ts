@@ -10,6 +10,8 @@ import type {
     SeasonSprintResult,
 } from './f1Api';
 
+export type SeasonDataset = 'results' | 'qualifying' | 'sprints' | 'driverStandings' | 'constructorStandings';
+
 /**
  * Compact static bundle schema stored at `/public/data/seasons/${season}.json`.
  */
@@ -28,6 +30,11 @@ export interface CompactSeasonBundle {
     constructorStandings: ConstructorStanding[];
     roundResults?: Record<string, RaceResult[]>;
     roundQualifying?: Record<string, RaceQualifyingResult[]>;
+    lastResultsRound?: number | null;
+    lastQualifyingRound?: number | null;
+    lastSprintsRound?: number | null;
+    lastDriverStandingsRound?: number | null;
+    lastConstructorStandingsRound?: number | null;
 }
 
 export interface SeasonManifestEntry {
@@ -305,9 +312,13 @@ export function isRoundFinished(
 ): boolean {
     if (!race.date) return false;
     const rawDate = race.date.trim();
+    let timeStr = race.time && race.time.trim().length > 0 ? race.time.trim() : '14:00:00Z';
+    if (!timeStr.endsWith('Z') && !timeStr.includes('+') && !timeStr.includes('-')) {
+        timeStr = `${timeStr}Z`;
+    }
     const isoStr = rawDate.includes('T')
         ? rawDate
-        : `${rawDate}T${race.time && race.time.trim().length > 0 ? race.time.trim() : '14:00:00Z'}`;
+        : `${rawDate}T${timeStr}`;
     const startMs = new Date(isoStr).getTime();
     if (!Number.isFinite(startMs)) return false;
     return nowMs > startMs + 3 * 60 * 60 * 1000;
@@ -343,13 +354,27 @@ export function isRoundInStaticBundle(season: string | number, round: string | n
     return roundNum <= (cached.lastCompletedRound ?? 0);
 }
 
+export function getDatasetBaselineRound(
+    bundle: CompactSeasonBundle,
+    dataset?: SeasonDataset,
+): number {
+    if (dataset === 'results') return bundle.lastResultsRound ?? bundle.lastCompletedRound ?? 0;
+    if (dataset === 'qualifying') return bundle.lastQualifyingRound ?? bundle.lastCompletedRound ?? 0;
+    if (dataset === 'sprints') return bundle.lastSprintsRound ?? bundle.lastCompletedRound ?? 0;
+    if (dataset === 'driverStandings') return bundle.lastDriverStandingsRound ?? bundle.lastCompletedRound ?? 0;
+    if (dataset === 'constructorStandings') return bundle.lastConstructorStandingsRound ?? bundle.lastCompletedRound ?? 0;
+    return bundle.lastCompletedRound ?? 0;
+}
+
 /**
- * Detects newly completed rounds beyond the bundle's `lastCompletedRound` for an active season.
+ * Detects newly completed rounds beyond the bundle's baseline for an active season.
+ * Supports per-dataset baselines and per-session completion (e.g. Saturday qualifying/sprint vs Sunday race).
  */
 export function detectNewlyCompletedRounds(
     bundle: CompactSeasonBundle,
     calendar?: Race[],
     now?: Date,
+    datasetOrBaseline?: SeasonDataset | number,
 ): Race[] {
     if (bundle.isArchived) {
         return [];
@@ -360,13 +385,36 @@ export function detectNewlyCompletedRounds(
         return [];
     }
 
-    const baselineRound = bundle.lastCompletedRound ?? 0;
+    const baselineRound = typeof datasetOrBaseline === 'number'
+        ? datasetOrBaseline
+        : typeof datasetOrBaseline === 'string'
+            ? getDatasetBaselineRound(bundle, datasetOrBaseline)
+            : (bundle.lastCompletedRound ?? 0);
     const referenceMs = (now ?? new Date()).getTime();
 
     return races.filter(race => {
         const roundNum = Number.parseInt(race.round, 10);
         if (!Number.isFinite(roundNum) || roundNum <= baselineRound) {
             return false;
+        }
+
+        const sessionRecord = race as unknown as {
+            Qualifying?: { date: string; time?: string };
+            Sprint?: { date: string; time?: string };
+        };
+
+        if (datasetOrBaseline === 'qualifying') {
+            if (sessionRecord.Qualifying?.date) {
+                return isRoundFinished(sessionRecord.Qualifying, referenceMs);
+            }
+            return isRoundFinished(race, referenceMs);
+        }
+
+        if (datasetOrBaseline === 'sprints') {
+            if (!sessionRecord.Sprint?.date) {
+                return false;
+            }
+            return isRoundFinished(sessionRecord.Sprint, referenceMs);
         }
 
         return isRoundFinished(race, referenceMs);

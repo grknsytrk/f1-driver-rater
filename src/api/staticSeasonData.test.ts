@@ -3,6 +3,7 @@ import { withMinimumDelay } from '../utils/delay';
 import {
     clearStaticSeasonCache,
     detectNewlyCompletedRounds,
+    getDatasetBaselineRound,
     getStaticConstructorStandings,
     getStaticDriverStandings,
     getStaticRaces,
@@ -21,6 +22,7 @@ import {
     mergeSeasonResults,
     mergeSeasonSprints,
     type CompactSeasonBundle,
+    updateStaticSeasonBundleInMemory,
 } from './staticSeasonData';
 import {
     getAllSeasonQualifying,
@@ -671,6 +673,190 @@ describe('Milestone 4 (Requirement R4) - Static Season Data Pipeline', () => {
                 podiums: 1,
             });
             expect(wasLastResponseFromCache()).toBe(true);
+        });
+    });
+
+    describe('Dataset-based baseline & standings freshness fixes', () => {
+        it('tracks baseline independently per dataset', () => {
+            const bundle: CompactSeasonBundle = {
+                ...mock2023Bundle,
+                isArchived: false,
+                lastCompletedRound: 19,
+                lastResultsRound: 20,
+                lastQualifyingRound: 20,
+                lastDriverStandingsRound: 19,
+            };
+
+            expect(getDatasetBaselineRound(bundle, 'results')).toBe(20);
+            expect(getDatasetBaselineRound(bundle, 'qualifying')).toBe(20);
+            expect(getDatasetBaselineRound(bundle, 'driverStandings')).toBe(19);
+            expect(getDatasetBaselineRound(bundle, 'constructorStandings')).toBe(19);
+        });
+
+        it('detects Saturday qualifying completion before Sunday race', () => {
+            const saturdayCalendar = [
+                {
+                    season: '2026',
+                    round: '20',
+                    raceName: 'Sao Paulo GP',
+                    date: '2026-11-08',
+                    time: '17:00:00Z',
+                    Qualifying: {
+                        date: '2026-11-07',
+                        time: '18:00:00Z',
+                    },
+                    Circuit: mock2023Bundle.races[0].Circuit,
+                },
+            ];
+
+            const bundle: CompactSeasonBundle = {
+                ...mock2023Bundle,
+                season: '2026',
+                isArchived: false,
+                lastCompletedRound: 19,
+                races: saturdayCalendar,
+            };
+
+            // Saturday 21:05 UTC (3h after quali start at 18:00)
+            const saturdayNight = new Date('2026-11-07T21:05:00Z');
+
+            // Qualifying is detected as completed
+            const newQualiRounds = detectNewlyCompletedRounds(bundle, saturdayCalendar, saturdayNight, 'qualifying');
+            expect(newQualiRounds).toHaveLength(1);
+            expect(newQualiRounds[0].round).toBe('20');
+
+            // But main race is NOT detected as completed yet!
+            const newRaceRounds = detectNewlyCompletedRounds(bundle, saturdayCalendar, saturdayNight, 'results');
+            expect(newRaceRounds).toHaveLength(0);
+        });
+
+        it('advancing results does not stale driver standings; standings fetch refreshes bundle in-memory', async () => {
+            const active2026Bundle: CompactSeasonBundle = {
+                season: '2026',
+                version: 1,
+                generatedAt: '2026-11-01T00:00:00Z',
+                isArchived: false,
+                lastCompletedRound: 19,
+                totalRounds: 23,
+                races: [
+                    {
+                        season: '2026',
+                        round: '20',
+                        raceName: 'Round 20',
+                        date: '2026-11-08',
+                        time: '17:00:00Z',
+                        Circuit: mock2023Bundle.races[0].Circuit,
+                    },
+                ],
+                results: [],
+                qualifying: [],
+                sprints: [],
+                driverStandings: [
+                    {
+                        position: '1',
+                        positionText: '1',
+                        points: '380',
+                        wins: '7',
+                        Driver: { driverId: 'norris', givenName: 'Lando', familyName: 'Norris', url: '' },
+                        Constructors: [{ constructorId: 'mclaren', name: 'McLaren', url: '' }],
+                    },
+                ],
+                constructorStandings: [
+                    { constructorId: 'mclaren', constructorName: 'McLaren', position: 1, points: 600, wins: 10 },
+                ],
+            };
+
+            vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+                ok: true,
+                json: async () => active2026Bundle,
+            } as Response);
+
+            // Preload bundle into cache
+            await loadStaticSeasonData('2026');
+
+            // Simulate merging round 20 results via updateStaticSeasonBundleInMemory
+            updateStaticSeasonBundleInMemory('2026', {
+                lastResultsRound: 20,
+                results: [{
+                    round: '20',
+                    raceName: 'Round 20',
+                    date: '2026-11-08',
+                    driverId: 'norris',
+                    driverName: 'Lando Norris',
+                    constructorId: 'mclaren',
+                    constructorName: 'McLaren',
+                    position: 1,
+                    points: 25,
+                    status: 'Finished',
+                }],
+            });
+
+            // Sunday night after Round 20 (21:00 UTC)
+            const postRaceTime = new Date('2026-11-08T21:00:00Z');
+
+            // Results baseline is 20 -> no new results
+            const raceDiff = detectNewlyCompletedRounds(
+                (await loadStaticSeasonData('2026'))!,
+                undefined,
+                postRaceTime,
+                'results',
+            );
+            expect(raceDiff).toHaveLength(0);
+
+            // But driver standings baseline is still 19 -> detects round 20 as needing update!
+            const standingsDiff = detectNewlyCompletedRounds(
+                (await loadStaticSeasonData('2026'))!,
+                undefined,
+                postRaceTime,
+                'driverStandings',
+            );
+            expect(standingsDiff).toHaveLength(1);
+            expect(standingsDiff[0].round).toBe('20');
+        });
+
+        it('normalizes time strings without timezone offset to UTC in isRoundFinished', () => {
+            // 14:00:00 without Z should be treated as 14:00:00Z
+            const raceNoZ = { date: '2026-06-01', time: '14:00:00' };
+            const raceWithZ = { date: '2026-06-01', time: '14:00:00Z' };
+
+            const checkTimeMs = new Date('2026-06-01T17:30:00Z').getTime();
+            expect(isRoundFinished(raceNoZ, checkTimeMs)).toBe(isRoundFinished(raceWithZ, checkTimeMs));
+            expect(isRoundFinished(raceNoZ, checkTimeMs)).toBe(true);
+
+            // 15 minutes before 3h buffer expires (16:45:00Z) -> false
+            const beforeBufferMs = new Date('2026-06-01T16:45:00Z').getTime();
+            expect(isRoundFinished(raceNoZ, beforeBufferMs)).toBe(false);
+        });
+
+        it('never returns non-sprint rounds for detectNewlyCompletedRounds in sprints mode', () => {
+            const bundle: CompactSeasonBundle = {
+                season: '2026',
+                version: 1,
+                generatedAt: '2026-11-01T00:00:00Z',
+                isArchived: false,
+                lastCompletedRound: 19,
+                totalRounds: 23,
+                races: [
+                    {
+                        season: '2026',
+                        round: '20',
+                        raceName: 'Standard Weekend Race',
+                        date: '2026-11-08',
+                        time: '17:00:00Z',
+                        Circuit: mock2023Bundle.races[0].Circuit,
+                        // No Sprint session
+                    },
+                ],
+                results: [],
+                qualifying: [],
+                sprints: [],
+                driverStandings: [],
+                constructorStandings: [],
+            };
+
+            const postRaceTime = new Date('2026-11-08T22:00:00Z');
+            const sprintDiff = detectNewlyCompletedRounds(bundle, undefined, postRaceTime, 'sprints');
+            expect(sprintDiff).toHaveLength(0);
         });
     });
 });

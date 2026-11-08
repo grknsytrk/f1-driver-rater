@@ -13,7 +13,7 @@ export interface SeasonProgressSnapshot {
 }
 
 export function getSeasonProgressFromRaces(season: string, races: Race[]): SeasonProgressSnapshot {
-    const completedCount = races.filter((race) => isRaceCompleted(race.date)).length;
+    const completedCount = races.filter((race) => isRaceCompleted(race.date, race.time)).length;
     const ratedCount = Math.min(getRatedRacesCount(season), completedCount);
     const hasCompletedRaces = completedCount > 0;
 

@@ -16,7 +16,7 @@ interface RaceCardProps {
 }
 
 function RaceCard({ race, season, index, onClick, onPrefetch }: RaceCardProps) {
-    const completed = isRaceCompleted(race.date);
+    const completed = isRaceCompleted(race.date, race.time);
     const rated = isRaceRated(season, race.round);
     const country = race.Circuit.Location.country;
     const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -270,7 +270,7 @@ export function RaceList({ races, season, onSelectRace, onRacePrefetch, loading 
 
     // Calculate progress
     const ratedCount = races.filter(r => isRaceRated(season, r.round)).length;
-    const completedCount = races.filter(r => isRaceCompleted(r.date)).length;
+    const completedCount = races.filter(r => isRaceCompleted(r.date, r.time)).length;
 
     // Track scroll position to show/hide "Top" button
     useEffect(() => {

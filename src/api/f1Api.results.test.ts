@@ -1,14 +1,17 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+    clearJolpicaCache,
     getAllSeasonResults,
     getAllSeasonSprints,
     getConstructorSeasonH2HRaw,
     getDriverCareerStints,
     getDriverSeasonStats,
+    getDriverStandings,
     getRaceQualifyingResults,
     getRaceResults,
     getRaces,
 } from './f1Api';
+import { clearStaticSeasonCache, loadStaticSeasonData } from './staticSeasonData';
 
 const apiGet = vi.hoisted(() => vi.fn());
 vi.mock('axios', () => ({
@@ -27,6 +30,8 @@ vi.mock('axios', () => ({
 beforeEach(() => {
     apiGet.mockReset();
     localStorage.clear();
+    clearJolpicaCache();
+    clearStaticSeasonCache();
     vi.spyOn(console, 'error').mockImplementation(() => {});
 });
 afterEach(() => vi.restoreAllMocks());
@@ -329,5 +334,174 @@ describe('Jolpica API caching, in-flight deduplication and pagination integrity'
         expect(stints).toEqual([{ season: '2024', constructorId: 'mclaren', constructorName: 'McLaren' }]);
         expect(localStorage.getItem('jolpica:driver-career-stints:norris:v2')).not.toBeNull();
         expect(localStorage.getItem('jolpica:paginated:/drivers/norris/results.json')).toBeNull();
+    });
+
+    describe('Standings round fidelity & per-round cache updates', () => {
+        it('sets lastDriverStandingsRound from StandingsLists[0].round and keeps it at 19 when Jolpica returns round 19', async () => {
+            const bundle = {
+                season: '2026',
+                version: 1,
+                generatedAt: '2026-11-01T00:00:00Z',
+                isArchived: false,
+                lastCompletedRound: 19,
+                lastDriverStandingsRound: 19,
+                totalRounds: 23,
+                races: [
+                    {
+                        season: '2026',
+                        round: '20',
+                        raceName: 'Brazil',
+                        date: '2026-11-08',
+                        time: '17:00:00Z',
+                        Circuit: { circuitId: 'interlagos', circuitName: 'Interlagos', url: '', Location: { locality: 'Sao Paulo', country: 'Brazil' } },
+                    },
+                ],
+                results: [],
+                qualifying: [],
+                sprints: [],
+                driverStandings: [{ position: '1', points: '380', wins: '7', Driver: { driverId: 'norris', givenName: 'Lando', familyName: 'Norris', url: '' } }],
+                constructorStandings: [],
+                roundResults: {},
+                roundQualifying: {},
+            };
+
+            vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+                ok: true,
+                json: async () => bundle,
+            } as Response);
+
+            const loadedBundle = await loadStaticSeasonData('2026');
+            expect(loadedBundle).toBeDefined();
+
+            // Pin system time after race 20 finish (e.g. 21:00 UTC)
+            vi.useFakeTimers();
+            vi.setSystemTime(new Date('2026-11-08T21:00:00Z'));
+
+            // Mock Jolpica returning round 19 standings (delayed ingestion)
+            apiGet.mockResolvedValueOnce({
+                data: {
+                    MRData: {
+                        StandingsTable: {
+                            StandingsLists: [{
+                                round: '19',
+                                season: '2026',
+                                DriverStandings: [
+                                    { position: '1', points: '380', wins: '7', Driver: { driverId: 'norris', givenName: 'Lando', familyName: 'Norris', url: '' } },
+                                ],
+                            }],
+                        },
+                    },
+                },
+            });
+
+            const standings = await getDriverStandings('2026');
+            expect(standings).toHaveLength(1);
+            expect(apiGet).toHaveBeenCalledWith('/2026/driverStandings.json', expect.anything());
+
+            // In-memory bundle must NOT falsely advance lastDriverStandingsRound to 20
+            const updated = await loadStaticSeasonData('2026');
+            expect(updated?.lastDriverStandingsRound).toBe(19);
+
+            // When Jolpica updates to round 20:
+            apiGet.mockClear();
+            localStorage.removeItem('jolpica:driver-standings:2026');
+            clearJolpicaCache();
+            apiGet.mockResolvedValueOnce({
+                data: {
+                    MRData: {
+                        StandingsTable: {
+                            StandingsLists: [{
+                                round: '20',
+                                season: '2026',
+                                DriverStandings: [
+                                    { position: '1', points: '405', wins: '8', Driver: { driverId: 'norris', givenName: 'Lando', familyName: 'Norris', url: '' } },
+                                ],
+                            }],
+                        },
+                    },
+                },
+            });
+
+            // Still sees round 20 race finished and baseline is 19, so it refetches and updates!
+            const freshStandings = await getDriverStandings('2026');
+            expect(freshStandings[0].points).toBe('405');
+            const finalBundle = await loadStaticSeasonData('2026');
+            expect(finalBundle?.lastDriverStandingsRound).toBe(20);
+
+            // Now that lastDriverStandingsRound is 20, no new rounds are detected -> 0 Jolpica calls!
+            apiGet.mockClear();
+            const cachedFastPath = await getDriverStandings('2026');
+            expect(cachedFastPath[0].points).toBe('405');
+            expect(apiGet).not.toHaveBeenCalled();
+
+            vi.useRealTimers();
+        });
+
+        it('updates in-memory bundle.roundResults and roundQualifying when individual round is fetched from Jolpica', async () => {
+            const bundle = {
+                season: '2026',
+                version: 1,
+                generatedAt: '2026-11-01T00:00:00Z',
+                isArchived: false,
+                lastCompletedRound: 19,
+                totalRounds: 23,
+                races: [],
+                results: [],
+                qualifying: [],
+                sprints: [],
+                driverStandings: [],
+                constructorStandings: [],
+                roundResults: {},
+                roundQualifying: {},
+            };
+
+            vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+                ok: true,
+                json: async () => bundle,
+            } as Response);
+
+            await loadStaticSeasonData('2026');
+
+            apiGet.mockImplementation(async (url: string) => {
+                if (url === '/2026/20/results.json') {
+                    return {
+                        data: {
+                            MRData: {
+                                RaceTable: {
+                                    Races: [{
+                                        round: '20',
+                                        Results: [{ position: '1', Driver: { driverId: 'norris', givenName: 'Lando', familyName: 'Norris' }, Constructor: { constructorId: 'mclaren', name: 'McLaren' } }],
+                                    }],
+                                },
+                            },
+                        },
+                    };
+                }
+                if (url === '/2026/20/qualifying.json') {
+                    return {
+                        data: {
+                            MRData: {
+                                RaceTable: {
+                                    Races: [{
+                                        round: '20',
+                                        QualifyingResults: [{ position: '1', Driver: { driverId: 'norris', givenName: 'Lando', familyName: 'Norris' }, Constructor: { constructorId: 'mclaren', name: 'McLaren' } }],
+                                    }],
+                                },
+                            },
+                        },
+                    };
+                }
+                throw new Error(`Unexpected URL ${url}`);
+            });
+
+            const results = await getRaceResults('2026', '20');
+            expect(results).toHaveLength(1);
+            const quali = await getRaceQualifyingResults('2026', '20');
+            expect(quali).toHaveLength(1);
+
+            const updated = await loadStaticSeasonData('2026');
+            expect(updated?.roundResults?.['20']).toHaveLength(1);
+            expect(updated?.roundQualifying?.['20']).toHaveLength(1);
+        });
     });
 });

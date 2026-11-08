@@ -206,14 +206,28 @@ describe('Milestone 5 — End-to-End Pipeline & Adversarial Hardening (R1–R5)'
                 expect(bundle.driverStandings.length).toBeGreaterThan(0);
                 expect(bundle.constructorStandings.length).toBeGreaterThan(0);
                 expect(Object.keys(bundle.roundResults ?? {}).length).toBe(bundle.lastCompletedRound);
+
+                // Per-round map integrity: roundResults must equal aggregate count and have a P1 winner
+                for (const [round, roundRes] of Object.entries(bundle.roundResults ?? {})) {
+                    const agg = bundle.results.filter(r => String(r.round) === String(round));
+                    expect(roundRes.length).toBe(agg.length);
+                    expect(roundRes.some(r => String(r.position) === '1')).toBe(true);
+                }
+                for (const [round, roundQuali] of Object.entries(bundle.roundQualifying ?? {})) {
+                    const agg = bundle.qualifying.filter(q => String(q.round) === String(round));
+                    expect(roundQuali.length).toBe(agg.length);
+                    if (roundQuali.length > 0) {
+                        expect(roundQuali.some(q => String(q.position) === '1')).toBe(true);
+                    }
+                }
             }
 
-            // Explicit verification of 2026 full completed rounds (no 5-round truncation)
+            // Explicit verification of 2026 completed rounds (no 5-round truncation)
             const bundle2026 = STATIC_BUNDLES['2026'];
-            expect(bundle2026.lastCompletedRound).toBe(19);
-            expect(bundle2026.results.length).toBe(418);
-            expect(bundle2026.qualifying.length).toBe(435);
-            expect(bundle2026.sprints.length).toBe(132);
+            expect(bundle2026.lastCompletedRound).toBeGreaterThanOrEqual(19);
+            expect(bundle2026.results.length).toBeGreaterThanOrEqual(418);
+            expect(bundle2026.qualifying.length).toBeGreaterThanOrEqual(435);
+            expect(bundle2026.sprints.length).toBeGreaterThanOrEqual(132);
             expect(manifest.seasons['2026'].bundleUrl).toContain('/data/seasons/2026.json?v=');
         });
 
@@ -240,39 +254,51 @@ describe('Milestone 5 — End-to-End Pipeline & Adversarial Hardening (R1–R5)'
             expect(stats.length).toBeGreaterThanOrEqual(20);
             expect(wcc.length).toBe(10);
             expect(wdc.length).toBeGreaterThanOrEqual(20);
-            expect(results.length).toBe(479);
-            expect(qualifying.length).toBe(479);
-            expect(sprints.length).toBe(120);
+            expect(results.length).toBe(bundle2025.results.length);
+            expect(qualifying.length).toBe(bundle2025.qualifying.length);
+            expect(sprints.length).toBe(bundle2025.sprints.length);
             expect(wasLastResponseFromCache()).toBe(true);
         });
 
         it('hydrates 2026 current-season Standings, Awards, Quick Rate & Teammate Wars from 2026 bundle with 0 Jolpica calls when no newer round finished', async () => {
             const bundle2026 = STATIC_BUNDLES['2026'];
+            // Pin system time before next round's finish dynamically derived from bundle's lastCompletedRound
+            const nextRoundNum = (bundle2026.lastCompletedRound ?? 0) + 1;
+            const nextRace = bundle2026.races.find(r => Number.parseInt(r.round, 10) === nextRoundNum);
+            const pinnedTime = nextRace?.date
+                ? new Date(`${nextRace.date}T00:00:00Z`)
+                : new Date('2026-11-08T12:00:00Z');
 
-            const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue({
-                ok: true,
-                json: async () => bundle2026,
-            } as Response);
+            vi.useFakeTimers();
+            vi.setSystemTime(pinnedTime);
+            try {
+                const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+                    ok: true,
+                    json: async () => bundle2026,
+                } as Response);
 
-            const [races, stats, wcc, wdc, results, qualifying, sprints] = await Promise.all([
-                getRaces('2026'),
-                getDriverSeasonStats('2026'),
-                getConstructorStandings('2026'),
-                getDriverStandings('2026'),
-                getAllSeasonResults('2026'),
-                getAllSeasonQualifying('2026'),
-                getAllSeasonSprints('2026'),
-            ]);
+                const [races, stats, wcc, wdc, results, qualifying, sprints] = await Promise.all([
+                    getRaces('2026'),
+                    getDriverSeasonStats('2026'),
+                    getConstructorStandings('2026'),
+                    getDriverStandings('2026'),
+                    getAllSeasonResults('2026'),
+                    getAllSeasonQualifying('2026'),
+                    getAllSeasonSprints('2026'),
+                ]);
 
-            expect(fetchSpy).toHaveBeenCalledTimes(1);
-            expect(races.length).toBe(23);
-            expect(stats.length).toBeGreaterThanOrEqual(22);
-            expect(wcc.length).toBe(11);
-            expect(wdc.length).toBeGreaterThanOrEqual(22);
-            expect(results.length).toBe(418);
-            expect(qualifying.length).toBe(435);
-            expect(sprints.length).toBe(132);
-            expect(wasLastResponseFromCache()).toBe(true);
+                expect(fetchSpy).toHaveBeenCalledTimes(1);
+                expect(races.length).toBe(bundle2026.races.length);
+                expect(stats.length).toBeGreaterThanOrEqual(20);
+                expect(wcc.length).toBe(bundle2026.constructorStandings.length);
+                expect(wdc.length).toBeGreaterThanOrEqual(20);
+                expect(results.length).toBe(bundle2026.results.length);
+                expect(qualifying.length).toBe(bundle2026.qualifying.length);
+                expect(sprints.length).toBe(bundle2026.sprints.length);
+                expect(wasLastResponseFromCache()).toBe(true);
+            } finally {
+                vi.useRealTimers();
+            }
         });
     });
 

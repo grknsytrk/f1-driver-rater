@@ -10,6 +10,7 @@ import {
 } from '../utils/historicalH2H';
 import {
     detectNewlyCompletedRounds,
+    getDatasetBaselineRound,
     getStaticConstructorStandings,
     getStaticDriverStandings,
     getStaticRaces,
@@ -30,11 +31,13 @@ import {
     mergeSeasonQualifying,
     mergeSeasonResults,
     mergeSeasonSprints,
+    type SeasonDataset,
     updateStaticSeasonBundleInMemory,
 } from './staticSeasonData';
 
 export {
     detectNewlyCompletedRounds,
+    getDatasetBaselineRound,
     getStaticConstructorStandings,
     getStaticDriverStandings,
     getStaticRaces,
@@ -51,6 +54,7 @@ export {
     mergeSeasonQualifying,
     mergeSeasonResults,
     mergeSeasonSprints,
+    type SeasonDataset,
 };
 
 // Jolpica API - Ergast successor
@@ -131,6 +135,11 @@ export function resetCacheSignal(): void {
     callCacheHits = 0;
 }
 
+export function clearJolpicaCache(): void {
+    memoryCache.clear();
+    inFlightRequests.clear();
+}
+
 export function markCacheHit(): void {
     callCacheHits++;
 }
@@ -148,7 +157,7 @@ export function wasLastResponseFromCache(): boolean {
 // Pace every Jolpica request, including parallel page loads and retry paths.
 api.interceptors.request.use(async config => {
     const isBackground = Boolean(
-        config.isBackground || config.priority === 'low' || activeBackgroundRevalidations > 0,
+        config.isBackground || config.priority === 'low',
     );
     const priority: RequestPriority = config.priority ?? (isBackground ? 'low' : 'high');
     const queueKey = config.queueKey;
@@ -511,9 +520,16 @@ export interface SwrFetchOptions<T> {
     onBackgroundUpdate?: (data: T) => void;
 }
 
+export interface SwrFetchContext {
+    priority?: RequestPriority;
+    isBackground?: boolean;
+}
+
+export type SwrFetcher<T> = (context?: SwrFetchContext) => Promise<T>;
+
 function triggerBackgroundRevalidation<T>(
     key: string,
-    fetcher: () => Promise<T>,
+    fetcher: SwrFetcher<T>,
     resolveTtl: (data: T) => number,
     options?: SwrFetchOptions<T>,
 ): void {
@@ -526,7 +542,7 @@ function triggerBackgroundRevalidation<T>(
 
     dedupeInFlight(key, async () => {
         try {
-            const freshData = await fetcher();
+            const freshData = await fetcher({ priority: 'low', isBackground: true });
             const shouldCache = !options?.isValid || options.isValid(freshData);
             if (shouldCache) {
                 setCache(key, freshData, resolveTtl(freshData), { memoryOnly: options?.memoryOnly });
@@ -546,7 +562,7 @@ function triggerBackgroundRevalidation<T>(
 
 export async function swrFetch<T>(
     key: string,
-    fetcher: () => Promise<T>,
+    fetcher: SwrFetcher<T>,
     ttlMs: number | ((data: T) => number),
     options?: SwrFetchOptions<T>,
 ): Promise<T> {
@@ -567,7 +583,7 @@ export async function swrFetch<T>(
     markNetworkRequest({ isBackground: priority === 'low' });
     return await dedupeInFlight(key, async () => {
         try {
-            const data = await fetcher();
+            const data = await fetcher({ priority, isBackground: priority === 'low' });
             const shouldCache = !options?.isValid || options.isValid(data);
             if (shouldCache) {
                 setCache(key, data, resolveTtl(data), { memoryOnly: options?.memoryOnly });
@@ -699,9 +715,10 @@ export async function getSeasons(options?: ApiRequestOptions): Promise<Season[]>
     const cacheKey = 'jolpica:seasons';
     return swrFetch<Season[]>(
         cacheKey,
-        async () => {
+        async (ctx) => {
             const response = await api.get('/seasons.json?limit=10&offset=70', {
-                priority: options?.priority,
+                priority: ctx?.priority ?? options?.priority,
+                isBackground: ctx?.isBackground,
                 queueKey: cacheKey,
                 signal: options?.signal,
             });
@@ -750,9 +767,10 @@ export async function getRaces(season: string, options?: ApiRequestOptions): Pro
 
     return swrFetch<Race[]>(
         cacheKey,
-        async () => {
+        async (ctx) => {
             const response = await api.get(`/${season}.json?limit=100`, {
-                priority: options?.priority,
+                priority: ctx?.priority ?? options?.priority,
+                isBackground: ctx?.isBackground,
                 queueKey: cacheKey,
                 signal: options?.signal,
             });
@@ -815,15 +833,27 @@ export async function getRaceResults(season: string, round: string, options?: Ap
 
     return swrFetch<RaceResult[]>(
         cacheKey,
-        async () => {
+        async (ctx) => {
             const response = await api.get(`/${season}/${round}/results.json`, {
-                priority: options?.priority,
+                priority: ctx?.priority ?? options?.priority,
+                isBackground: ctx?.isBackground,
                 queueKey: cacheKey,
                 signal: options?.signal,
             });
             const races = normalizeRaceCalendar((response.data?.MRData?.RaceTable?.Races ?? []) as Race[]);
             if (races.length > 0 && races[0].Results) {
-                return races[0].Results;
+                const results = races[0].Results;
+                try {
+                    const bundle = await getStaticSeasonBundle(season);
+                    if (bundle) {
+                        updateStaticSeasonBundleInMemory(season, {
+                            roundResults: { ...(bundle.roundResults ?? {}), [round]: results },
+                        });
+                    }
+                } catch {
+                    // Ignore bundle update error on raw round fetch
+                }
+                return results;
             }
             return [];
         },
@@ -894,6 +924,8 @@ interface StandingsResponse {
     MRData: {
         StandingsTable: {
             StandingsLists: Array<{
+                season?: string;
+                round?: string;
                 DriverStandings?: DriverStanding[];
                 ConstructorStandings?: ConstructorStandingApi[];
             }>;
@@ -1022,14 +1054,28 @@ export async function getRaceQualifyingResults(season: string, round: string, op
 
     return swrFetch<RaceQualifyingResult[]>(
         cacheKey,
-        async () => {
+        async (ctx) => {
             const response = await api.get(`/${season}/${round}/qualifying.json`, {
-                priority: options?.priority,
+                priority: ctx?.priority ?? options?.priority,
+                isBackground: ctx?.isBackground,
                 queueKey: cacheKey,
                 signal: options?.signal,
             });
             const races = (response.data?.MRData?.RaceTable?.Races ?? []) as Array<{ QualifyingResults?: RaceQualifyingResult[] }>;
-            return races[0]?.QualifyingResults || [];
+            const qualiResults = races[0]?.QualifyingResults || [];
+            if (qualiResults.length > 0) {
+                try {
+                    const bundle = await getStaticSeasonBundle(season);
+                    if (bundle) {
+                        updateStaticSeasonBundleInMemory(season, {
+                            roundQualifying: { ...(bundle.roundQualifying ?? {}), [round]: qualiResults },
+                        });
+                    }
+                } catch {
+                    // Ignore bundle update error on raw round fetch
+                }
+            }
+            return qualiResults;
         },
         () => getGranularTtl(season, round),
         {
@@ -1110,7 +1156,7 @@ export async function getDriverStandings(season: string, options?: ApiRequestOpt
         const bundle = await getStaticSeasonBundle(season);
         if (bundle && bundle.driverStandings && bundle.driverStandings.length > 0) {
             const cachedCalendar = getCache<Race[]>(`jolpica:races:${season}`) ?? bundle.races;
-            if (bundle.isArchived || detectNewlyCompletedRounds(bundle, cachedCalendar).length === 0) {
+            if (bundle.isArchived || detectNewlyCompletedRounds(bundle, cachedCalendar, undefined, 'driverStandings').length === 0) {
                 markCacheHit();
                 return bundle.driverStandings;
             }
@@ -1124,13 +1170,36 @@ export async function getDriverStandings(season: string, options?: ApiRequestOpt
     const cacheKey = `jolpica:driver-standings:${season}`;
     return swrFetch<DriverStanding[]>(
         cacheKey,
-        async () => {
+        async (ctx) => {
             const response = await api.get<StandingsResponse>(`/${season}/driverStandings.json`, {
-                priority: options?.priority,
+                priority: ctx?.priority ?? options?.priority,
+                isBackground: ctx?.isBackground,
                 queueKey: cacheKey,
                 signal: options?.signal,
             });
-            return response.data?.MRData?.StandingsTable?.StandingsLists[0]?.DriverStandings ?? [];
+            const standingsList = response.data?.MRData?.StandingsTable?.StandingsLists[0];
+            const standings = standingsList?.DriverStandings ?? [];
+            if (Array.isArray(standings) && standings.length > 0) {
+                const bundle = await getStaticSeasonBundle(season);
+                if (bundle) {
+                    const apiRound = Number.parseInt(standingsList?.round ?? '', 10);
+                    let resolvedRound: number;
+                    if (Number.isFinite(apiRound) && apiRound > 0) {
+                        resolvedRound = apiRound;
+                    } else {
+                        const cachedCalendar = getCache<Race[]>(`jolpica:races:${season}`) ?? bundle.races;
+                        const finishedRounds = (cachedCalendar ?? []).filter(r => isRoundFinished(r));
+                        resolvedRound = finishedRounds.length > 0
+                            ? Math.max(...finishedRounds.map(r => Number.parseInt(r.round, 10)))
+                            : (bundle.lastCompletedRound ?? 0);
+                    }
+                    updateStaticSeasonBundleInMemory(season, {
+                        driverStandings: standings,
+                        lastDriverStandingsRound: resolvedRound,
+                    });
+                }
+            }
+            return standings;
         },
         () => getGranularTtl(season),
         {
@@ -1206,7 +1275,7 @@ async function fetchAllPaginated(
 
     return swrFetch<JolpicaRaceRecord[]>(
         cacheKey,
-        async () => {
+        async (ctx) => {
             const allRaces: JolpicaRaceRecord[] = [];
             let offset = 0;
             const limit = 100; // API max limit
@@ -1221,7 +1290,8 @@ async function fetchAllPaginated(
                     for (let attempt = 0; attempt <= maxRetries; attempt++) {
                         try {
                             response = await api.get<PaginatedRaceResponse>(url, {
-                                priority: options?.priority,
+                                priority: ctx?.priority ?? options?.priority,
+                                isBackground: ctx?.isBackground,
                                 queueKey: cacheKey,
                                 signal: options?.signal,
                             });
@@ -1284,7 +1354,7 @@ export async function getConstructorStandings(season: string, options?: ApiReque
         const bundle = await getStaticSeasonBundle(season);
         if (bundle && bundle.constructorStandings && bundle.constructorStandings.length > 0) {
             const cachedCalendar = getCache<Race[]>(`jolpica:races:${season}`) ?? getCache<Race[]>(`jolpica:calendar:${season}`);
-            if (bundle.isArchived || detectNewlyCompletedRounds(bundle, cachedCalendar ?? undefined).length === 0) {
+            if (bundle.isArchived || detectNewlyCompletedRounds(bundle, cachedCalendar ?? undefined, undefined, 'constructorStandings').length === 0) {
                 markCacheHit();
                 return bundle.constructorStandings;
             }
@@ -1300,13 +1370,14 @@ export async function getConstructorStandings(season: string, options?: ApiReque
 
     return swrFetch<ConstructorStanding[]>(
         cacheKey,
-        async () => {
+        async (ctx) => {
             const maxRetries = 2;
             let response: { data: StandingsResponse } | null = null;
             for (let attempt = 0; attempt <= maxRetries; attempt++) {
                 try {
                     response = await api.get<StandingsResponse>(endpoint, {
-                        priority: options?.priority,
+                        priority: ctx?.priority ?? options?.priority,
+                        isBackground: ctx?.isBackground,
                         queueKey: cacheKey,
                         signal: options?.signal,
                     });
@@ -1322,15 +1393,39 @@ export async function getConstructorStandings(season: string, options?: ApiReque
                 throw new Error('Jolpica API returned no response');
             }
 
-            const standings = response.data?.MRData?.StandingsTable?.StandingsLists[0]?.ConstructorStandings ?? [];
+            const constrList = response.data?.MRData?.StandingsTable?.StandingsLists[0];
+            const rawStandings = constrList?.ConstructorStandings ?? [];
 
-            return standings.map((s: ConstructorStandingApi) => ({
+            const standings = rawStandings.map((s: ConstructorStandingApi) => ({
                 constructorId: s.Constructor?.constructorId ?? 'unknown',
                 constructorName: s.Constructor?.name ?? 'Unknown',
                 position: parseInt(s.position, 10) || 0,
                 points: parseFloat(s.points) || 0,
                 wins: parseInt(s.wins, 10) || 0,
             }));
+
+            if (Array.isArray(standings) && standings.length > 0) {
+                const bundle = await getStaticSeasonBundle(season);
+                if (bundle) {
+                    const apiRound = Number.parseInt(constrList?.round ?? '', 10);
+                    let resolvedRound: number;
+                    if (Number.isFinite(apiRound) && apiRound > 0) {
+                        resolvedRound = apiRound;
+                    } else {
+                        const cachedCalendar = getCache<Race[]>(`jolpica:races:${season}`) ?? bundle.races;
+                        const finishedRounds = (cachedCalendar ?? []).filter(r => isRoundFinished(r));
+                        resolvedRound = finishedRounds.length > 0
+                            ? Math.max(...finishedRounds.map(r => Number.parseInt(r.round, 10)))
+                            : (bundle.lastCompletedRound ?? 0);
+                    }
+                    updateStaticSeasonBundleInMemory(season, {
+                        constructorStandings: standings,
+                        lastConstructorStandingsRound: resolvedRound,
+                    });
+                }
+            }
+
+            return standings;
         },
         () => getGranularTtl(season),
         {
@@ -1515,7 +1610,7 @@ export async function getAllSeasonResults(season: string, options: ApiRequestOpt
             // Active season incremental check:
             const cachedCalendar = getCache<Race[]>(`jolpica:races:${season}`) ?? getCache<Race[]>(`jolpica:calendar:${season}`);
             const calendar = cachedCalendar ?? (bundle.races && bundle.races.length > 0 ? bundle.races : await getRaces(season, options));
-            const newRounds = detectNewlyCompletedRounds(bundle, calendar);
+            const newRounds = detectNewlyCompletedRounds(bundle, calendar, undefined, 'results');
 
             if (newRounds.length === 0) {
                 markCacheHit();
@@ -1527,15 +1622,23 @@ export async function getAllSeasonResults(season: string, options: ApiRequestOpt
                 `jolpica:static-diff:results:${season}:${maxNewRound}`,
                 async () => {
                     const diffResults: SeasonRaceResult[] = [];
+                    const updatedRoundResults = { ...(bundle.roundResults ?? {}) };
                     for (const race of newRounds) {
                         const rawResults = await getRaceResults(season, race.round, options);
-                        const mapped = mapRaceResultsToSeasonResults(race.round, race.raceName, race.date, rawResults);
-                        diffResults.push(...mapped);
+                        if (rawResults && rawResults.length > 0) {
+                            updatedRoundResults[race.round] = rawResults;
+                            const mapped = mapRaceResultsToSeasonResults(race.round, race.raceName, race.date, rawResults);
+                            diffResults.push(...mapped);
+                        }
+                    }
+                    if (diffResults.length === 0) {
+                        return bundle.results;
                     }
                     const merged = mergeSeasonResults(bundle.results, diffResults);
                     updateStaticSeasonBundleInMemory(season, {
                         results: merged,
-                        lastCompletedRound: Math.max(bundle.lastCompletedRound ?? 0, maxNewRound),
+                        roundResults: updatedRoundResults,
+                        lastResultsRound: Math.max(bundle.lastResultsRound ?? bundle.lastCompletedRound ?? 0, maxNewRound),
                     });
                     return merged;
                 },
@@ -1620,7 +1723,7 @@ export async function getAllSeasonSprints(season: string, options: ApiRequestOpt
 
             const cachedCalendar = getCache<Race[]>(`jolpica:races:${season}`) ?? getCache<Race[]>(`jolpica:calendar:${season}`);
             const calendar = cachedCalendar ?? (bundle.races && bundle.races.length > 0 ? bundle.races : await getRaces(season, options));
-            const newRounds = detectNewlyCompletedRounds(bundle, calendar);
+            const newRounds = detectNewlyCompletedRounds(bundle, calendar, undefined, 'sprints');
             const newSprintRounds = newRounds.filter(r => (r as unknown as { Sprint?: unknown }).Sprint !== undefined);
 
             if (newSprintRounds.length === 0) {
@@ -1664,8 +1767,15 @@ export async function getAllSeasonSprints(season: string, options: ApiRequestOpt
                         }
                     }
 
+                    if (diffSprints.length === 0) {
+                        return bundle.sprints;
+                    }
+
                     const merged = mergeSeasonSprints(bundle.sprints, diffSprints);
-                    updateStaticSeasonBundleInMemory(season, { sprints: merged });
+                    updateStaticSeasonBundleInMemory(season, {
+                        sprints: merged,
+                        lastSprintsRound: Math.max(bundle.lastSprintsRound ?? bundle.lastCompletedRound ?? 0, maxNewSprintRound),
+                    });
                     return merged;
                 },
                 options?.priority ?? 'high',
@@ -1741,7 +1851,7 @@ export async function getAllSeasonQualifying(
 
             const cachedCalendar = getCache<Race[]>(`jolpica:races:${season}`) ?? getCache<Race[]>(`jolpica:calendar:${season}`);
             const calendar = cachedCalendar ?? (bundle.races && bundle.races.length > 0 ? bundle.races : await getRaces(season, options));
-            const newRounds = detectNewlyCompletedRounds(bundle, calendar);
+            const newRounds = detectNewlyCompletedRounds(bundle, calendar, undefined, 'qualifying');
 
             if (newRounds.length === 0) {
                 markCacheHit();
@@ -1753,14 +1863,26 @@ export async function getAllSeasonQualifying(
                 `jolpica:static-diff:qualifying:${season}:${maxNewRound}`,
                 async () => {
                     const diffQualifying: SeasonQualifyingResult[] = [];
+                    const updatedRoundQualifying = { ...(bundle.roundQualifying ?? {}) };
                     for (const race of newRounds) {
                         const rawQuali = await getRaceQualifyingResults(season, race.round, options);
-                        const mapped = mapQualifyingResultsToSeasonQualifying(race.round, race.raceName, race.date, rawQuali);
-                        diffQualifying.push(...mapped);
+                        if (rawQuali && rawQuali.length > 0) {
+                            updatedRoundQualifying[race.round] = rawQuali;
+                            const mapped = mapQualifyingResultsToSeasonQualifying(race.round, race.raceName, race.date, rawQuali);
+                            diffQualifying.push(...mapped);
+                        }
+                    }
+
+                    if (diffQualifying.length === 0) {
+                        return bundle.qualifying;
                     }
 
                     const merged = mergeSeasonQualifying(bundle.qualifying, diffQualifying);
-                    updateStaticSeasonBundleInMemory(season, { qualifying: merged });
+                    updateStaticSeasonBundleInMemory(season, {
+                        qualifying: merged,
+                        roundQualifying: updatedRoundQualifying,
+                        lastQualifyingRound: Math.max(bundle.lastQualifyingRound ?? bundle.lastCompletedRound ?? 0, maxNewRound),
+                    });
                     return merged;
                 },
                 options?.priority ?? 'high',
@@ -1876,9 +1998,12 @@ export async function getDriverCareerStints(driverId: string): Promise<DriverCar
 
     return swrFetch<DriverCareerStint[]>(
         cacheKey,
-        async () => {
+        async (ctx) => {
             // Keep raw driver career results in memory only; the compact stints array is persisted to localStorage
-            const allDriverRaces = await fetchAllPaginated(`/drivers/${driverId}/results.json`, { cacheRaw: false });
+            const allDriverRaces = await fetchAllPaginated(`/drivers/${driverId}/results.json`, {
+                cacheRaw: false,
+                priority: ctx?.priority,
+            });
             const seen = new Set<string>();
             const stints: DriverCareerStint[] = [];
 
@@ -1946,17 +2071,23 @@ export async function getConstructorSeasonH2HRaw(
 
     return swrFetch<ConstructorSeasonH2HRaw>(
         cacheKey,
-        async () => {
+        async (ctx) => {
             const cachedFullSeasonRaces = getCache<JolpicaRaceRecord[]>(`jolpica:paginated:/${season}/results.json`);
             const cachedFullSeasonQuali = getCache<JolpicaRaceRecord[]>(`jolpica:paginated:/${season}/qualifying.json`);
 
             // Fetch race results first, then qualifying sequentially when uncached to avoid burst rate limits
             const rawRaces = cachedFullSeasonRaces
                 ? cachedFullSeasonRaces
-                : await fetchAllPaginated(`/${season}/constructors/${constructorId}/results.json`, { cacheRaw: false });
+                : await fetchAllPaginated(`/${season}/constructors/${constructorId}/results.json`, {
+                    cacheRaw: false,
+                    priority: ctx?.priority,
+                });
             const rawQualifying = cachedFullSeasonQuali
                 ? cachedFullSeasonQuali
-                : await fetchAllPaginated(`/${season}/constructors/${constructorId}/qualifying.json`, { cacheRaw: false });
+                : await fetchAllPaginated(`/${season}/constructors/${constructorId}/qualifying.json`, {
+                    cacheRaw: false,
+                    priority: ctx?.priority,
+                });
 
             const raceResults: SeasonRaceResult[] = [];
             let resolvedConstructorName = constructorNameFallback;

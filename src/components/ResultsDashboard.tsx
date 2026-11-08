@@ -223,7 +223,7 @@ export function ResultsDashboard({ season, onReset, onSelectDriver }: ResultsDas
             if (!active) return;
             setBreakdownCalendar({
                 season,
-                races: calendar.filter(race => isRaceCompleted(race.date)).map(race => ({
+                races: calendar.filter(race => isRaceCompleted(race.date, race.time)).map(race => ({
                     round: race.round,
                     raceName: race.raceName,
                     countryCode: getCountryCode(race.raceName),
