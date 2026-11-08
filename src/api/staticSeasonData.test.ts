@@ -12,6 +12,7 @@ import {
     getStaticSeasonQualifying,
     getStaticSeasonResults,
     getStaticSeasonSprints,
+    isRoundFinished,
     isRoundInStaticBundle,
     loadStaticSeasonData,
     mapQualifyingResultsToSeasonQualifying,
@@ -460,6 +461,16 @@ describe('Milestone 4 (Requirement R4) - Static Season Data Pipeline', () => {
             expect(newRounds).toHaveLength(1);
             expect(newRounds[0].round).toBe('3');
             expect(newRounds[0].raceName).toBe('Round 3');
+        });
+
+        it('respects race start time + 3-hour buffer in isRoundFinished and detectNewlyCompletedRounds', () => {
+            const raceWithTime = { date: '2026-11-08', time: '17:00:00Z' };
+            // Morning of race day (12:00 UTC) -> not finished yet
+            expect(isRoundFinished(raceWithTime, new Date('2026-11-08T12:00:00Z').getTime())).toBe(false);
+            // 2 hours after start (19:00 UTC) -> still within 3h buffer
+            expect(isRoundFinished(raceWithTime, new Date('2026-11-08T19:00:00Z').getTime())).toBe(false);
+            // 3 hours 1 minute after start (20:01 UTC) -> finished
+            expect(isRoundFinished(raceWithTime, new Date('2026-11-08T20:01:00Z').getTime())).toBe(true);
         });
 
         it('returns empty array if season is archived', () => {

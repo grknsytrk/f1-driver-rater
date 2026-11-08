@@ -349,8 +349,10 @@ async function generateSeasonBundle(seasonStr, options = {}) {
     const rawResultsRaces = await fetchAllPaginated(`${API_BASE}/${season}/results.json`);
     const resultsRaces = stripUrls(rawResultsRaces);
 
-    const isCurrentSeason = season === '2026';
-    const maxAllowedRound = isCurrentSeason ? 5 : totalRounds;
+    const currentYear = String(new Date().getUTCFullYear());
+    const isCurrentSeason = Number.parseInt(season, 10) >= Number.parseInt(currentYear, 10);
+    // Jolpica only publishes results/qualifying/sprints for sessions that have actually occurred.
+    const maxAllowedRound = totalRounds;
 
     const roundResults = {};
     const results = [];
@@ -398,7 +400,7 @@ async function generateSeasonBundle(seasonStr, options = {}) {
 
     // Determine archive & completed status
     const isArchived = !isCurrentSeason && maxCompletedRound >= totalRounds;
-    const lastCompletedRound = isCurrentSeason ? 5 : (maxCompletedRound > 0 ? maxCompletedRound : null);
+    const lastCompletedRound = maxCompletedRound > 0 ? maxCompletedRound : null;
 
     // 3. Fetch Qualifying Results
     console.log(`[3/5] Fetching qualifying results for ${season}...`);
@@ -567,7 +569,12 @@ async function main() {
     const seasonArgIdx = args.indexOf('--season');
     const specificSeason = seasonArgIdx !== -1 ? args[seasonArgIdx + 1] : null;
 
-    const allSeasons = ['2020', '2021', '2022', '2023', '2024', '2025', '2026'];
+    const currentYearNum = new Date().getUTCFullYear();
+    const maxSeasonNum = Math.max(2026, currentYearNum);
+    const allSeasons = [];
+    for (let y = 2020; y <= maxSeasonNum; y += 1) {
+        allSeasons.push(String(y));
+    }
     const targetSeasons = specificSeason ? [specificSeason] : allSeasons;
 
     console.log(`F1 Static Season Data Generator`);
@@ -587,64 +594,42 @@ async function main() {
 
     for (const season of targetSeasons) {
         const bundlePath = resolve(OUTPUT_DIR, `${season}.json`);
-        let exists = false;
+        let existingBundle = null;
         try {
             const raw = await readFile(bundlePath, 'utf8');
             const parsed = JSON.parse(raw);
-            if (parsed.season === season && parsed.results) {
-                exists = true;
+            if (parsed.season === season && Array.isArray(parsed.results)) {
+                existingBundle = parsed;
             }
         } catch {
-            exists = false;
+            existingBundle = null;
         }
 
-        // Incremental check: If season is archived (2020-2025) and bundle exists and not --force, skip
-        if (exists && !force && season !== '2026') {
+        // Incremental check: If season is archived and bundle exists and not --force, skip
+        if (existingBundle && existingBundle.isArchived && !force) {
             console.log(`Skipping season ${season} (already generated and archived; use --force to overwrite)`);
-            if (!manifestSeasons[season]) {
-                const bundle = JSON.parse(await readFile(bundlePath, 'utf8'));
-                manifestSeasons[season] = {
-                    season,
-                    isArchived: bundle.isArchived,
-                    lastCompletedRound: bundle.lastCompletedRound,
-                    totalRounds: bundle.totalRounds,
-                    generatedAt: bundle.generatedAt,
-                    bundleUrl: `/data/seasons/${season}.json`,
-                };
-            }
+            manifestSeasons[season] = {
+                season,
+                isArchived: existingBundle.isArchived,
+                lastCompletedRound: existingBundle.lastCompletedRound,
+                totalRounds: existingBundle.totalRounds,
+                generatedAt: existingBundle.generatedAt,
+                bundleUrl: `/data/seasons/${season}.json?v=${encodeURIComponent(existingBundle.generatedAt)}`,
+            };
             continue;
         }
 
-        try {
-            const bundle = await generateSeasonBundle(season, { mock });
-            await writeBundleAtomic(season, bundle, dryRun);
+        const bundle = await generateSeasonBundle(season, { mock });
+        await writeBundleAtomic(season, bundle, dryRun);
 
-            manifestSeasons[season] = {
-                season,
-                isArchived: bundle.isArchived,
-                lastCompletedRound: bundle.lastCompletedRound,
-                totalRounds: bundle.totalRounds,
-                generatedAt: bundle.generatedAt,
-                bundleUrl: `/data/seasons/${season}.json`,
-            };
-        } catch (error) {
-            console.error(`Failed to generate season bundle for ${season}:`, error);
-            if (!mock) {
-                console.log(`Attempting fallback to mock generation for ${season}...`);
-                const mockBundle = buildMockSeasonBundle(season);
-                await writeBundleAtomic(season, mockBundle, dryRun);
-                manifestSeasons[season] = {
-                    season,
-                    isArchived: mockBundle.isArchived,
-                    lastCompletedRound: mockBundle.lastCompletedRound,
-                    totalRounds: mockBundle.totalRounds,
-                    generatedAt: mockBundle.generatedAt,
-                    bundleUrl: `/data/seasons/${season}.json`,
-                };
-            } else {
-                throw error;
-            }
-        }
+        manifestSeasons[season] = {
+            season,
+            isArchived: bundle.isArchived,
+            lastCompletedRound: bundle.lastCompletedRound,
+            totalRounds: bundle.totalRounds,
+            generatedAt: bundle.generatedAt,
+            bundleUrl: `/data/seasons/${season}.json?v=${encodeURIComponent(bundle.generatedAt)}`,
+        };
     }
 
     // Write updated manifest

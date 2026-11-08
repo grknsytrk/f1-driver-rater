@@ -23,6 +23,7 @@ import {
     getDriverSeasonStats,
     getDriverStandings,
     getGranularTtl,
+    getRaces,
     resetCacheSignal,
     setCache,
     swrFetch,
@@ -204,7 +205,16 @@ describe('Milestone 5 — End-to-End Pipeline & Adversarial Hardening (R1–R5)'
                 expect(bundle.qualifying.length).toBeGreaterThan(0);
                 expect(bundle.driverStandings.length).toBeGreaterThan(0);
                 expect(bundle.constructorStandings.length).toBeGreaterThan(0);
+                expect(Object.keys(bundle.roundResults ?? {}).length).toBe(bundle.lastCompletedRound);
             }
+
+            // Explicit verification of 2026 full completed rounds (no 5-round truncation)
+            const bundle2026 = STATIC_BUNDLES['2026'];
+            expect(bundle2026.lastCompletedRound).toBe(19);
+            expect(bundle2026.results.length).toBe(418);
+            expect(bundle2026.qualifying.length).toBe(435);
+            expect(bundle2026.sprints.length).toBe(132);
+            expect(manifest.seasons['2026'].bundleUrl).toContain('/data/seasons/2026.json?v=');
         });
 
         it('hydrates full 2025 Standings, Awards & Teammate Wars data from real disk bundle with 0 Jolpica calls', async () => {
@@ -215,7 +225,8 @@ describe('Milestone 5 — End-to-End Pipeline & Adversarial Hardening (R1–R5)'
                 json: async () => bundle2025,
             } as Response);
 
-            const [stats, wcc, wdc, results, qualifying, sprints] = await Promise.all([
+            const [races, stats, wcc, wdc, results, qualifying, sprints] = await Promise.all([
+                getRaces('2025'),
                 getDriverSeasonStats('2025'),
                 getConstructorStandings('2025'),
                 getDriverStandings('2025'),
@@ -225,12 +236,42 @@ describe('Milestone 5 — End-to-End Pipeline & Adversarial Hardening (R1–R5)'
             ]);
 
             expect(fetchSpy).toHaveBeenCalledTimes(1);
+            expect(races.length).toBe(24);
             expect(stats.length).toBeGreaterThanOrEqual(20);
             expect(wcc.length).toBe(10);
             expect(wdc.length).toBeGreaterThanOrEqual(20);
             expect(results.length).toBe(479);
             expect(qualifying.length).toBe(479);
             expect(sprints.length).toBe(120);
+            expect(wasLastResponseFromCache()).toBe(true);
+        });
+
+        it('hydrates 2026 current-season Standings, Awards, Quick Rate & Teammate Wars from 2026 bundle with 0 Jolpica calls when no newer round finished', async () => {
+            const bundle2026 = STATIC_BUNDLES['2026'];
+
+            const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+                ok: true,
+                json: async () => bundle2026,
+            } as Response);
+
+            const [races, stats, wcc, wdc, results, qualifying, sprints] = await Promise.all([
+                getRaces('2026'),
+                getDriverSeasonStats('2026'),
+                getConstructorStandings('2026'),
+                getDriverStandings('2026'),
+                getAllSeasonResults('2026'),
+                getAllSeasonQualifying('2026'),
+                getAllSeasonSprints('2026'),
+            ]);
+
+            expect(fetchSpy).toHaveBeenCalledTimes(1);
+            expect(races.length).toBe(23);
+            expect(stats.length).toBeGreaterThanOrEqual(22);
+            expect(wcc.length).toBe(11);
+            expect(wdc.length).toBeGreaterThanOrEqual(22);
+            expect(results.length).toBe(418);
+            expect(qualifying.length).toBe(435);
+            expect(sprints.length).toBe(132);
             expect(wasLastResponseFromCache()).toBe(true);
         });
     });

@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-11-08T12:52:53.795Z",
+  "generatedAt": "2026-11-08T13:52:04.452Z",
   "seasons": {
     "2020": {
       "season": "2020",
@@ -8,7 +8,7 @@
       "lastCompletedRound": 17,
       "totalRounds": 17,
       "generatedAt": "2026-11-08T12:51:11.500Z",
-      "bundleUrl": "/data/seasons/2020.json"
+      "bundleUrl": "/data/seasons/2020.json?v=2026-11-08T12%3A51%3A11.500Z"
     },
     "2021": {
       "season": "2021",
@@ -16,7 +16,7 @@
       "lastCompletedRound": 22,
       "totalRounds": 22,
       "generatedAt": "2026-11-08T12:51:22.141Z",
-      "bundleUrl": "/data/seasons/2021.json"
+      "bundleUrl": "/data/seasons/2021.json?v=2026-11-08T12%3A51%3A22.141Z"
     },
     "2022": {
       "season": "2022",
@@ -24,7 +24,7 @@
       "lastCompletedRound": 22,
       "totalRounds": 22,
       "generatedAt": "2026-11-08T12:51:32.914Z",
-      "bundleUrl": "/data/seasons/2022.json"
+      "bundleUrl": "/data/seasons/2022.json?v=2026-11-08T12%3A51%3A32.914Z"
     },
     "2023": {
       "season": "2023",
@@ -32,7 +32,7 @@
       "lastCompletedRound": 22,
       "totalRounds": 22,
       "generatedAt": "2026-11-08T12:51:44.255Z",
-      "bundleUrl": "/data/seasons/2023.json"
+      "bundleUrl": "/data/seasons/2023.json?v=2026-11-08T12%3A51%3A44.255Z"
     },
     "2024": {
       "season": "2024",
@@ -40,7 +40,7 @@
       "lastCompletedRound": 24,
       "totalRounds": 24,
       "generatedAt": "2026-11-08T12:51:55.769Z",
-      "bundleUrl": "/data/seasons/2024.json"
+      "bundleUrl": "/data/seasons/2024.json?v=2026-11-08T12%3A51%3A55.769Z"
     },
     "2025": {
       "season": "2025",
@@ -48,15 +48,15 @@
       "lastCompletedRound": 24,
       "totalRounds": 24,
       "generatedAt": "2026-11-08T12:52:14.117Z",
-      "bundleUrl": "/data/seasons/2025.json"
+      "bundleUrl": "/data/seasons/2025.json?v=2026-11-08T12%3A52%3A14.117Z"
     },
     "2026": {
       "season": "2026",
       "isArchived": false,
-      "lastCompletedRound": 5,
+      "lastCompletedRound": 19,
       "totalRounds": 23,
-      "generatedAt": "2026-11-08T12:52:53.790Z",
-      "bundleUrl": "/data/seasons/2026.json"
+      "generatedAt": "2026-11-08T13:52:04.444Z",
+      "bundleUrl": "/data/seasons/2026.json?v=2026-11-08T13%3A52%3A04.444Z"
     }
   }
 }

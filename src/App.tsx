@@ -395,7 +395,7 @@ function App() {
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 onClick={() => navigate(`/${currentSeason}/standings`)}
-                {...primeRoute(preloadStandingsRoute)}
+                {...primeRoute(() => preloadStandingsRoute(currentSeason || undefined))}
                 className="group flex w-full items-center justify-center gap-2 px-2 md:px-4 py-2 md:py-1.5 bg-[var(--bg-panel)] border border-[var(--border-color)] hover:border-[var(--accent-yellow)] transition-all min-h-[44px] md:min-w-0 md:w-auto md:min-h-0"
                 title="Standings"
               >
@@ -406,7 +406,7 @@ function App() {
               <SeasonAwardsAction
                 season={currentSeason!}
                 onNavigate={() => navigate(`/${currentSeason}/awards`)}
-                onPreload={preloadAwardsRoute}
+                onPreload={() => preloadAwardsRoute(currentSeason || undefined)}
               />
 
               {/* Teammate Wars Button */}
@@ -414,7 +414,7 @@ function App() {
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 onClick={() => navigate(`/${currentSeason}/teammate-wars`)}
-                {...primeRoute(preloadTeammateWarsRoute)}
+                {...primeRoute(() => preloadTeammateWarsRoute(currentSeason || undefined))}
                 className="group flex w-full items-center justify-center gap-2 px-2 md:px-4 py-2 md:py-1.5 bg-[var(--bg-panel)] border border-[var(--border-color)] hover:border-[var(--accent-red)] transition-all min-h-[44px] md:min-w-0 md:w-auto md:min-h-0"
                 title="Teammate Wars"
               >
@@ -439,7 +439,7 @@ function App() {
                   initial={{ opacity: 0, scale: 0.95 }}
                   animate={{ opacity: 1, scale: 1 }}
                   onClick={() => navigate(`/${currentSeason}/results`)}
-                  {...primeRoute(preloadResultsRoute)}
+                  {...primeRoute(() => preloadResultsRoute(currentSeason || undefined))}
                   className="group flex w-full items-center justify-center gap-2 px-2 md:px-4 py-2 md:py-1.5 bg-[var(--bg-panel)] border border-[var(--border-color)] hover:border-[var(--accent-red)] transition-all min-h-[44px] md:min-w-0 md:w-auto md:min-h-0"
                 >
                   <Trophy size={16} className="text-[var(--text-secondary)] group-hover:text-[var(--accent-yellow)]" />

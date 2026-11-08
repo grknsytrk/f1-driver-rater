@@ -33,12 +33,30 @@ export const StandingsRoute = standingsRoute.Route;
 export const AwardsRoute = awardsRoute.Route;
 export const DriverProfileRoute = driverProfileRoute.Route;
 
-export const preloadResultsRoute = resultsRoute.preload;
-export const preloadTeammateWarsRoute = teammateWarsRoute.preload;
-export const preloadStandingsRoute = standingsRoute.preload;
-export const preloadAwardsRoute = awardsRoute.preload;
-export const preloadDriverProfileRoute = driverProfileRoute.preload;
 import { getRaceRatingContext, getDriverSeasonStats } from '../api/f1Api';
+import { loadStaticSeasonData } from '../api/staticSeasonData';
+
+export function preloadResultsRoute(season?: string): void {
+    resultsRoute.preload();
+    if (season) void loadStaticSeasonData(season);
+}
+
+export function preloadTeammateWarsRoute(season?: string): void {
+    teammateWarsRoute.preload();
+    if (season) void loadStaticSeasonData(season);
+}
+
+export function preloadStandingsRoute(season?: string): void {
+    standingsRoute.preload();
+    if (season) void loadStaticSeasonData(season);
+}
+
+export function preloadAwardsRoute(season?: string): void {
+    awardsRoute.preload();
+    if (season) void loadStaticSeasonData(season);
+}
+
+export const preloadDriverProfileRoute = driverProfileRoute.preload;
 
 const prefetchedRaceRatings = new Set<string>();
 const prefetchedQuickRates = new Set<string>();
@@ -74,8 +92,6 @@ export function preloadSeasonRouteChunks() {
     preloadTeammateWarsRoute();
     preloadStandingsRoute();
     preloadAwardsRoute();
-    preloadQuickRateRoute();
-    preloadRaceRatingRoute();
 }
 
 export function scheduleSeasonRoutePrefetch() {

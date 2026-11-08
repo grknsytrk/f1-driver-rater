@@ -13,6 +13,7 @@ import {
     getStaticConstructorStandings,
     getStaticDriverStandings,
     getStaticRaces,
+    getStaticRacesSync,
     getStaticRoundQualifying,
     getStaticRoundQualifyingSync,
     getStaticRoundResults,
@@ -22,12 +23,14 @@ import {
     getStaticSeasonResults,
     getStaticSeasonSprints,
     isFetchMockedOrAvailable,
+    isRoundFinished,
     isRoundInStaticBundle,
     mapQualifyingResultsToSeasonQualifying,
     mapRaceResultsToSeasonResults,
     mergeSeasonQualifying,
     mergeSeasonResults,
     mergeSeasonSprints,
+    updateStaticSeasonBundleInMemory,
 } from './staticSeasonData';
 
 export {
@@ -41,6 +44,7 @@ export {
     getStaticSeasonQualifying,
     getStaticSeasonResults,
     getStaticSeasonSprints,
+    isRoundFinished,
     isRoundInStaticBundle,
     mapQualifyingResultsToSeasonQualifying,
     mapRaceResultsToSeasonResults,
@@ -143,15 +147,15 @@ export function wasLastResponseFromCache(): boolean {
 
 // Pace every Jolpica request, including parallel page loads and retry paths.
 api.interceptors.request.use(async config => {
-    const priority = config.priority ?? 'high';
+    const isBackground = Boolean(
+        config.isBackground || config.priority === 'low' || activeBackgroundRevalidations > 0,
+    );
+    const priority: RequestPriority = config.priority ?? (isBackground ? 'low' : 'high');
     const queueKey = config.queueKey;
     const signal = config.signal as unknown as AbortSignal | undefined;
 
     await jolpicaQueue.acquireSlot({ priority, key: queueKey, signal });
 
-    const isBackground = Boolean(
-        config.isBackground || priority === 'low' || activeBackgroundRevalidations > 0,
-    );
     markNetworkRequest({ isBackground });
     return config;
 });
@@ -719,6 +723,31 @@ export async function getSeasons(options?: ApiRequestOptions): Promise<Season[]>
 // Fetch all races for a season
 export async function getRaces(season: string, options?: ApiRequestOptions): Promise<Race[]> {
     const cacheKey = `jolpica:races:${season}`;
+
+    const inMemoryRaces = getStaticRacesSync(season);
+    if (inMemoryRaces && inMemoryRaces.length > 0) {
+        markCacheHit();
+        const normalized = normalizeRaceCalendar(inMemoryRaces);
+        const ttl = getGranularTtl(season, undefined, undefined, { racesCalendar: normalized });
+        setCache(cacheKey, normalized, ttl, { memoryOnly: true });
+        return normalized;
+    }
+
+    if (!getCacheEntry<Race[]>(cacheKey) && isFetchMockedOrAvailable()) {
+        try {
+            const staticRaces = await getStaticRaces(season);
+            if (staticRaces && staticRaces.length > 0) {
+                markCacheHit();
+                const normalized = normalizeRaceCalendar(staticRaces);
+                const ttl = getGranularTtl(season, undefined, undefined, { racesCalendar: normalized });
+                setCache(cacheKey, normalized, ttl, { memoryOnly: true });
+                return normalized;
+            }
+        } catch {
+            // Fall back gracefully to SWR endpoint
+        }
+    }
+
     return swrFetch<Race[]>(
         cacheKey,
         async () => {
@@ -1077,21 +1106,18 @@ export async function getConstructors(season: string): Promise<Constructor[]> {
 
 // Fetch driver standings
 export async function getDriverStandings(season: string, options?: ApiRequestOptions): Promise<DriverStanding[]> {
-    const seasonNum = Number.parseInt(season, 10);
-    const currentYear = new Date().getUTCFullYear();
-    const isArchived = Number.isFinite(seasonNum) && seasonNum < currentYear;
-
-    if (isArchived) {
-        try {
-            const staticStandings = await getStaticDriverStandings(season);
-            if (staticStandings && staticStandings.length > 0) {
+    try {
+        const bundle = await getStaticSeasonBundle(season);
+        if (bundle && bundle.driverStandings && bundle.driverStandings.length > 0) {
+            const cachedCalendar = getCache<Race[]>(`jolpica:races:${season}`) ?? bundle.races;
+            if (bundle.isArchived || detectNewlyCompletedRounds(bundle, cachedCalendar).length === 0) {
                 markCacheHit();
-                return staticStandings;
+                return bundle.driverStandings;
             }
-        } catch (err) {
-            if (!IS_TEST_ENV && typeof import.meta !== 'undefined' && import.meta.env?.DEV) {
-                console.debug(`[StaticSeason] Fallback for driver standings ${season}:`, err);
-            }
+        }
+    } catch (err) {
+        if (!IS_TEST_ENV && typeof import.meta !== 'undefined' && import.meta.env?.DEV) {
+            console.debug(`[StaticSeason] Fallback for driver standings ${season}:`, err);
         }
     }
 
@@ -1117,11 +1143,9 @@ export async function getDriverStandings(season: string, options?: ApiRequestOpt
     );
 }
 
-// Check if a race has been completed (date is in the past)
-export function isRaceCompleted(raceDate: string): boolean {
-    const today = new Date();
-    const race = new Date(raceDate);
-    return race < today;
+// Check if a race has been completed (date + time + 3h buffer is in the past)
+export function isRaceCompleted(raceDate: string, raceTime?: string): boolean {
+    return isRoundFinished({ date: raceDate, time: raceTime });
 }
 
 // Get drivers who participated in a specific race
@@ -1256,21 +1280,18 @@ export interface ConstructorStanding {
 }
 
 export async function getConstructorStandings(season: string, options?: ApiRequestOptions): Promise<ConstructorStanding[]> {
-    const seasonNum = Number.parseInt(season, 10);
-    const currentYear = new Date().getUTCFullYear();
-    const isArchived = Number.isFinite(seasonNum) && seasonNum < currentYear;
-
-    if (isArchived) {
-        try {
-            const staticStandings = await getStaticConstructorStandings(season);
-            if (staticStandings && staticStandings.length > 0) {
+    try {
+        const bundle = await getStaticSeasonBundle(season);
+        if (bundle && bundle.constructorStandings && bundle.constructorStandings.length > 0) {
+            const cachedCalendar = getCache<Race[]>(`jolpica:races:${season}`) ?? getCache<Race[]>(`jolpica:calendar:${season}`);
+            if (bundle.isArchived || detectNewlyCompletedRounds(bundle, cachedCalendar ?? undefined).length === 0) {
                 markCacheHit();
-                return staticStandings;
+                return bundle.constructorStandings;
             }
-        } catch (err) {
-            if (!IS_TEST_ENV && typeof import.meta !== 'undefined' && import.meta.env?.DEV) {
-                console.debug(`[StaticSeason] Fallback for constructor standings ${season}:`, err);
-            }
+        }
+    } catch (err) {
+        if (!IS_TEST_ENV && typeof import.meta !== 'undefined' && import.meta.env?.DEV) {
+            console.debug(`[StaticSeason] Fallback for constructor standings ${season}:`, err);
         }
     }
 
@@ -1501,15 +1522,25 @@ export async function getAllSeasonResults(season: string, options: ApiRequestOpt
                 return bundle.results;
             }
 
-            // Fetch only diff rounds from Jolpica
-            const diffResults: SeasonRaceResult[] = [];
-            for (const race of newRounds) {
-                const rawResults = await getRaceResults(season, race.round, options);
-                const mapped = mapRaceResultsToSeasonResults(race.round, race.raceName, race.date, rawResults);
-                diffResults.push(...mapped);
-            }
-
-            return mergeSeasonResults(bundle.results, diffResults);
+            const maxNewRound = Math.max(...newRounds.map(r => Number.parseInt(r.round, 10)));
+            return await dedupeInFlight(
+                `jolpica:static-diff:results:${season}:${maxNewRound}`,
+                async () => {
+                    const diffResults: SeasonRaceResult[] = [];
+                    for (const race of newRounds) {
+                        const rawResults = await getRaceResults(season, race.round, options);
+                        const mapped = mapRaceResultsToSeasonResults(race.round, race.raceName, race.date, rawResults);
+                        diffResults.push(...mapped);
+                    }
+                    const merged = mergeSeasonResults(bundle.results, diffResults);
+                    updateStaticSeasonBundleInMemory(season, {
+                        results: merged,
+                        lastCompletedRound: Math.max(bundle.lastCompletedRound ?? 0, maxNewRound),
+                    });
+                    return merged;
+                },
+                options?.priority ?? 'high',
+            );
         }
     } catch (err) {
         if (!IS_TEST_ENV && typeof import.meta !== 'undefined' && import.meta.env?.DEV) {
@@ -1597,39 +1628,48 @@ export async function getAllSeasonSprints(season: string, options: ApiRequestOpt
                 return bundle.sprints;
             }
 
-            const diffSprints: SeasonSprintResult[] = [];
-            for (const race of newSprintRounds) {
-                try {
-                    const response = await api.get(`/${season}/${race.round}/sprint.json`, {
-                        priority: options?.priority,
-                        signal: options?.signal,
-                    });
-                    const sprintRaces = (response.data?.MRData?.RaceTable?.Races ?? []) as JolpicaRaceRecord[];
-                    sprintRaces.forEach((sRace: JolpicaRaceRecord) => {
-                        const sprintResults = sRace.SprintResults || [];
-                        sprintResults.forEach((result: SprintResult) => {
-                            const positionText = result.positionText;
-                            const isClassified = !['R', 'D', 'E', 'W', 'F', 'N'].includes(positionText);
-
-                            diffSprints.push({
-                                round: sRace.round,
-                                driverId: result.Driver.driverId,
-                                driverName: `${result.Driver.givenName} ${result.Driver.familyName}`,
-                                constructorId: result.Constructor.constructorId,
-                                constructorName: result.Constructor.name,
-                                position: isClassified ? parseInt(result.position) : null,
-                                positionText: result.positionText,
-                                points: parseFloat(result.points) || 0,
-                                status: result.status,
+            const maxNewSprintRound = Math.max(...newSprintRounds.map(r => Number.parseInt(r.round, 10)));
+            return await dedupeInFlight(
+                `jolpica:static-diff:sprints:${season}:${maxNewSprintRound}`,
+                async () => {
+                    const diffSprints: SeasonSprintResult[] = [];
+                    for (const race of newSprintRounds) {
+                        try {
+                            const response = await api.get(`/${season}/${race.round}/sprint.json`, {
+                                priority: options?.priority,
+                                signal: options?.signal,
                             });
-                        });
-                    });
-                } catch {
-                    // Fall back gracefully
-                }
-            }
+                            const sprintRaces = (response.data?.MRData?.RaceTable?.Races ?? []) as JolpicaRaceRecord[];
+                            sprintRaces.forEach((sRace: JolpicaRaceRecord) => {
+                                const sprintResults = sRace.SprintResults || [];
+                                sprintResults.forEach((result: SprintResult) => {
+                                    const positionText = result.positionText;
+                                    const isClassified = !['R', 'D', 'E', 'W', 'F', 'N'].includes(positionText);
 
-            return mergeSeasonSprints(bundle.sprints, diffSprints);
+                                    diffSprints.push({
+                                        round: sRace.round,
+                                        driverId: result.Driver.driverId,
+                                        driverName: `${result.Driver.givenName} ${result.Driver.familyName}`,
+                                        constructorId: result.Constructor.constructorId,
+                                        constructorName: result.Constructor.name,
+                                        position: isClassified ? parseInt(result.position) : null,
+                                        positionText: result.positionText,
+                                        points: parseFloat(result.points) || 0,
+                                        status: result.status,
+                                    });
+                                });
+                            });
+                        } catch {
+                            // Fall back gracefully
+                        }
+                    }
+
+                    const merged = mergeSeasonSprints(bundle.sprints, diffSprints);
+                    updateStaticSeasonBundleInMemory(season, { sprints: merged });
+                    return merged;
+                },
+                options?.priority ?? 'high',
+            );
         }
     } catch (err) {
         if (!IS_TEST_ENV && typeof import.meta !== 'undefined' && import.meta.env?.DEV) {
@@ -1708,14 +1748,23 @@ export async function getAllSeasonQualifying(
                 return bundle.qualifying;
             }
 
-            const diffQualifying: SeasonQualifyingResult[] = [];
-            for (const race of newRounds) {
-                const rawQuali = await getRaceQualifyingResults(season, race.round, options);
-                const mapped = mapQualifyingResultsToSeasonQualifying(race.round, race.raceName, race.date, rawQuali);
-                diffQualifying.push(...mapped);
-            }
+            const maxNewRound = Math.max(...newRounds.map(r => Number.parseInt(r.round, 10)));
+            return await dedupeInFlight(
+                `jolpica:static-diff:qualifying:${season}:${maxNewRound}`,
+                async () => {
+                    const diffQualifying: SeasonQualifyingResult[] = [];
+                    for (const race of newRounds) {
+                        const rawQuali = await getRaceQualifyingResults(season, race.round, options);
+                        const mapped = mapQualifyingResultsToSeasonQualifying(race.round, race.raceName, race.date, rawQuali);
+                        diffQualifying.push(...mapped);
+                    }
 
-            return mergeSeasonQualifying(bundle.qualifying, diffQualifying);
+                    const merged = mergeSeasonQualifying(bundle.qualifying, diffQualifying);
+                    updateStaticSeasonBundleInMemory(season, { qualifying: merged });
+                    return merged;
+                },
+                options?.priority ?? 'high',
+            );
         }
     } catch (err) {
         if (!IS_TEST_ENV && typeof import.meta !== 'undefined' && import.meta.env?.DEV) {

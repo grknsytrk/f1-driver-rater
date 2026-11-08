@@ -1,5 +1,6 @@
 import type { Race, RaceResult } from '../types';
 import { parseF1TimeSeconds } from '../utils/f1Time';
+import manifestData from '../../public/data/seasons/manifest.json';
 import type {
     ConstructorStanding,
     DriverStanding,
@@ -71,6 +72,27 @@ function isValidSeasonBundle(data: unknown, expectedSeason: string): data is Com
     );
 }
 
+const STATIC_MANIFEST = manifestData as unknown as SeasonManifest;
+
+export function getSeasonManifestSync(): SeasonManifest {
+    return STATIC_MANIFEST;
+}
+
+/**
+ * Updates the in-memory cached bundle (e.g. after merging newly completed live rounds)
+ * so subsequent queries do not re-fetch or re-merge the same diff rounds.
+ */
+export function updateStaticSeasonBundleInMemory(
+    season: string | number,
+    updates: Partial<CompactSeasonBundle>,
+): void {
+    const seasonKey = String(season).trim();
+    const existing = seasonBundleCache.get(seasonKey);
+    if (existing) {
+        seasonBundleCache.set(seasonKey, { ...existing, ...updates });
+    }
+}
+
 /**
  * Loads a compact season bundle from static asset storage (`/data/seasons/${season}.json`).
  * Implements three-tier caching: resolved memory cache, in-flight promise deduplication,
@@ -79,9 +101,11 @@ function isValidSeasonBundle(data: unknown, expectedSeason: string): data is Com
 export async function loadStaticSeasonData(season: string | number): Promise<CompactSeasonBundle | null> {
     const seasonKey = String(season).trim();
     const seasonNum = Number.parseInt(seasonKey, 10);
+    const maxSupportedSeason = Math.max(2026, new Date().getUTCFullYear() + 1);
+    const manifestEntry = STATIC_MANIFEST?.seasons?.[seasonKey];
 
     // Guard against unsupported seasons without making wasteful 404 network requests
-    if (!Number.isFinite(seasonNum) || seasonNum < 2020 || seasonNum > 2026) {
+    if (!Number.isFinite(seasonNum) || seasonNum < 2020 || (seasonNum > maxSupportedSeason && !manifestEntry)) {
         return null;
     }
 
@@ -112,13 +136,17 @@ export async function loadStaticSeasonData(season: string | number): Promise<Com
         return inFlight;
     }
 
+    const fetchUrl = !isTestEnv && manifestEntry?.bundleUrl
+        ? manifestEntry.bundleUrl
+        : `/data/seasons/${seasonKey}.json`;
+
     const fetchPromise = (async (): Promise<CompactSeasonBundle | null> => {
         try {
             if (typeof fetch !== 'function') {
                 return null;
             }
 
-            const response = await fetch(`/data/seasons/${seasonKey}.json`, {
+            const response = await fetch(fetchUrl, {
                 headers: { Accept: 'application/json' },
             });
 
@@ -203,6 +231,14 @@ export async function getStaticRaces(season: string | number): Promise<Race[] | 
 }
 
 /**
+ * Synchronously retrieves the scheduled race calendar from the in-memory bundle if already loaded.
+ */
+export function getStaticRacesSync(season: string | number): Race[] | null {
+    const bundle = seasonBundleCache.get(String(season).trim());
+    return bundle?.races ?? null;
+}
+
+/**
  * Synchronously retrieves raw race results from the in-memory bundle if already loaded.
  */
 export function getStaticRoundResultsSync(
@@ -261,28 +297,50 @@ export async function getStaticRoundQualifying(
 }
 
 /**
+ * Checks whether a race has finished using its scheduled start date + time + 3-hour buffer.
+ */
+export function isRoundFinished(
+    race: Pick<Race, 'date'> & Partial<Pick<Race, 'time'>>,
+    nowMs: number = Date.now(),
+): boolean {
+    if (!race.date) return false;
+    const rawDate = race.date.trim();
+    const isoStr = rawDate.includes('T')
+        ? rawDate
+        : `${rawDate}T${race.time && race.time.trim().length > 0 ? race.time.trim() : '14:00:00Z'}`;
+    const startMs = new Date(isoStr).getTime();
+    if (!Number.isFinite(startMs)) return false;
+    return nowMs > startMs + 3 * 60 * 60 * 1000;
+}
+
+/**
  * Synchronously checks if a specific round is present in the static bundle for a season.
  */
 export function isRoundInStaticBundle(season: string | number, round: string | number): boolean {
     const seasonKey = String(season).trim();
     const roundKey = String(round).trim();
+    const roundNum = Number.parseInt(roundKey, 10);
+    if (!Number.isFinite(roundNum) || roundNum < 1) return false;
+
     const cached = seasonBundleCache.get(seasonKey);
 
     if (!cached) {
-        const seasonNum = Number.parseInt(seasonKey, 10);
-        if (seasonNum < 2020 || seasonNum > 2026) return false;
-        if (seasonNum < 2026) return true;
-        const roundNum = Number.parseInt(roundKey, 10);
-        return Number.isFinite(roundNum) && roundNum >= 1 && roundNum <= 5;
+        const manifestEntry = STATIC_MANIFEST?.seasons?.[seasonKey];
+        if (!manifestEntry) {
+            const seasonNum = Number.parseInt(seasonKey, 10);
+            return Number.isFinite(seasonNum) && seasonNum >= 2020 && seasonNum < new Date().getUTCFullYear();
+        }
+        if (manifestEntry.isArchived) {
+            return roundNum <= manifestEntry.totalRounds;
+        }
+        return roundNum <= (manifestEntry.lastCompletedRound ?? 0);
     }
 
     if (cached.isArchived) {
-        const roundNum = Number.parseInt(roundKey, 10);
-        return Number.isFinite(roundNum) && roundNum >= 1 && roundNum <= cached.totalRounds;
+        return roundNum <= cached.totalRounds;
     }
 
-    const roundNum = Number.parseInt(roundKey, 10);
-    return Number.isFinite(roundNum) && roundNum >= 1 && roundNum <= (cached.lastCompletedRound ?? 0);
+    return roundNum <= (cached.lastCompletedRound ?? 0);
 }
 
 /**
@@ -303,7 +361,7 @@ export function detectNewlyCompletedRounds(
     }
 
     const baselineRound = bundle.lastCompletedRound ?? 0;
-    const referenceDate = now ?? new Date();
+    const referenceMs = (now ?? new Date()).getTime();
 
     return races.filter(race => {
         const roundNum = Number.parseInt(race.round, 10);
@@ -311,9 +369,7 @@ export function detectNewlyCompletedRounds(
             return false;
         }
 
-        if (!race.date) return false;
-        const raceDate = new Date(race.date);
-        return raceDate < referenceDate;
+        return isRoundFinished(race, referenceMs);
     });
 }
 
