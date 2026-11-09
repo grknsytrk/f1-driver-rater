@@ -262,12 +262,14 @@ describe('Milestone 5 — End-to-End Pipeline & Adversarial Hardening (R1–R5)'
 
         it('hydrates 2026 current-season Standings, Awards, Quick Rate & Teammate Wars from 2026 bundle with 0 Jolpica calls when no newer round finished', async () => {
             const bundle2026 = STATIC_BUNDLES['2026'];
-            // Pin system time before next round's finish dynamically derived from bundle's lastCompletedRound
-            const nextRoundNum = (bundle2026.lastCompletedRound ?? 0) + 1;
-            const nextRace = bundle2026.races.find(r => Number.parseInt(r.round, 10) === nextRoundNum);
-            const pinnedTime = nextRace?.date
-                ? new Date(`${nextRace.date}T00:00:00Z`)
+            // Pin system time just after the last completed race (start + 4h) so that
+            // the next round's sessions, including its qualifying, have not happened yet.
+            const lastCompletedRound = bundle2026.lastCompletedRound ?? 0;
+            const lastRace = bundle2026.races.find(r => Number.parseInt(r.round, 10) === lastCompletedRound);
+            const lastRaceStart = lastRace?.date
+                ? new Date(`${lastRace.date}T${lastRace.time ?? '14:00:00Z'}`)
                 : new Date('2026-11-08T12:00:00Z');
+            const pinnedTime = new Date(lastRaceStart.getTime() + 4 * 60 * 60 * 1000);
 
             vi.useFakeTimers();
             vi.setSystemTime(pinnedTime);
