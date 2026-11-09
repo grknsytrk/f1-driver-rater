@@ -3,6 +3,7 @@ import type { CommunityDistributionStatus } from '../hooks/useCommunityRatings';
 import {
     COMMUNITY_AGREEMENT_MIN_ASSESSED_RACES,
     COMMUNITY_AGREEMENT_MIN_QUICK_VOTES,
+    COMMUNITY_AGREEMENT_TOLERANCE,
     COMMUNITY_DISTRIBUTION_MIN_VOTES,
     summarizeCommunityDistribution,
     type CommunityRatingDistribution as Distribution,
@@ -11,10 +12,10 @@ import type { CommunityStatus } from '../utils/communityRatings';
 import { getRatingColor } from '../utils/ratingColor';
 
 const AGREEMENT_LABELS = {
-    consensus: 'VERY SIMILAR RATINGS',
-    mostlyAgreed: 'SIMILAR RATINGS',
-    mixed: 'MIXED RATINGS',
-    lowAgreement: 'VERY DIFFERENT RATINGS',
+    consensus: 'ALMOST ALL AGREE',
+    mostlyAgreed: 'MOSTLY AGREE',
+    mixed: 'OPINIONS DIFFER',
+    lowAgreement: 'STRONGLY DIVIDED',
 } as const;
 
 const AGREEMENT_COLORS = {
@@ -130,8 +131,8 @@ export function CommunityRatingDistribution({
                 <summary className="cursor-pointer hover:text-white">About agreement</summary>
                 <p className="mt-1">
                     {summary.raceCount > 0
-                        ? `The score reflects the average gap between pairs of ratings: 100 means the ratings match, while 0 means the biggest possible gap. Each race with at least 2 votes counts equally; a label appears after ${COMMUNITY_AGREEMENT_MIN_ASSESSED_RACES} races meet that requirement.`
-                        : `The score reflects the average gap between pairs of ratings: 100 means the ratings match, while 0 means the biggest possible gap. A label appears after ${COMMUNITY_AGREEMENT_MIN_QUICK_VOTES} Quick Rate votes.`}
+                        ? `The score is the share of rating pairs within ${COMMUNITY_AGREEMENT_TOLERANCE} point of each other: 100 means every pair is that close, 0 means no pair is. Pairs exactly one point apart still count as agreeing. Each race with at least 2 votes counts equally; a label appears after ${COMMUNITY_AGREEMENT_MIN_ASSESSED_RACES} races meet that requirement.`
+                        : `The score is the share of rating pairs within ${COMMUNITY_AGREEMENT_TOLERANCE} point of each other: 100 means every pair is that close, 0 means no pair is. Pairs exactly one point apart still count as agreeing. A label appears after ${COMMUNITY_AGREEMENT_MIN_QUICK_VOTES} Quick Rate votes.`}
                     {summary.agreementStabilityInterval && ' The estimate range shows how the score shifts when the available races and votes are resampled.'}
                 </p>
             </details>

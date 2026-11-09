@@ -2,6 +2,7 @@ export const COMMUNITY_DISTRIBUTION_MIN_VOTES = 2;
 export const COMMUNITY_AGREEMENT_MIN_ASSESSED_RACES = 5;
 export const COMMUNITY_AGREEMENT_MIN_QUICK_VOTES = 5;
 export const COMMUNITY_AGREEMENT_BOOTSTRAP_RESAMPLES = 10_000;
+export const COMMUNITY_AGREEMENT_TOLERANCE = 1;
 
 export interface CommunityRatingBucket {
     score: number;
@@ -106,18 +107,19 @@ function pairwiseAgreement(scores: number[], counts: number[], voteCount: number
     const pairs = voteCount * (voteCount - 1) / 2;
     if (pairs <= 0) return 0;
 
-    let totalPairwiseGap = 0;
-    let previousCount = 0;
-    let previousWeightedScore = 0;
+    // Scores are ascending half-point buckets. A pair agrees when the two
+    // ratings are at most one point apart; same-bucket pairs always agree.
+    let agreeingPairs = 0;
     for (let left = 0; left < scores.length; left += 1) {
-        const count = counts[left];
-        totalPairwiseGap += count * (scores[left] * previousCount - previousWeightedScore);
-        previousCount += count;
-        previousWeightedScore += count * scores[left];
+        agreeingPairs += counts[left] * (counts[left] - 1) / 2;
+        for (let right = left + 1; right < scores.length; right += 1) {
+            if (scores[right] - scores[left] <= COMMUNITY_AGREEMENT_TOLERANCE) {
+                agreeingPairs += counts[left] * counts[right];
+            }
+        }
     }
 
-    const maxRatingGap = 9.5; // Ratings run from 0.5 to 10.
-    return Math.max(0, Math.min(100, 100 * (1 - totalPairwiseGap / (pairs * maxRatingGap))));
+    return Math.max(0, Math.min(100, 100 * agreeingPairs / pairs));
 }
 
 function roundAgreement(scope: CommunityRatingRoundDistribution): number {

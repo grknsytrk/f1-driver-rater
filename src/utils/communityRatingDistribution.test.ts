@@ -36,10 +36,10 @@ describe('community rating distribution', () => {
     });
 
     it.each([
-        [7.5, 94.7368421053, 'consensus'], [8, 89.4736842105, 'mostlyAgreed'],
-        [8.5, 84.2105263158, 'mostlyAgreed'], [9, 78.9473684211, 'mostlyAgreed'],
-        [9.5, 73.6842105263, 'mixed'], [10, 68.4210526316, 'mixed'],
-    ])('scores the average rating gap between 7 and %s', (rating, expected, agreement) => {
+        [7.5, 100, 'consensus'], [8, 100, 'consensus'],
+        [8.5, 0, 'lowAgreement'], [9, 0, 'lowAgreement'],
+        [9.5, 0, 'lowAgreement'], [10, 0, 'lowAgreement'],
+    ])('scores the share of pairs within one point between 7 and %s', (rating, expected, agreement) => {
         expect(summary(repeatedRaceRows([7, rating]))).toMatchObject({
             agreementScore: expect.closeTo(expected, 9), agreement, assessedRaceCount: 5, raceCount: 5,
         });
@@ -57,7 +57,7 @@ describe('community rating distribution', () => {
     });
 
     it.each([
-        [1, 91.5789473684, 'consensus'], [2, 84.0443213296, 'mostlyAgreed'], [4, 71.6343490305, 'mixed'],
+        [1, 90, 'consensus'], [2, 81.0526315789, 'mostlyAgreed'], [4, 66.3157894737, 'mixed'],
     ])('retains %s extreme votes without letting their distance dominate agreement', (outliers, score, agreement) => {
         const result = summary(repeatedRaceRows([...Array(20 - outliers).fill(8.5), ...Array(outliers).fill(0.5)]));
         expect(result.agreementScore).toBeCloseTo(score);
@@ -73,7 +73,7 @@ describe('community rating distribution', () => {
     it('keeps single-vote races in the histogram but excludes them from agreement', () => {
         const result = summary([rpcRow([8, 8.5], '1'), rpcRow([0.5], '2')]);
         expect(result.averageRating).toBeCloseTo(17 / 3);
-        expect(result.agreementScore).toBeCloseTo(94.7368421053, 9);
+        expect(result.agreementScore).toBeCloseTo(100, 9);
         expect(result).toMatchObject({ assessedRaceCount: 1, raceCount: 2 });
     });
 
@@ -85,7 +85,7 @@ describe('community rating distribution', () => {
 
     it('assesses Quick Rate votes directly without inventing race coverage', () => {
         expect(summary([rpcRow([7, 8], null)], 'quick')).toMatchObject({
-            averageRating: 7.5, agreementScore: expect.closeTo(89.4736842105, 9), agreement: null, assessedRaceCount: 0, raceCount: 0,
+            averageRating: 7.5, agreementScore: expect.closeTo(100, 9), agreement: null, assessedRaceCount: 0, raceCount: 0,
         });
     });
 

@@ -3,36 +3,35 @@
 The Results distribution panel describes agreement among the available votes.
 It does not estimate how representative those votes are of all F1 fans.
 
-For two ratings of the same driver in the same race, let `d` be their absolute
-score difference. Their disagreement contribution is
-`clamp((d - 1) / 2, 0, 1)`: differences up to one point contribute zero;
-differences of three or more points contribute one. Differences in between
-contribute proportionally.
+For two ratings of the same driver in the same race, they count as agreeing
+when their absolute difference is at most one point. Race agreement is the
+percentage of distinct vote pairs that agree:
 
-Race agreement is `100 * (1 - average pair disagreement)`, considering every
-distinct pair of votes exactly once. Equal-score pairs count toward the pair
-total and contribute zero disagreement. Bucket counts permit the calculation
-without exposing or expanding individual votes.
+`100 * agreeing pairs / all pairs`
+
+Equal-score pairs agree. Bucket counts permit the calculation without exposing
+or expanding individual votes.
 
 At least **two votes in the same race** are required to assess it. The season
 agreement score is the equally weighted mean of assessed race scores. Single-vote
 races remain in the season histogram and pooled average, but do not enter the
-agreement score. Coverage is shown as assessed races / races with votes.
-If no race can be assessed, the panel shows `EARLY DATA`, even when there are
-many single-vote races. Quick Rate uses the same pair calculation directly on
-its season-wide votes, with the same two-vote minimum.
+agreement score. Coverage is shown as assessed races / races with votes. A label
+appears after five assessed races, or after five Quick Rate votes; before that
+the score is shown without a label. Quick Rate uses the same pair calculation
+directly on its season-wide votes.
 
 | Agreement score | Label |
 | --- | --- |
-| 90–100 | CONSENSUS |
-| 75–below 90 | MOSTLY AGREED |
-| 55–below 75 | MIXED |
-| Below 55 | LOW AGREEMENT |
+| 90–100 | ALMOST ALL AGREE |
+| 75–below 90 | MOSTLY AGREE |
+| 55–below 75 | OPINIONS DIFFER |
+| Below 55 | STRONGLY DIVIDED |
 
-The tolerances and label boundaries are product choices, not statistical
-significance thresholds. An agreement score is an index out of 100, not a
-percentage of people who agree. `LOW AGREEMENT` deliberately makes no claim
-that the distribution consists of two opposing camps.
+The one-point tolerance and label boundaries are product choices, not
+statistical significance thresholds. An agreement score is the share of voter
+pairs within the tolerance, not a percentage of people who agree.
+`STRONGLY DIVIDED` deliberately makes no claim that the distribution consists
+of two opposing camps.
 
 The main community season rating still averages all race means equally;
 `POOLED AVG` in the histogram weights each vote equally. Agreement measures
