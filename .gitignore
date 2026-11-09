@@ -27,3 +27,4 @@ dist-ssr
 components.json
 .cursor/
 supabase/.temp/
+public/data/seasons/*.tmp

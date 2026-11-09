@@ -692,6 +692,45 @@ function validateSeasonBundle(bundle) {
     }
 }
 
+function stripVolatileFields(bundle) {
+    const copy = { ...bundle };
+    delete copy.generatedAt;
+    return copy;
+}
+
+function stableStringify(value) {
+    if (Array.isArray(value)) {
+        return `[${value.map(item => stableStringify(item)).join(',')}]`;
+    }
+    if (value && typeof value === 'object') {
+        const keys = Object.keys(value).sort();
+        return `{${keys.map(key => `${JSON.stringify(key)}:${stableStringify(value[key])}`).join(',')}}`;
+    }
+    return JSON.stringify(value);
+}
+
+function isDeepEqual(a, b) {
+    return stableStringify(a) === stableStringify(b);
+}
+
+function toManifestEntry(bundle) {
+    return {
+        season: bundle.season,
+        isArchived: bundle.isArchived,
+        lastCompletedRound: bundle.lastCompletedRound,
+        totalRounds: bundle.totalRounds,
+        generatedAt: bundle.generatedAt,
+        bundleUrl: `/data/seasons/${bundle.season}.json?v=${encodeURIComponent(bundle.generatedAt)}`,
+    };
+}
+
+function syncManifestEntry(manifestSeasons, season, bundle) {
+    const entry = toManifestEntry(bundle);
+    if (!isDeepEqual(manifestSeasons[season], entry)) {
+        manifestSeasons[season] = entry;
+    }
+}
+
 async function writeBundleAtomic(season, bundle, dryRun = false) {
     validateSeasonBundle(bundle);
     const filename = `${season}.json`;
@@ -730,6 +769,7 @@ async function main() {
     const force = args.includes('--force');
     const dryRun = args.includes('--dry-run');
     const mock = args.includes('--mock');
+    const skipUnchanged = args.includes('--skip-unchanged');
 
     const seasonArgIdx = args.indexOf('--season');
     const specificSeason = seasonArgIdx !== -1 ? args[seasonArgIdx + 1] : null;
@@ -744,13 +784,15 @@ async function main() {
 
     console.log(`F1 Static Season Data Generator`);
     console.log(`Target seasons: ${targetSeasons.join(', ')}`);
-    console.log(`Options: force=${force}, dryRun=${dryRun}, mock=${mock}`);
+    console.log(`Options: force=${force}, dryRun=${dryRun}, mock=${mock}, skipUnchanged=${skipUnchanged}`);
 
     // Read existing manifest if available
     let existingManifest = { version: 1, generatedAt: new Date().toISOString(), seasons: {} };
+    let hadManifest = false;
     try {
         const manifestContent = await readFile(MANIFEST_PATH, 'utf8');
         existingManifest = JSON.parse(manifestContent);
+        hadManifest = true;
     } catch {
         // no manifest yet
     }
@@ -773,37 +815,42 @@ async function main() {
         // Incremental check: If season is archived and bundle exists and not --force, skip
         if (existingBundle && existingBundle.isArchived && !force) {
             console.log(`Skipping season ${season} (already generated and archived; use --force to overwrite)`);
-            manifestSeasons[season] = {
-                season,
-                isArchived: existingBundle.isArchived,
-                lastCompletedRound: existingBundle.lastCompletedRound,
-                totalRounds: existingBundle.totalRounds,
-                generatedAt: existingBundle.generatedAt,
-                bundleUrl: `/data/seasons/${season}.json?v=${encodeURIComponent(existingBundle.generatedAt)}`,
-            };
+            syncManifestEntry(manifestSeasons, season, existingBundle);
             continue;
         }
 
         const bundle = await generateSeasonBundle(season, { mock });
-        await writeBundleAtomic(season, bundle, dryRun);
 
-        manifestSeasons[season] = {
-            season,
-            isArchived: bundle.isArchived,
-            lastCompletedRound: bundle.lastCompletedRound,
-            totalRounds: bundle.totalRounds,
-            generatedAt: bundle.generatedAt,
-            bundleUrl: `/data/seasons/${season}.json?v=${encodeURIComponent(bundle.generatedAt)}`,
-        };
+        if (
+            skipUnchanged &&
+            existingBundle &&
+            isDeepEqual(stripVolatileFields(bundle), stripVolatileFields(existingBundle))
+        ) {
+            console.log(`No data changes for season ${season}; skipping write.`);
+            syncManifestEntry(manifestSeasons, season, existingBundle);
+            continue;
+        }
+
+        await writeBundleAtomic(season, bundle, dryRun);
+        manifestSeasons[season] = toManifestEntry(bundle);
     }
 
-    // Write updated manifest
+    // Only rewrite the manifest when a season entry actually changed.
     const finalManifest = {
         version: 1,
         generatedAt: new Date().toISOString(),
         seasons: manifestSeasons,
     };
-    await writeManifest(finalManifest, dryRun);
+    const manifestChanged = !hadManifest || !isDeepEqual(
+        { version: finalManifest.version, seasons: finalManifest.seasons },
+        { version: existingManifest.version, seasons: existingManifest.seasons },
+    );
+
+    if (manifestChanged) {
+        await writeManifest(finalManifest, dryRun);
+    } else {
+        console.log('No manifest changes; skipping write.');
+    }
 
     console.log(`\nAll done! Static season pipeline complete.`);
 }

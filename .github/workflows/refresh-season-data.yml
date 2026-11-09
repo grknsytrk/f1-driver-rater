@@ -1,0 +1,107 @@
+name: Refresh Season Data
+
+# GitHub Actions cron always runs in UTC.
+# Turkey is UTC+3 year-round, so the schedule below covers:
+#   Sunday 00:00 TRT -> Monday 12:00 TRT, every hour.
+on:
+  workflow_dispatch:
+    inputs:
+      season:
+        description: 'Season year to refresh'
+        required: true
+        default: '2026'
+        type: string
+      force:
+        description: 'Also regenerate archived seasons (ignores the archived skip)'
+        required: false
+        default: false
+        type: boolean
+  schedule:
+    # Saturday 21:00-23:00 UTC = Sunday 00:00-02:59 TRT
+    - cron: '0 21-23 * * 6'
+    # Sunday 00:00-23:00 UTC = Sunday 03:00 - Monday 02:59 TRT
+    - cron: '0 * * * 0'
+    # Monday 00:00-09:00 UTC = Monday 03:00-12:00 TRT
+    - cron: '0 0-9 * * 1'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: refresh-season-data
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Check Monday cutoff
+        id: window
+        shell: bash
+        run: |
+          # Scheduled runs should never start after Monday 12:00 TRT (09:00 UTC).
+          # Manual workflow_dispatch runs always bypass this guard.
+          if [ "${{ github.event_name }}" = "schedule" ] && [ "$(date -u +%u)" = "1" ] && [ "$(date -u +%-H)" -ge 10 ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "Monday 12:00 TRT cutoff passed; skipping this delayed run."
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout
+        if: steps.window.outputs.skip != 'true'
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        if: steps.window.outputs.skip != 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Generate season bundle
+        if: steps.window.outputs.skip != 'true'
+        shell: bash
+        env:
+          SEASON: ${{ inputs.season || '2026' }}
+          FORCE: ${{ inputs.force || 'false' }}
+        run: |
+          args=(--season "$SEASON" --skip-unchanged)
+          if [ "$FORCE" = "true" ]; then
+            args+=(--force)
+          fi
+          echo "Running: node scripts/generate-season-data.mjs ${args[*]}"
+          node scripts/generate-season-data.mjs "${args[@]}"
+
+      - name: Detect data changes
+        id: changes
+        if: steps.window.outputs.skip != 'true'
+        shell: bash
+        run: |
+          if [ -n "$(git status --porcelain -- 'public/data/seasons/*.json')" ]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            git status --short -- 'public/data/seasons/*.json'
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "No season data changes."
+          fi
+
+      - name: Commit and push
+        if: steps.changes.outputs.changed == 'true'
+        shell: bash
+        env:
+          SEASON: ${{ inputs.season || '2026' }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- 'public/data/seasons/*.json'
+
+          ROUND=$(node -e "const m=require('./public/data/seasons/manifest.json'); const s=process.env.SEASON; console.log(m.seasons?.[s]?.lastCompletedRound ?? '?')")
+          git commit -m "data(${SEASON}): refresh season bundle (round ${ROUND})"
+
+          # Keep the push safe if someone pushed to the branch while the job was running.
+          git pull --rebase origin "${GITHUB_REF_NAME}"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
