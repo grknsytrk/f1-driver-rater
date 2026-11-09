@@ -97,8 +97,8 @@ export function normalizeCommunityDistributions(
 
 export function getCommunityAgreement(agreementScore: number): CommunityAgreement | null {
     if (!Number.isFinite(agreementScore) || agreementScore < 0 || agreementScore > 100) return null;
-    if (agreementScore >= 90) return 'consensus';
-    if (agreementScore >= 75) return 'mostlyAgreed';
+    if (agreementScore >= 85) return 'consensus';
+    if (agreementScore >= 70) return 'mostlyAgreed';
     if (agreementScore >= 55) return 'mixed';
     return 'lowAgreement';
 }

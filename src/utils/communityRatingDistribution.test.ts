@@ -120,10 +120,10 @@ describe('community rating distribution', () => {
 
     it('labels agreement at the exact score boundaries', () => {
         expect(getCommunityAgreement(100)).toBe('consensus');
-        expect(getCommunityAgreement(90)).toBe('consensus');
-        expect(getCommunityAgreement(89.999)).toBe('mostlyAgreed');
-        expect(getCommunityAgreement(75)).toBe('mostlyAgreed');
-        expect(getCommunityAgreement(74.999)).toBe('mixed');
+        expect(getCommunityAgreement(85)).toBe('consensus');
+        expect(getCommunityAgreement(84.999)).toBe('mostlyAgreed');
+        expect(getCommunityAgreement(70)).toBe('mostlyAgreed');
+        expect(getCommunityAgreement(69.999)).toBe('mixed');
         expect(getCommunityAgreement(55)).toBe('mixed');
         expect(getCommunityAgreement(54.999)).toBe('lowAgreement');
         expect(getCommunityAgreement(0)).toBe('lowAgreement');

@@ -22,9 +22,9 @@ directly on its season-wide votes.
 
 | Agreement score | Label |
 | --- | --- |
-| 90–100 | ALMOST ALL AGREE |
-| 75–below 90 | MOSTLY AGREE |
-| 55–below 75 | OPINIONS DIFFER |
+| 85–100 | ALMOST ALL AGREE |
+| 70–below 85 | MOSTLY AGREE |
+| 55–below 70 | OPINIONS DIFFER |
 | Below 55 | STRONGLY DIVIDED |
 
 The one-point tolerance and label boundaries are product choices, not
