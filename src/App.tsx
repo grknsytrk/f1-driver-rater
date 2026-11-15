@@ -229,6 +229,10 @@ function App() {
   const [sitePolicyOpen, setSitePolicyOpen] = useState(false);
 
   useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [location.pathname]);
+
+  useEffect(() => {
     void initializeGuestSync();
 
     const handleStorageSync = () => {
@@ -453,7 +457,7 @@ function App() {
 
       {/* Main Content - flex-1 pushes footer to bottom */}
       <main className="flex-1 max-w-6xl mx-auto px-4 py-8 w-full">
-        <AnimatePresence mode="wait">
+        <AnimatePresence mode="wait" onExitComplete={() => window.scrollTo(0, 0)}>
           <Routes location={location} key={location.pathname}>
             <Route path="/" element={<SeasonPage />} />
             <Route path="/:season" element={<RacesPage />} />
