@@ -189,8 +189,19 @@ export function ResultsDashboard({ season, onReset, onSelectDriver }: ResultsDas
             'season',
         ),
     }));
+    const activeMinimumRatedRaces = activeMode === 'community'
+        ? (votedCommunityRaces > 0 ? Math.ceil(votedCommunityRaces * 0.5) : 0)
+        : minimumRatedRaces;
     const sortedDriverRatingRows = [...driverRatingRows].sort((a, b) => {
         if (!driverRatingsSort) return 0;
+
+        if (driverRatingsSort === 'communityAverage' || driverRatingsSort === 'myAverage') {
+            const aQualified = a.driver.totalRaces >= activeMinimumRatedRaces;
+            const bQualified = b.driver.totalRaces >= activeMinimumRatedRaces;
+            if (aQualified !== bQualified) {
+                return aQualified ? -1 : 1;
+            }
+        }
 
         const getSortValue = (row: typeof driverRatingRows[number]) => {
             switch (driverRatingsSort) {
