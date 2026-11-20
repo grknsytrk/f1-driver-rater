@@ -874,6 +874,7 @@ export function DriverProfilePage({
                 stats={driverIdentity.stats}
                 calendar={calendar}
                 raceResults={raceResults}
+                qualiResults={qualiResults}
                 sprintResults={sprintResults}
                 portraitUrl={portrait}
             />

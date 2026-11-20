@@ -1,12 +1,19 @@
 import { useMemo, useRef, useState, type RefObject } from 'react';
 import { toPng } from 'html-to-image';
 import { Download, ImageDown, Loader2 } from 'lucide-react';
-import type { DriverSeasonStats, SeasonRaceResult, SeasonSprintResult } from '../api/f1Api';
+import type {
+    DriverSeasonStats,
+    SeasonQualifyingResult,
+    SeasonRaceResult,
+    SeasonSprintResult,
+} from '../api/f1Api';
 import type { Race } from '../types';
 import { TEAM_COLORS } from '../types';
 import { CountryFlag } from '../utils/countryFlags';
 import { COUNTRY_CODES } from '../utils/countryCodes';
 import { getCountryCode } from '../utils/storage';
+
+export type SeasonCardMode = 'race' | 'qualifying';
 
 interface DriverSeasonCardGeneratorProps {
     season: string;
@@ -17,6 +24,7 @@ interface DriverSeasonCardGeneratorProps {
     stats: DriverSeasonStats | null;
     calendar: Race[];
     raceResults: SeasonRaceResult[];
+    qualiResults?: SeasonQualifyingResult[];
     sprintResults: SeasonSprintResult[];
     portraitUrl: string | null;
 }
@@ -209,14 +217,73 @@ function useSeasonCardRaces(
     }, [driverId, calendar, raceResults, sprintResults]);
 }
 
+function useSeasonCardQualifying(
+    driverId: string,
+    calendar: Race[],
+    qualiResults: SeasonQualifyingResult[],
+    raceResults: SeasonRaceResult[],
+): CardRace[] {
+    return useMemo(() => {
+        const qualiByRound = new Map<string, SeasonQualifyingResult>();
+        const raceByRound = new Map<string, SeasonRaceResult>();
+        const roundsWithQualiResults = new Set<string>();
+        const roundsWithRaceResults = new Set<string>();
+
+        for (const result of qualiResults) {
+            const round = normalizeRound(result.round);
+            roundsWithQualiResults.add(round);
+            if (result.driverId === driverId) qualiByRound.set(round, result);
+        }
+        for (const result of raceResults) {
+            const round = normalizeRound(result.round);
+            roundsWithRaceResults.add(round);
+            if (result.driverId === driverId) raceByRound.set(round, result);
+        }
+
+        return [...calendar]
+            .sort((a, b) => Number.parseInt(a.round, 10) - Number.parseInt(b.round, 10))
+            .map(race => {
+                const round = normalizeRound(race.round);
+                const quali = qualiByRound.get(round);
+                const raceRes = raceByRound.get(round);
+                const hasQualiRound = roundsWithQualiResults.has(round);
+                const hasRaceRound = roundsWithRaceResults.has(round);
+                const raceCountryCode = getCountryCode(race.raceName);
+
+                let position: number | null | undefined | '—';
+                if (quali && quali.position > 0) {
+                    position = quali.position;
+                } else if (!hasQualiRound && raceRes?.gridPosition && raceRes.gridPosition > 0) {
+                    position = raceRes.gridPosition;
+                } else if (hasQualiRound || hasRaceRound) {
+                    position = '—';
+                } else {
+                    position = undefined;
+                }
+
+                return {
+                    round,
+                    raceName: race.raceName,
+                    countryCode: raceCountryCode !== 'XX'
+                        ? raceCountryCode
+                        : COUNTRY_CODES[race.Circuit.Location.country] ?? 'XX',
+                    position,
+                    sprintPosition: undefined,
+                };
+            });
+    }, [driverId, calendar, qualiResults, raceResults]);
+}
+
 function getSeasonTeam(
     driverId: string,
     raceResults: SeasonRaceResult[],
+    qualiResults: SeasonQualifyingResult[],
     fallbackId: string,
     fallbackName: string,
 ) {
     const counts = new Map<string, { id: string; name: string; count: number; latestRound: number }>();
-    for (const result of raceResults) {
+    const sourceResults = raceResults.some(r => r.driverId === driverId) ? raceResults : qualiResults;
+    for (const result of sourceResults) {
         if (result.driverId !== driverId) continue;
         const row = counts.get(result.constructorId) ?? {
             id: result.constructorId,
@@ -266,6 +333,7 @@ function CardRaceRow({ race }: { race: CardRace }) {
 
 function SeasonCardArtwork({
     cardRef,
+    mode,
     season,
     driverName,
     teamId,
@@ -276,6 +344,7 @@ function SeasonCardArtwork({
     portraitUrl,
 }: {
     cardRef: RefObject<HTMLDivElement | null>;
+    mode: SeasonCardMode;
     season: string;
     driverName: string;
     teamId: string;
@@ -295,6 +364,15 @@ function SeasonCardArtwork({
     const leftRaces = races.slice(0, rowsPerColumn);
     const rightRaces = races.slice(rowsPerColumn);
     const points = stats ? Number(stats.points).toLocaleString() : '—';
+    const validQualiPositions = races
+        .map(r => r.position)
+        .filter((pos): pos is number => typeof pos === 'number' && Number.isFinite(pos) && pos > 0);
+    const polesCount = validQualiPositions.length > 0
+        ? validQualiPositions.filter(pos => pos === 1).length
+        : (stats?.poles ?? 0);
+    const avgQuali = validQualiPositions.length > 0
+        ? (validQualiPositions.reduce((sum, pos) => sum + pos, 0) / validQualiPositions.length).toFixed(1)
+        : '—';
     const accent = TEAM_ACCENTS[teamId] || TEAM_COLORS[teamId] || teamColor;
     const givenNameFontSize = fittedFontSize(givenName, 'Segoe Script', 400, 49, 300);
     const familyNameFontSize = fittedFontSize(familyName.toUpperCase(), 'Formula1-Black', 900, 46, 300, -0.025);
@@ -372,16 +450,33 @@ function SeasonCardArtwork({
                 className="absolute bottom-[38px] right-[34px] z-20 flex h-[150px] w-[420px] flex-col items-center justify-center gap-1 rounded-[34px] border-[3px] border-white bg-black/80 px-3 py-2 text-white"
                 style={{ boxShadow: '0 12px 34px rgba(0,0,0,0.24)' }}
             >
-                <div className="season-card-bold flex items-center justify-center gap-2 whitespace-nowrap text-[48px] leading-none">
-                    <span className="inline-flex items-center gap-[3px]">WDC<CardColon /></span>
-                    <span style={{ color: resultColor(Number(stats?.position) || undefined) }}>
-                        {stats?.position ? ordinal(Number(stats.position)) : '—'}
-                    </span>
-                </div>
-                <div className="season-card-bold flex items-center justify-center gap-2 whitespace-nowrap text-[48px] leading-none">
-                    <span className="inline-flex items-center gap-[3px]">Pts<CardColon /></span>
-                    <span>{points}</span>
-                </div>
+                {mode === 'qualifying' ? (
+                    <>
+                        <div className="season-card-bold flex items-center justify-center gap-2 whitespace-nowrap text-[48px] leading-none">
+                            <span className="inline-flex items-center gap-[3px]">Poles<CardColon /></span>
+                            <span style={{ color: polesCount > 0 ? '#ffd451' : '#f2f3f4' }}>
+                                {polesCount}
+                            </span>
+                        </div>
+                        <div className="season-card-bold flex items-center justify-center gap-2 whitespace-nowrap text-[48px] leading-none">
+                            <span className="inline-flex items-center gap-[3px]">Avg<CardColon /></span>
+                            <span>{avgQuali}</span>
+                        </div>
+                    </>
+                ) : (
+                    <>
+                        <div className="season-card-bold flex items-center justify-center gap-2 whitespace-nowrap text-[48px] leading-none">
+                            <span className="inline-flex items-center gap-[3px]">WDC<CardColon /></span>
+                            <span style={{ color: resultColor(Number(stats?.position) || undefined) }}>
+                                {stats?.position ? ordinal(Number(stats.position)) : '—'}
+                            </span>
+                        </div>
+                        <div className="season-card-bold flex items-center justify-center gap-2 whitespace-nowrap text-[48px] leading-none">
+                            <span className="inline-flex items-center gap-[3px]">Pts<CardColon /></span>
+                            <span>{points}</span>
+                        </div>
+                    </>
+                )}
             </div>
         </div>
     );
@@ -390,28 +485,39 @@ function SeasonCardArtwork({
 export function DriverSeasonCardGenerator(props: DriverSeasonCardGeneratorProps) {
     const cardRef = useRef<HTMLDivElement>(null);
     const previewRef = useRef<HTMLDivElement>(null);
-    const [isGenerating, setIsGenerating] = useState(false);
+    const [cardMode, setCardMode] = useState<SeasonCardMode>('race');
+    const [generatingMode, setGeneratingMode] = useState<SeasonCardMode | null>(null);
     const [cardImage, setCardImage] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
-    const races = useSeasonCardRaces(props.driverId, props.calendar, props.raceResults, props.sprintResults);
-    const team = getSeasonTeam(props.driverId, props.raceResults, props.fallbackConstructorId, props.fallbackConstructorName);
+    const qualiResults = props.qualiResults ?? [];
+    const raceEntries = useSeasonCardRaces(props.driverId, props.calendar, props.raceResults, props.sprintResults);
+    const qualiEntries = useSeasonCardQualifying(props.driverId, props.calendar, qualiResults, props.raceResults);
+    const activeEntries = cardMode === 'qualifying' ? qualiEntries : raceEntries;
+    const team = getSeasonTeam(props.driverId, props.raceResults, qualiResults, props.fallbackConstructorId, props.fallbackConstructorName);
     const cardPortraitUrl = CARD_PORTRAIT_OVERRIDES[props.driverId] ?? props.portraitUrl;
     const teamColor = TEAM_ACCENTS[team.id] || TEAM_COLORS[team.id] || '#e10600';
-    const cardHeight = Math.max(1200, HEADER_HEIGHT + Math.ceil(races.length / 2) * ROW_HEIGHT + BOTTOM_PADDING);
+    const isGenerating = generatingMode !== null;
 
-    async function createCard() {
-        if (!cardRef.current || races.length === 0) return;
-        setIsGenerating(true);
+    async function createCard(mode: SeasonCardMode) {
+        const targetEntries = mode === 'qualifying' ? qualiEntries : raceEntries;
+        if (targetEntries.length === 0) return;
+        setCardMode(mode);
+        setGeneratingMode(mode);
         setError(null);
         setCardImage(null);
         try {
+            await new Promise<void>(resolve => {
+                window.setTimeout(resolve, 0);
+            });
+            if (!cardRef.current) return;
+            const targetHeight = Math.max(1200, HEADER_HEIGHT + Math.ceil(targetEntries.length / 2) * ROW_HEIGHT + BOTTOM_PADDING);
             await document.fonts?.ready;
             await Promise.all(Array.from(cardRef.current.querySelectorAll('img')).map(image => image.decode().catch(() => undefined)));
             const dataUrl = await toPng(cardRef.current, {
                 cacheBust: true,
                 pixelRatio: 2,
                 width: ART_WIDTH,
-                height: cardHeight,
+                height: targetHeight,
                 backgroundColor: '#070b10',
             });
             setCardImage(dataUrl);
@@ -420,7 +526,7 @@ export function DriverSeasonCardGenerator(props: DriverSeasonCardGeneratorProps)
             console.error('Failed to create driver season card:', cause);
             setError('The card could not be created. Please try again.');
         } finally {
-            setIsGenerating(false);
+            setGeneratingMode(null);
         }
     }
 
@@ -428,29 +534,41 @@ export function DriverSeasonCardGenerator(props: DriverSeasonCardGeneratorProps)
         if (!cardImage) return;
         const link = document.createElement('a');
         const safeDriverName = props.driverName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-        link.download = `f1-${safeDriverName}-${props.season}-season-card.png`;
+        const suffix = cardMode === 'qualifying' ? 'quali-card' : 'season-card';
+        link.download = `f1-${safeDriverName}-${props.season}-${suffix}.png`;
         link.href = cardImage;
         link.click();
     }
 
     return (
-            <section id="season-share-card" className="space-y-4 border border-[var(--border-color)] bg-[var(--bg-panel)] p-4 md:p-5">
+        <section id="season-share-card" className="space-y-4 border border-[var(--border-color)] bg-[var(--bg-panel)] p-4 md:p-5">
             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                 <div>
-                        <h3 className="font-display text-lg uppercase tracking-wide text-white">GENERATE SEASON CARD</h3>
+                    <h3 className="font-display text-lg uppercase tracking-wide text-white">GENERATE SEASON CARD</h3>
                     <p className="mt-1 font-oxanium text-xs text-[var(--text-secondary)]">
-                        Creates a card for {props.driverName} using the selected {props.season} season.
+                        Creates a race or qualifying card for {props.driverName} using the selected {props.season} season.
                     </p>
                 </div>
-                <button
-                    type="button"
-                    onClick={() => void createCard()}
-                    disabled={isGenerating || races.length === 0}
-                    className="inline-flex min-h-11 items-center justify-center gap-2 border border-[var(--accent-red)] bg-[var(--accent-red)] px-4 py-2 font-display text-xs font-bold uppercase tracking-wider text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                    {isGenerating ? <Loader2 size={17} className="animate-spin" /> : <ImageDown size={17} />}
-                    {isGenerating ? 'GENERATING CARD…' : 'GENERATE CARD'}
-                </button>
+                <div className="flex flex-wrap items-center gap-2">
+                    <button
+                        type="button"
+                        onClick={() => void createCard('race')}
+                        disabled={isGenerating || raceEntries.length === 0}
+                        className="inline-flex min-h-11 flex-1 sm:flex-initial items-center justify-center gap-2 border border-[var(--accent-red)] bg-[var(--accent-red)] px-4 py-2 font-display text-xs font-bold uppercase tracking-wider text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                        {generatingMode === 'race' ? <Loader2 size={17} className="animate-spin" /> : <ImageDown size={17} />}
+                        {generatingMode === 'race' ? 'GENERATING RACE…' : 'GENERATE RACE CARD'}
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => void createCard('qualifying')}
+                        disabled={isGenerating || qualiEntries.length === 0}
+                        className="inline-flex min-h-11 flex-1 sm:flex-initial items-center justify-center gap-2 border border-[var(--accent-yellow)] bg-[var(--accent-yellow)] px-4 py-2 font-display text-xs font-bold uppercase tracking-wider text-black transition-colors hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                        {generatingMode === 'qualifying' ? <Loader2 size={17} className="animate-spin" /> : <ImageDown size={17} />}
+                        {generatingMode === 'qualifying' ? 'GENERATING QUALI…' : 'GENERATE QUALI CARD'}
+                    </button>
+                </div>
             </div>
 
             {error && <p role="alert" className="font-oxanium text-sm text-[var(--accent-red)]">{error}</p>}
@@ -459,7 +577,7 @@ export function DriverSeasonCardGenerator(props: DriverSeasonCardGeneratorProps)
                 <div ref={previewRef} className="space-y-3 border-t border-[var(--border-color)] pt-4">
                     <div className="flex flex-wrap items-center justify-between gap-3">
                         <p className="font-oxanium text-xs uppercase tracking-wide text-[var(--text-secondary)]">
-                            {props.season} · {races.length} scheduled races · future results shown as "-"
+                            {props.season} · {cardMode === 'qualifying' ? 'QUALIFYING' : 'RACE'} · {activeEntries.length} scheduled rounds · future results shown as "-"
                         </p>
                         <button
                             type="button"
@@ -471,7 +589,7 @@ export function DriverSeasonCardGenerator(props: DriverSeasonCardGeneratorProps)
                     </div>
                     <img
                         src={cardImage}
-                        alt={`${props.driverName} ${props.season} season results card`}
+                        alt={`${props.driverName} ${props.season} ${cardMode} results card`}
                         className="mx-auto block h-auto max-h-[85vh] w-full max-w-[760px] border border-[var(--border-color)] object-contain"
                     />
                 </div>
@@ -480,13 +598,14 @@ export function DriverSeasonCardGenerator(props: DriverSeasonCardGeneratorProps)
             <div aria-hidden="true" className="pointer-events-none fixed left-[-15000px] top-0 z-[-1]">
                 <SeasonCardArtwork
                     cardRef={cardRef}
+                    mode={cardMode}
                     season={props.season}
                     driverName={props.driverName}
                     teamId={team.id}
                     teamName={team.name}
                     teamColor={teamColor}
                     stats={props.stats}
-                    races={races}
+                    races={activeEntries}
                     portraitUrl={cardPortraitUrl}
                 />
             </div>
