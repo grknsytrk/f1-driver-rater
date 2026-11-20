@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState, type RefObject } from 'react';
 import { toPng } from 'html-to-image';
-import { Download, ImageDown, Loader2 } from 'lucide-react';
+import { Download, Flag, ImageDown, Loader2, Timer } from 'lucide-react';
 import type {
     DriverSeasonStats,
     SeasonQualifyingResult,
@@ -530,6 +530,14 @@ export function DriverSeasonCardGenerator(props: DriverSeasonCardGeneratorProps)
         }
     }
 
+    function handleModeChange(nextMode: SeasonCardMode) {
+        if (isGenerating || nextMode === cardMode) return;
+        setCardMode(nextMode);
+        if (cardImage) {
+            void createCard(nextMode);
+        }
+    }
+
     function downloadCard() {
         if (!cardImage) return;
         const link = document.createElement('a');
@@ -542,31 +550,61 @@ export function DriverSeasonCardGenerator(props: DriverSeasonCardGeneratorProps)
 
     return (
         <section id="season-share-card" className="space-y-4 border border-[var(--border-color)] bg-[var(--bg-panel)] p-4 md:p-5">
-            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                <div>
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                <div className="min-w-0">
                     <h3 className="font-display text-lg uppercase tracking-wide text-white">GENERATE SEASON CARD</h3>
                     <p className="mt-1 font-oxanium text-xs text-[var(--text-secondary)]">
-                        Creates a race or qualifying card for {props.driverName} using the selected {props.season} season.
+                        Creates a {cardMode === 'qualifying' ? 'qualifying' : 'race'} results card for {props.driverName} using the selected {props.season} season.
                     </p>
                 </div>
-                <div className="flex flex-wrap items-center gap-2">
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 shrink-0">
+                    <div
+                        role="group"
+                        aria-label="Season card type"
+                        className="inline-grid grid-cols-2 gap-1 border border-[var(--border-color)] bg-[var(--bg-darker)] p-1 min-h-11"
+                    >
+                        <button
+                            type="button"
+                            aria-pressed={cardMode === 'race'}
+                            disabled={isGenerating}
+                            onClick={() => handleModeChange('race')}
+                            className={`flex items-center justify-center gap-1.5 px-3.5 py-1.5 font-display text-xs uppercase tracking-wider transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
+                                cardMode === 'race'
+                                    ? 'bg-[var(--accent-red)] text-white'
+                                    : 'text-[var(--text-secondary)] hover:text-white'
+                            }`}
+                        >
+                            <Flag size={13} />
+                            <span>RACE</span>
+                        </button>
+                        <button
+                            type="button"
+                            aria-pressed={cardMode === 'qualifying'}
+                            disabled={isGenerating}
+                            onClick={() => handleModeChange('qualifying')}
+                            className={`flex items-center justify-center gap-1.5 px-3.5 py-1.5 font-display text-xs uppercase tracking-wider transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
+                                cardMode === 'qualifying'
+                                    ? 'bg-[var(--accent-red)] text-white'
+                                    : 'text-[var(--text-secondary)] hover:text-white'
+                            }`}
+                        >
+                            <Timer size={13} />
+                            <span>QUALI</span>
+                        </button>
+                    </div>
+
                     <button
                         type="button"
-                        onClick={() => void createCard('race')}
-                        disabled={isGenerating || raceEntries.length === 0}
-                        className="inline-flex min-h-11 flex-1 sm:flex-initial items-center justify-center gap-2 border border-[var(--accent-red)] bg-[var(--accent-red)] px-4 py-2 font-display text-xs font-bold uppercase tracking-wider text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+                        onClick={() => void createCard(cardMode)}
+                        disabled={isGenerating || activeEntries.length === 0}
+                        className="inline-flex min-h-11 items-center justify-center gap-2 whitespace-nowrap border border-[var(--accent-red)] bg-[var(--accent-red)] px-4 py-2 font-display text-xs font-bold uppercase tracking-wider text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
                     >
-                        {generatingMode === 'race' ? <Loader2 size={17} className="animate-spin" /> : <ImageDown size={17} />}
-                        {generatingMode === 'race' ? 'GENERATING RACE…' : 'GENERATE RACE CARD'}
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => void createCard('qualifying')}
-                        disabled={isGenerating || qualiEntries.length === 0}
-                        className="inline-flex min-h-11 flex-1 sm:flex-initial items-center justify-center gap-2 border border-[var(--accent-yellow)] bg-[var(--accent-yellow)] px-4 py-2 font-display text-xs font-bold uppercase tracking-wider text-black transition-colors hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                        {generatingMode === 'qualifying' ? <Loader2 size={17} className="animate-spin" /> : <ImageDown size={17} />}
-                        {generatingMode === 'qualifying' ? 'GENERATING QUALI…' : 'GENERATE QUALI CARD'}
+                        {isGenerating ? <Loader2 size={17} className="animate-spin" /> : <ImageDown size={17} />}
+                        {isGenerating
+                            ? 'GENERATING CARD…'
+                            : cardMode === 'qualifying'
+                                ? 'GENERATE QUALI CARD'
+                                : 'GENERATE RACE CARD'}
                     </button>
                 </div>
             </div>
