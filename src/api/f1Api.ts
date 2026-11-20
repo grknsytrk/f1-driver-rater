@@ -11,6 +11,7 @@ import {
 import {
     detectNewlyCompletedRounds,
     getDatasetBaselineRound,
+    getSeasonManifestSync,
     getStaticConstructorStandings,
     getStaticDriverStandings,
     getStaticRaces,
@@ -1985,13 +1986,54 @@ export interface ConstructorSeasonH2HRaw {
 }
 
 export async function getDriverCareerStints(driverId: string): Promise<DriverCareerStint[]> {
-    // Check static historical dataset (2000-2025) first -> 0 Jolpica API requests
-    const historical = await loadHistoricalH2HPayload();
+    // Check static historical dataset (2000-2025) and post-2025 static season bundles (e.g. 2026) -> 0 Jolpica API requests
+    const manifestSeasons = Object.keys(getSeasonManifestSync()?.seasons ?? {})
+        .filter(seasonKey => (Number.parseInt(seasonKey, 10) || 0) > 2025)
+        .sort((a, b) => (Number.parseInt(a, 10) || 0) - (Number.parseInt(b, 10) || 0));
+
+    const [historical, postHistoricalBundles] = await Promise.all([
+        loadHistoricalH2HPayload(),
+        Promise.all(manifestSeasons.map(seasonKey => getStaticSeasonBundle(seasonKey).catch(() => null))),
+    ]);
+
+    const combinedStints = new Map<string, DriverCareerStint>();
+
     if (historical) {
-        const staticStints = extractHistoricalDriverStints(historical, driverId);
-        if (staticStints.length > 0) {
-            return staticStints;
+        for (const stint of extractHistoricalDriverStints(historical, driverId)) {
+            combinedStints.set(`${stint.season}::${stint.constructorId}`, stint);
         }
+    }
+
+    for (const bundle of postHistoricalBundles) {
+        if (!bundle) continue;
+        for (const res of bundle.results ?? []) {
+            if (res.driverId !== driverId || !res.constructorId) continue;
+            const key = `${bundle.season}::${res.constructorId}`;
+            if (!combinedStints.has(key)) {
+                combinedStints.set(key, {
+                    season: bundle.season,
+                    constructorId: res.constructorId,
+                    constructorName: res.constructorName || res.constructorId,
+                });
+            }
+        }
+        for (const quali of bundle.qualifying ?? []) {
+            if (quali.driverId !== driverId || !quali.constructorId) continue;
+            const key = `${bundle.season}::${quali.constructorId}`;
+            if (!combinedStints.has(key)) {
+                combinedStints.set(key, {
+                    season: bundle.season,
+                    constructorId: quali.constructorId,
+                    constructorName: quali.constructorName || quali.constructorId,
+                });
+            }
+        }
+    }
+
+    if (combinedStints.size > 0) {
+        return [...combinedStints.values()].sort(
+            (a, b) => (Number.parseInt(a.season, 10) || 0) - (Number.parseInt(b.season, 10) || 0),
+        );
     }
 
     const cacheKey = `jolpica:driver-career-stints:${driverId}:v2`;
@@ -2040,6 +2082,7 @@ export async function getDriverCareerStints(driverId: string): Promise<DriverCar
 
 export function hasConstructorSeasonH2HCache(season: string, constructorId: string): boolean {
     if (hasCachedHistoricalConstructorSeasonH2H(season, constructorId)) return true;
+    if (getStaticRacesSync(season) !== null) return true;
     const cacheKey = `jolpica:constructor-h2h:${season}:${constructorId}:v2`;
     if (getCache<ConstructorSeasonH2HRaw>(cacheKey)) return true;
     const hasFullSeasonRaces = getCache<JolpicaRaceRecord[]>(`jolpica:paginated:/${season}/results.json`) !== null;
@@ -2064,6 +2107,30 @@ export async function getConstructorSeasonH2HRaw(
         );
         if (fromStatic) {
             return fromStatic;
+        }
+    }
+
+    // Check static season bundle (e.g. 2026 active season) -> merges bundle with any newly completed live rounds
+    const staticBundle = await getStaticSeasonBundle(season).catch(() => null);
+    if (staticBundle && ((staticBundle.results && staticBundle.results.length > 0) || (staticBundle.qualifying && staticBundle.qualifying.length > 0))) {
+        const [allRaceResults, allQualiResults] = await Promise.all([
+            getAllSeasonResults(season, { throwOnError: options?.throwOnError }),
+            getAllSeasonQualifying(season, { throwOnError: options?.throwOnError }),
+        ]);
+        const raceResults = allRaceResults.filter(r => r.constructorId === constructorId);
+        const qualiResults = allQualiResults.filter(q => q.constructorId === constructorId);
+        if (raceResults.length > 0 || qualiResults.length > 0) {
+            const resolvedConstructorName =
+                raceResults[0]?.constructorName
+                || qualiResults[0]?.constructorName
+                || constructorNameFallback;
+            return {
+                season,
+                constructorId,
+                constructorName: resolvedConstructorName,
+                raceResults,
+                qualiResults,
+            };
         }
     }
 

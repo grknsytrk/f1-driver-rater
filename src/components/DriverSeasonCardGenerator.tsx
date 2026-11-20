@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type RefObject } from 'react';
-import { toPng } from 'html-to-image';
+import { toBlob } from 'html-to-image';
 import { Download, Flag, ImageDown, Timer } from 'lucide-react';
 import type {
     DriverSeasonStats,
@@ -488,6 +488,7 @@ export function DriverSeasonCardGenerator(props: DriverSeasonCardGeneratorProps)
     const [generatingMode, setGeneratingMode] = useState<SeasonCardMode | null>(null);
     const [dotCount, setDotCount] = useState(1);
     const [cardImages, setCardImages] = useState<Partial<Record<SeasonCardMode, string>>>({});
+    const cardImagesRef = useRef<Partial<Record<SeasonCardMode, string>>>({});
     const [error, setError] = useState<string | null>(null);
     const qualiResults = props.qualiResults ?? [];
     const raceEntries = useSeasonCardRaces(props.driverId, props.calendar, props.raceResults, props.sprintResults);
@@ -499,10 +500,21 @@ export function DriverSeasonCardGenerator(props: DriverSeasonCardGeneratorProps)
     const teamColor = TEAM_ACCENTS[team.id] || TEAM_COLORS[team.id] || '#e10600';
     const isGenerating = generatingMode !== null;
 
+    cardImagesRef.current = cardImages;
+
     useEffect(() => {
+        Object.values(cardImagesRef.current).forEach(url => {
+            if (url) URL.revokeObjectURL(url);
+        });
         setCardImages({});
         setError(null);
     }, [props.season, props.driverId]);
+
+    useEffect(() => () => {
+        Object.values(cardImagesRef.current).forEach(url => {
+            if (url) URL.revokeObjectURL(url);
+        });
+    }, []);
 
     useEffect(() => {
         if (!isGenerating) {
@@ -529,14 +541,20 @@ export function DriverSeasonCardGenerator(props: DriverSeasonCardGeneratorProps)
             const targetHeight = Math.max(1200, HEADER_HEIGHT + Math.ceil(targetEntries.length / 2) * ROW_HEIGHT + BOTTOM_PADDING);
             await document.fonts?.ready;
             await Promise.all(Array.from(cardRef.current.querySelectorAll('img')).map(image => image.decode().catch(() => undefined)));
-            const dataUrl = await toPng(cardRef.current, {
+            const blob = await toBlob(cardRef.current, {
                 cacheBust: true,
                 pixelRatio: 2,
                 width: ART_WIDTH,
                 height: targetHeight,
                 backgroundColor: '#070b10',
             });
-            setCardImages(prev => ({ ...prev, [mode]: dataUrl }));
+            if (!blob) throw new Error('Generated image blob was empty.');
+            const objectUrl = URL.createObjectURL(blob);
+            setCardImages(prev => {
+                const previousUrl = prev[mode];
+                if (previousUrl) URL.revokeObjectURL(previousUrl);
+                return { ...prev, [mode]: objectUrl };
+            });
         } catch (cause) {
             console.error('Failed to create driver season card:', cause);
             setError('The card could not be created. Please try again.');
