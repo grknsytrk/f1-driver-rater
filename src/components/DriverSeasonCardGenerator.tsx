@@ -55,13 +55,13 @@ const TEAM_LOGOS: Record<string, string> = {
 };
 
 const CARD_PORTRAIT_OVERRIDES: Record<string, string> = {
-    '2026:leclerc': '/images/drivers/card-portraits/charles-leclerc-2026.webp',
-    '2026:hamilton': '/images/drivers/card-portraits/lewis-hamilton-2026.webp',
-    '2026:max_verstappen': '/images/drivers/card-portraits/max-verstappen-2026.webp',
-    '2026:antonelli': '/images/drivers/card-portraits/kimi-antonelli-2026.webp',
-    '2026:russell': '/images/drivers/card-portraits/george-russell-2026.webp',
-    '2026:norris': '/images/drivers/card-portraits/lando-norris-2026.webp',
-    '2026:piastri': '/images/drivers/card-portraits/oscar-piastri-2026.webp',
+    leclerc: '/images/drivers/card-portraits/charles-leclerc-2026.webp',
+    hamilton: '/images/drivers/card-portraits/lewis-hamilton-2026.webp',
+    max_verstappen: '/images/drivers/card-portraits/max-verstappen-2026.webp',
+    antonelli: '/images/drivers/card-portraits/kimi-antonelli-2026.webp',
+    russell: '/images/drivers/card-portraits/george-russell-2026.webp',
+    norris: '/images/drivers/card-portraits/lando-norris-2026.webp',
+    piastri: '/images/drivers/card-portraits/oscar-piastri-2026.webp',
 };
 
 const TEAM_ACCENTS: Record<string, string> = {
@@ -395,7 +395,7 @@ export function DriverSeasonCardGenerator(props: DriverSeasonCardGeneratorProps)
     const [error, setError] = useState<string | null>(null);
     const races = useSeasonCardRaces(props.driverId, props.calendar, props.raceResults, props.sprintResults);
     const team = getSeasonTeam(props.driverId, props.raceResults, props.fallbackConstructorId, props.fallbackConstructorName);
-    const cardPortraitUrl = CARD_PORTRAIT_OVERRIDES[`${props.season}:${props.driverId}`] ?? props.portraitUrl;
+    const cardPortraitUrl = CARD_PORTRAIT_OVERRIDES[props.driverId] ?? props.portraitUrl;
     const teamColor = TEAM_ACCENTS[team.id] || TEAM_COLORS[team.id] || '#e10600';
     const cardHeight = Math.max(1200, HEADER_HEIGHT + Math.ceil(races.length / 2) * ROW_HEIGHT + BOTTOM_PADDING);
 
