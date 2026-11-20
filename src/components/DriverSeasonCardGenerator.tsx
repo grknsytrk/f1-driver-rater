@@ -597,14 +597,10 @@ export function DriverSeasonCardGenerator(props: DriverSeasonCardGeneratorProps)
                         type="button"
                         onClick={() => void createCard(cardMode)}
                         disabled={isGenerating || activeEntries.length === 0}
-                        className="inline-flex min-h-11 sm:min-w-[206px] items-center justify-center gap-2 whitespace-nowrap border border-[var(--accent-red)] bg-[var(--accent-red)] px-4 py-2 font-display text-xs font-bold uppercase tracking-wider text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+                        className="inline-flex min-h-11 items-center justify-center gap-2 whitespace-nowrap border border-[var(--accent-red)] bg-[var(--accent-red)] px-4 py-2 font-display text-xs font-bold uppercase tracking-wider text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
                     >
                         {isGenerating ? <Loader2 size={17} className="animate-spin" /> : <ImageDown size={17} />}
-                        {isGenerating
-                            ? 'GENERATING CARD…'
-                            : cardMode === 'qualifying'
-                                ? 'GENERATE QUALI CARD'
-                                : 'GENERATE RACE CARD'}
+                        {isGenerating ? 'GENERATING CARD…' : 'GENERATE CARD'}
                     </button>
                 </div>
             </div>
