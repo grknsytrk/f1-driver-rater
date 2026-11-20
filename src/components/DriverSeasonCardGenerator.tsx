@@ -485,20 +485,24 @@ function SeasonCardArtwork({
 export function DriverSeasonCardGenerator(props: DriverSeasonCardGeneratorProps) {
     const cardRef = useRef<HTMLDivElement>(null);
     const [cardMode, setCardMode] = useState<SeasonCardMode>('race');
-    const [generatedMode, setGeneratedMode] = useState<SeasonCardMode>('race');
     const [generatingMode, setGeneratingMode] = useState<SeasonCardMode | null>(null);
     const [dotCount, setDotCount] = useState(1);
-    const [cardImage, setCardImage] = useState<string | null>(null);
+    const [cardImages, setCardImages] = useState<Partial<Record<SeasonCardMode, string>>>({});
     const [error, setError] = useState<string | null>(null);
     const qualiResults = props.qualiResults ?? [];
     const raceEntries = useSeasonCardRaces(props.driverId, props.calendar, props.raceResults, props.sprintResults);
     const qualiEntries = useSeasonCardQualifying(props.driverId, props.calendar, qualiResults, props.raceResults);
     const activeEntries = cardMode === 'qualifying' ? qualiEntries : raceEntries;
-    const generatedEntries = generatedMode === 'qualifying' ? qualiEntries : raceEntries;
+    const activeCardImage = cardImages[cardMode] ?? null;
     const team = getSeasonTeam(props.driverId, props.raceResults, qualiResults, props.fallbackConstructorId, props.fallbackConstructorName);
     const cardPortraitUrl = CARD_PORTRAIT_OVERRIDES[props.driverId] ?? props.portraitUrl;
     const teamColor = TEAM_ACCENTS[team.id] || TEAM_COLORS[team.id] || '#e10600';
     const isGenerating = generatingMode !== null;
+
+    useEffect(() => {
+        setCardImages({});
+        setError(null);
+    }, [props.season, props.driverId]);
 
     useEffect(() => {
         if (!isGenerating) {
@@ -532,8 +536,7 @@ export function DriverSeasonCardGenerator(props: DriverSeasonCardGeneratorProps)
                 height: targetHeight,
                 backgroundColor: '#070b10',
             });
-            setCardImage(dataUrl);
-            setGeneratedMode(mode);
+            setCardImages(prev => ({ ...prev, [mode]: dataUrl }));
         } catch (cause) {
             console.error('Failed to create driver season card:', cause);
             setError('The card could not be created. Please try again.');
@@ -548,12 +551,12 @@ export function DriverSeasonCardGenerator(props: DriverSeasonCardGeneratorProps)
     }
 
     function downloadCard() {
-        if (!cardImage) return;
+        if (!activeCardImage) return;
         const link = document.createElement('a');
         const safeDriverName = props.driverName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-        const suffix = generatedMode === 'qualifying' ? 'quali-card' : 'season-card';
+        const suffix = cardMode === 'qualifying' ? 'quali-card' : 'season-card';
         link.download = `f1-${safeDriverName}-${props.season}-${suffix}.png`;
-        link.href = cardImage;
+        link.href = activeCardImage;
         link.click();
     }
 
@@ -626,11 +629,11 @@ export function DriverSeasonCardGenerator(props: DriverSeasonCardGeneratorProps)
 
             {error && <p role="alert" className="font-oxanium text-sm text-[var(--accent-red)]">{error}</p>}
 
-            {cardImage && (
+            {activeCardImage && (
                 <div className="space-y-3 border-t border-[var(--border-color)] pt-4">
                     <div className="flex flex-wrap items-center justify-between gap-3">
                         <p className="font-oxanium text-xs uppercase tracking-wide text-[var(--text-secondary)]">
-                            {props.season} · {generatedMode === 'qualifying' ? 'QUALIFYING' : 'RACE'} · {generatedEntries.length} scheduled rounds · future results shown as "-"
+                            {props.season} · {cardMode === 'qualifying' ? 'QUALIFYING' : 'RACE'} · {activeEntries.length} scheduled rounds · future results shown as "-"
                         </p>
                         <button
                             type="button"
@@ -641,8 +644,8 @@ export function DriverSeasonCardGenerator(props: DriverSeasonCardGeneratorProps)
                         </button>
                     </div>
                     <img
-                        src={cardImage}
-                        alt={`${props.driverName} ${props.season} ${generatedMode} results card`}
+                        src={activeCardImage}
+                        alt={`${props.driverName} ${props.season} ${cardMode} results card`}
                         className="mx-auto block h-auto max-h-[85vh] w-full max-w-[760px] border border-[var(--border-color)] object-contain"
                     />
                 </div>
