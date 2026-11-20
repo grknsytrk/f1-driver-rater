@@ -554,7 +554,7 @@ export function DriverSeasonCardGenerator(props: DriverSeasonCardGeneratorProps)
                 <div className="min-w-0">
                     <h3 className="font-display text-lg uppercase tracking-wide text-white">GENERATE SEASON CARD</h3>
                     <p className="mt-1 font-oxanium text-xs text-[var(--text-secondary)]">
-                        Creates a {cardMode === 'qualifying' ? 'qualifying' : 'race'} results card for {props.driverName} using the selected {props.season} season.
+                        Creates a card for {props.driverName} using the selected {props.season} season.
                     </p>
                 </div>
                 <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 shrink-0">
@@ -597,7 +597,7 @@ export function DriverSeasonCardGenerator(props: DriverSeasonCardGeneratorProps)
                         type="button"
                         onClick={() => void createCard(cardMode)}
                         disabled={isGenerating || activeEntries.length === 0}
-                        className="inline-flex min-h-11 items-center justify-center gap-2 whitespace-nowrap border border-[var(--accent-red)] bg-[var(--accent-red)] px-4 py-2 font-display text-xs font-bold uppercase tracking-wider text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+                        className="inline-flex min-h-11 sm:min-w-[206px] items-center justify-center gap-2 whitespace-nowrap border border-[var(--accent-red)] bg-[var(--accent-red)] px-4 py-2 font-display text-xs font-bold uppercase tracking-wider text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
                     >
                         {isGenerating ? <Loader2 size={17} className="animate-spin" /> : <ImageDown size={17} />}
                         {isGenerating
