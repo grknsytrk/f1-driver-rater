@@ -1,6 +1,6 @@
-import { useMemo, useRef, useState, type RefObject } from 'react';
+import { useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import { toPng } from 'html-to-image';
-import { Download, Flag, ImageDown, Loader2, Timer } from 'lucide-react';
+import { Download, Flag, ImageDown, Timer } from 'lucide-react';
 import type {
     DriverSeasonStats,
     SeasonQualifyingResult,
@@ -487,6 +487,7 @@ export function DriverSeasonCardGenerator(props: DriverSeasonCardGeneratorProps)
     const previewRef = useRef<HTMLDivElement>(null);
     const [cardMode, setCardMode] = useState<SeasonCardMode>('race');
     const [generatingMode, setGeneratingMode] = useState<SeasonCardMode | null>(null);
+    const [dotCount, setDotCount] = useState(1);
     const [cardImage, setCardImage] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
     const qualiResults = props.qualiResults ?? [];
@@ -497,6 +498,17 @@ export function DriverSeasonCardGenerator(props: DriverSeasonCardGeneratorProps)
     const cardPortraitUrl = CARD_PORTRAIT_OVERRIDES[props.driverId] ?? props.portraitUrl;
     const teamColor = TEAM_ACCENTS[team.id] || TEAM_COLORS[team.id] || '#e10600';
     const isGenerating = generatingMode !== null;
+
+    useEffect(() => {
+        if (!isGenerating) {
+            setDotCount(1);
+            return;
+        }
+        const timer = window.setInterval(() => {
+            setDotCount(prev => (prev % 3) + 1);
+        }, 350);
+        return () => window.clearInterval(timer);
+    }, [isGenerating]);
 
     async function createCard(mode: SeasonCardMode) {
         const targetEntries = mode === 'qualifying' ? qualiEntries : raceEntries;
@@ -597,10 +609,18 @@ export function DriverSeasonCardGenerator(props: DriverSeasonCardGeneratorProps)
                         type="button"
                         onClick={() => void createCard(cardMode)}
                         disabled={isGenerating || activeEntries.length === 0}
-                        className="inline-flex min-h-11 items-center justify-center gap-2 whitespace-nowrap border border-[var(--accent-red)] bg-[var(--accent-red)] px-4 py-2 font-display text-xs font-bold uppercase tracking-wider text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+                        className="relative inline-grid min-h-11 items-center justify-items-center whitespace-nowrap border border-[var(--accent-red)] bg-[var(--accent-red)] px-4 py-2 font-display text-xs font-bold uppercase tracking-wider text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
                     >
-                        {isGenerating ? <Loader2 size={17} className="animate-spin" /> : <ImageDown size={17} />}
-                        {isGenerating ? 'GENERATING CARD…' : 'GENERATE CARD'}
+                        <span className={`col-start-1 row-start-1 inline-flex items-center gap-2 ${isGenerating ? 'invisible' : ''}`}>
+                            <ImageDown size={17} />
+                            <span>GENERATE CARD</span>
+                        </span>
+                        {isGenerating && (
+                            <span className="col-start-1 row-start-1 inline-flex items-center">
+                                <span>GENERATING</span>
+                                <span className="inline-block w-[3ch] text-left">{'.'.repeat(dotCount)}</span>
+                            </span>
+                        )}
                     </button>
                 </div>
             </div>
