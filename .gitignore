@@ -28,3 +28,6 @@ components.json
 .cursor/
 supabase/.temp/
 public/data/seasons/*.tmp
+
+.playwright-cli/
+output/
