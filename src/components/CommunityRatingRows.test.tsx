@@ -186,4 +186,40 @@ describe('CommunityRatingRows', () => {
         expect(container.textContent).toContain('8.10');
         expect(container.textContent).toContain('7.90');
     });
+
+    it('renders driver name and profile link as real anchors when onSelectDriver is provided', async () => {
+        const onSelectDriver = vi.fn();
+        await act(async () => root.render(
+            <CommunityRatingRows
+                rows={[row(norris, 7.9, 5), row(piastri, 8, 4)]}
+                season="2025"
+                source="race"
+                communityStatus="ready"
+                communityVisible
+                onSelectDriver={onSelectDriver}
+            />,
+        ));
+
+        const rowEl = container.querySelector<HTMLElement>('[data-testid="community-rating-row-norris"]')!;
+        const nameLink = rowEl.querySelector<HTMLAnchorElement>('a[title="View Lando Norris profile"]')!;
+        expect(nameLink).not.toBeNull();
+        expect(nameLink.getAttribute('href')).toBe('/2025/driver/norris');
+
+        await act(async () => {
+            nameLink.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, button: 0 }));
+        });
+        expect(onSelectDriver).toHaveBeenCalledWith('norris');
+        expect(rowEl.getAttribute('aria-expanded')).toBe('false');
+
+        await act(async () => {
+            rowEl.click();
+        });
+        expect(rowEl.getAttribute('aria-expanded')).toBe('true');
+
+        const profileLink = [...container.querySelectorAll<HTMLAnchorElement>('a')].find(
+            anchor => anchor.textContent?.includes('VIEW DRIVER PROFILE'),
+        )!;
+        expect(profileLink).toBeDefined();
+        expect(profileLink.getAttribute('href')).toBe('/2025/driver/norris');
+    });
 });

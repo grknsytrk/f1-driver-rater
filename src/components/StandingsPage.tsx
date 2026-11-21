@@ -10,6 +10,7 @@ import { getCountryCode } from '../utils/storage';
 import { CountryFlag } from '../utils/countryFlags';
 import { buildChampionshipProgress, buildConstructorTrackerEntries, buildDriverTrackerEntries, buildPointsTimeline, buildWccRaceMap, buildWdcRaceMap, getWdcCellDisplay, type LatestTeamMap } from '../utils/standings';
 import { StandingsPointsTracker } from './StandingsPointsTracker';
+import { DriverProfileLink } from './DriverProfileLink';
 
 interface StandingsPageProps {
     season: string;
@@ -292,6 +293,7 @@ export function StandingsPage({ season, onSelectDriver }: StandingsPageProps) {
             {/* Content */}
             {activeTab === 'wdc' ? (
                 <WDCTable
+                    season={season}
                     drivers={driverStats}
                     races={races}
                     raceMap={wdcRaceMap}
@@ -331,6 +333,7 @@ export function StandingsPage({ season, onSelectDriver }: StandingsPageProps) {
 
 // WDC Table Component
 interface WDCTableProps {
+    season: string;
     drivers: DriverSeasonStats[];
     races: RaceColumn[];
     raceMap: Map<string, Map<string, { position: number | null | undefined; points: number }>>;
@@ -339,7 +342,7 @@ interface WDCTableProps {
     onSelectDriver?: (driverId: string) => void;
 }
 
-function WDCTable({ drivers, races, raceMap, latestTeamMap, getTeamColor, onSelectDriver }: WDCTableProps) {
+function WDCTable({ season, drivers, races, raceMap, latestTeamMap, getTeamColor, onSelectDriver }: WDCTableProps) {
     if (drivers.length === 0) {
         return (
             <div className="text-center py-12 text-[var(--text-muted)]">
@@ -411,9 +414,10 @@ function WDCTable({ drivers, races, raceMap, latestTeamMap, getTeamColor, onSele
                                     {/* Driver Name */}
                                     <td className="sticky left-12 z-10 bg-[var(--bg-panel)] px-2 md:px-3 py-2">
                                         {onSelectDriver ? (
-                                            <button
-                                                type="button"
-                                                onClick={() => onSelectDriver(driver.driverId)}
+                                            <DriverProfileLink
+                                                season={season}
+                                                driverId={driver.driverId}
+                                                onNavigate={() => onSelectDriver(driver.driverId)}
                                                 className="group/driver flex items-center gap-2 text-left cursor-pointer"
                                                 title={`View ${driver.driverName} profile`}
                                             >
@@ -426,7 +430,7 @@ function WDCTable({ drivers, races, raceMap, latestTeamMap, getTeamColor, onSele
                                                         {displayConstructorName}
                                                     </div>
                                                 </div>
-                                            </button>
+                                            </DriverProfileLink>
                                         ) : (
                                             <div className="flex items-center gap-2">
                                                 <div className="w-1 h-6" style={{ backgroundColor: getTeamColor(displayConstructorId) }} />

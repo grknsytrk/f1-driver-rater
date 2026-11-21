@@ -11,6 +11,7 @@ import {
     type CareerSeasonTeammateH2H,
 } from '../../utils/driverProfile';
 import { CountryFlag } from '../../utils/countryFlags';
+import { DriverProfileLink } from '../DriverProfileLink';
 
 export interface DriverCareerH2HSectionProps {
     driverName: string;
@@ -21,6 +22,7 @@ export interface DriverCareerH2HSectionProps {
     expandedRaceId: string | null;
     onToggleQuali: (id: string) => void;
     onToggleRace: (id: string) => void;
+    onSelectDriver?: (driverId: string, targetSeason?: string) => void;
 }
 
 function h2hRaceResultLabel(position: number | null, status?: string): string {
@@ -42,6 +44,7 @@ interface CareerTeammateH2HColumnProps {
     loading: boolean;
     expandedId: string | null;
     onToggleExpand: (id: string) => void;
+    onSelectDriver?: (driverId: string, targetSeason?: string) => void;
 }
 
 function CareerTeammateH2HColumn({
@@ -51,6 +54,7 @@ function CareerTeammateH2HColumn({
     loading,
     expandedId,
     onToggleExpand,
+    onSelectDriver,
 }: CareerTeammateH2HColumnProps) {
     const isQuali = mode === 'qualifying';
     const totalWinsDriver = entries.reduce(
@@ -130,10 +134,17 @@ function CareerTeammateH2HColumn({
 
                         return (
                             <div key={`${mode}_${entry.id}`} className="bg-[var(--bg-panel)]">
-                                <button
-                                    type="button"
+                                <div
+                                    role="button"
+                                    tabIndex={0}
                                     aria-expanded={expanded}
                                     onClick={() => onToggleExpand(entry.id)}
+                                    onKeyDown={(e) => {
+                                        if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) {
+                                            e.preventDefault();
+                                            onToggleExpand(entry.id);
+                                        }
+                                    }}
                                     className="w-full px-4 py-3.5 text-left transition-colors hover:bg-[var(--bg-panel-hover)] cursor-pointer"
                                 >
                                     {/* Top Row: Year · Teammate + Score */}
@@ -147,9 +158,16 @@ function CareerTeammateH2HColumn({
                                                 {entry.season}
                                             </span>
                                             <span className="text-[var(--text-muted)]">·</span>
-                                            <span className="truncate font-display text-sm md:text-base uppercase text-white tracking-wide">
+                                            <DriverProfileLink
+                                                season={entry.season}
+                                                driverId={entry.teammateId}
+                                                onNavigate={onSelectDriver ? () => onSelectDriver(entry.teammateId, entry.season) : undefined}
+                                                stopPropagation
+                                                title={`View ${entry.teammateName} (${entry.season}) profile`}
+                                                className="truncate font-display text-sm md:text-base uppercase text-white hover:text-[var(--accent-yellow)] transition-colors tracking-wide"
+                                            >
                                                 {entry.teammateName}
-                                            </span>
+                                            </DriverProfileLink>
                                             <span className="hidden sm:inline font-oxanium text-[9px] uppercase tracking-wider text-[var(--text-muted)]">
                                                 {entry.constructorName}
                                             </span>
@@ -206,7 +224,7 @@ function CareerTeammateH2HColumn({
                                             {winsTeammate} ahead
                                         </span>
                                     </div>
-                                </button>
+                                </div>
 
                                 {/* Expanded Vertical Race-by-Race Table */}
                                 {expanded && (
@@ -287,6 +305,7 @@ export function DriverCareerH2HSection({
     expandedRaceId,
     onToggleQuali,
     onToggleRace,
+    onSelectDriver,
 }: DriverCareerH2HSectionProps) {
     return (
         <div className="pt-4 space-y-4">
@@ -320,6 +339,7 @@ export function DriverCareerH2HSection({
                     loading={loading && entries.length === 0}
                     expandedId={expandedQualiId}
                     onToggleExpand={onToggleQuali}
+                    onSelectDriver={onSelectDriver}
                 />
                 <CareerTeammateH2HColumn
                     mode="race"
@@ -328,6 +348,7 @@ export function DriverCareerH2HSection({
                     loading={loading && entries.length === 0}
                     expandedId={expandedRaceId}
                     onToggleExpand={onToggleRace}
+                    onSelectDriver={onSelectDriver}
                 />
             </div>
         </div>

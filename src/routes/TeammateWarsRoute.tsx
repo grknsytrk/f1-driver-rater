@@ -26,7 +26,7 @@ export default function TeammateWarsRoute() {
             <TeammateWars
                 season={season}
                 onBack={() => navigate(`/${season}`)}
-                onSelectDriver={(driverId) => navigate(`/${season}/driver/${driverId}`)}
+                onSelectDriver={(driverId, targetSeason) => navigate(`/${targetSeason ?? season}/driver/${driverId}`)}
             />
         </m.div>
     );

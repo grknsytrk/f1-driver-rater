@@ -17,6 +17,7 @@ import { useSitePolicyConsent } from '../hooks/useSitePolicyConsent';
 import { hasCurrentSitePolicyAcceptance } from '../utils/sitePolicy';
 import { initializeGuestSync } from '../utils/guestSync';
 import { CommunityNotice, CommunityValue, PersonalRatingValue } from './CommunityRating';
+import { DriverProfileLink } from './DriverProfileLink';
 
 const MIN_LOADING_TIME = 1500;
 
@@ -39,6 +40,7 @@ interface DriverWithRating {
 }
 
 interface QuickRateDriverRowProps {
+    season: string;
     driver: DriverWithRating;
     currentRating: number;
     communityRating?: CommunityRating;
@@ -48,6 +50,7 @@ interface QuickRateDriverRowProps {
 }
 
 const QuickRateDriverRow = memo(function QuickRateDriverRow({
+    season,
     driver,
     currentRating,
     communityRating,
@@ -88,7 +91,14 @@ const QuickRateDriverRow = memo(function QuickRateDriverRow({
                     <div className="h-full w-1 flex-shrink-0" style={{ backgroundColor: teamColor }} />
                     <div className="min-w-0 flex-1 pl-2 md:pl-3">
                         <h3 className="truncate font-display text-sm leading-none text-white uppercase md:text-lg">
-                            {driver.driverName}
+                            <DriverProfileLink
+                                season={season}
+                                driverId={driver.driverId}
+                                title={`View ${driver.driverName} profile`}
+                                className="hover:text-[var(--accent-yellow)] transition-colors"
+                            >
+                                {driver.driverName}
+                            </DriverProfileLink>
                         </h3>
                         <p className="mt-0.5 truncate font-oxanium text-[9px] uppercase tracking-wide text-[var(--text-muted)] md:mt-1 md:text-[10px]">
                             {driver.constructorName}
@@ -412,6 +422,7 @@ export function QuickRateModal({ season, onClose }: QuickRateModalProps) {
                         {drivers.map((driver) => (
                             <QuickRateDriverRow
                                 key={driver.driverId}
+                                season={season}
                                 driver={driver}
                                 currentRating={savedRatingByDriverId.get(driver.driverId) ?? 0}
                                 communityRating={communityByDriverId.get(driver.driverId)}

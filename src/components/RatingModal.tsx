@@ -17,6 +17,7 @@ import { useSitePolicyConsent } from '../hooks/useSitePolicyConsent';
 import { hasCurrentSitePolicyAcceptance } from '../utils/sitePolicy';
 import { initializeGuestSync } from '../utils/guestSync';
 import { CommunityNotice, CommunityValue, PersonalRatingValue } from './CommunityRating';
+import { DriverProfileLink } from './DriverProfileLink';
 
 const MIN_LOADING_TIME = 800;
 
@@ -62,6 +63,7 @@ function getFinishNameClass(position: string): string {
 }
 
 interface RatingDriverRowProps {
+    season: string;
     driver: DriverWithRating;
     currentRating: number;
     isFastestLapDriver: boolean;
@@ -72,6 +74,7 @@ interface RatingDriverRowProps {
 }
 
 const RatingDriverRow = memo(function RatingDriverRow({
+    season,
     driver,
     currentRating,
     isFastestLapDriver,
@@ -119,7 +122,14 @@ const RatingDriverRow = memo(function RatingDriverRow({
                     <div className="min-w-0 flex-1 pl-2 md:pl-3">
                         <div className="flex min-w-0 items-center gap-2">
                             <h3 className={`truncate font-display text-sm leading-none uppercase md:text-lg ${getFinishNameClass(driver.position)}`}>
-                                {driver.driverName}
+                                <DriverProfileLink
+                                    season={season}
+                                    driverId={driver.driverId}
+                                    title={`View ${driver.driverName} profile`}
+                                    className="hover:text-[var(--accent-yellow)] transition-colors"
+                                >
+                                    {driver.driverName}
+                                </DriverProfileLink>
                             </h3>
                             {isFastestLapDriver && (
                                 <Timer size={15} className="shrink-0 text-[#FF00FF]" />
@@ -406,6 +416,7 @@ export function RatingModal({ race, season, metadataResolved = true, onClose }: 
                         {drivers.map((driver) => (
                             <RatingDriverRow
                                 key={driver.driverId}
+                                season={season}
                                 driver={driver}
                                 currentRating={savedRatingByDriverId.get(driver.driverId) ?? 0}
                                 isFastestLapDriver={recap.fastestLap?.driverId === driver.driverId}

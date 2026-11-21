@@ -20,7 +20,9 @@ import {
     getTeamDrivers,
     resolveTeamSelection,
 } from '../utils/teamVersus';
-import type { DataStatus, RowWinner, VersusRow } from '../utils/teamVersus';
+import type { DataStatus } from '../utils/teamVersus';
+import { DriverProfileLink } from './DriverProfileLink';
+import { VersusRowView } from './VersusRowView';
 
 interface TeamVersusProps {
     season: string;
@@ -33,17 +35,12 @@ interface TeamVersusProps {
     qualiStatus: DataStatus;
     /** Mode toggle rendered under the title so both modes share the same switch. */
     toggle: ReactNode;
+    onSelectDriver?: (driverId: string, targetSeason?: string) => void;
 }
 
 function getDriverFamilyName(driverName: string): string {
     const parts = driverName.trim().split(/\s+/);
     return parts[parts.length - 1]?.toUpperCase() || driverName.toUpperCase();
-}
-
-function valueColor(winner: RowWinner, side: 'a' | 'b'): string {
-    if (winner === 'none') return 'text-[var(--text-muted)]';
-    if (winner === 'tie') return 'text-white';
-    return winner === side ? 'text-[var(--accent-yellow)]' : 'text-[var(--text-muted)]';
 }
 
 function unavailableMessage(label: string, status: DataStatus): string | null {
@@ -85,52 +82,6 @@ function TeamSelect({ label, value, color, options, onChange }: TeamSelectProps)
     );
 }
 
-interface VersusRowViewProps {
-    row: VersusRow;
-    colorA: string;
-    colorB: string;
-}
-
-function VersusRowView({ row, colorA, colorB }: VersusRowViewProps) {
-    return (
-        <div className="px-4 md:px-8 py-3 border-t border-[var(--border-color)]">
-            <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
-                <span className={`font-oxanium text-2xl md:text-4xl font-bold text-right ${valueColor(row.winner, 'a')}`}>
-                    {row.displayA}
-                </span>
-                <div className="flex flex-col items-center min-w-[88px] md:min-w-[130px] text-center">
-                    <span className="font-oxanium text-[10px] md:text-xs text-[var(--text-secondary)] uppercase tracking-widest">
-                        {row.label}
-                    </span>
-                    {row.note && (
-                        <span className="font-oxanium text-[9px] text-[var(--text-muted)] mt-0.5">{row.note}</span>
-                    )}
-                </div>
-                <span className={`font-oxanium text-2xl md:text-4xl font-bold text-left ${valueColor(row.winner, 'b')}`}>
-                    {row.displayB}
-                </span>
-            </div>
-            <div className="mt-2 flex h-1 w-full gap-[2px] bg-[var(--border-color)]">
-                {row.shareA === null ? null : (
-                    <>
-                        <m.div
-                            className="h-full"
-                            style={{ backgroundColor: colorA }}
-                            initial={{ width: '50%' }}
-                            animate={{ width: `${row.shareA * 100}%` }}
-                            transition={{ duration: 0.4 }}
-                        />
-                        <m.div
-                            className="h-full flex-1"
-                            style={{ backgroundColor: colorB }}
-                        />
-                    </>
-                )}
-            </div>
-        </div>
-    );
-}
-
 export function TeamVersus({
     season,
     raceResults,
@@ -141,6 +92,7 @@ export function TeamVersus({
     raceStatus,
     qualiStatus,
     toggle,
+    onSelectDriver,
 }: TeamVersusProps) {
     useRatingStorage();
     const personalRaces = getSeasonRatings(season);
@@ -368,9 +320,15 @@ export function TeamVersus({
         <div className={`flex flex-col gap-1 ${align === 'right' ? 'items-end text-right' : 'items-start text-left'}`}>
             {drivers.map(driver => (
                 <div key={driver.driverId} className="flex items-baseline gap-2 min-w-0">
-                    <span className="font-display text-xs md:text-sm text-white uppercase truncate">
+                    <DriverProfileLink
+                        season={season}
+                        driverId={driver.driverId}
+                        onNavigate={onSelectDriver ? () => onSelectDriver(driver.driverId, season) : undefined}
+                        title={`View ${driver.driverName} profile`}
+                        className="font-display text-xs md:text-sm text-white hover:text-[var(--accent-yellow)] transition-colors uppercase truncate"
+                    >
                         {getDriverFamilyName(driver.driverName)}
-                    </span>
+                    </DriverProfileLink>
                     <span className="font-oxanium text-[10px] md:text-xs text-[var(--text-muted)]">
                         {driver.averageRating !== null ? driver.averageRating.toFixed(2) : '—'}
                     </span>

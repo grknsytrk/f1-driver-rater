@@ -24,6 +24,7 @@ import {
     type SeasonAwardGroup,
     type SeasonAwardId,
 } from '../utils/seasonAwards';
+import { DriverProfileLink } from './DriverProfileLink';
 
 interface SeasonAwardsPageProps {
     season: string;
@@ -183,10 +184,12 @@ function HeroStat({ label, value, accentColor }: { label: string; value: string;
 }
 
 function AwardSection({
+    season,
     award,
     index,
     availability,
 }: {
+    season: string;
     award: SeasonAward;
     index: number;
     availability: Availability;
@@ -252,7 +255,24 @@ function AwardSection({
                                                         {winner.subjectType === 'team' ? 'Winning team' : 'Winning driver'}
                                                     </div>
                                                     <div className="mt-2 font-display text-3xl uppercase leading-[0.88] tracking-tight text-white md:text-4xl">
-                                                        {winner.subjectType === 'driver' ? <><span className="block">{name.firstLine}</span>{name.secondLine && <span className="block">{name.secondLine}</span>}</> : winner.subjectName}
+                                                        {winner.subjectType === 'driver' ? (
+                                                            winner.driverId ? (
+                                                                <DriverProfileLink
+                                                                    season={season}
+                                                                    driverId={winner.driverId}
+                                                                    title={`View ${winner.subjectName} profile`}
+                                                                    className="inline-block text-white hover:text-[var(--accent-yellow)] transition-colors"
+                                                                >
+                                                                    <span className="block">{name.firstLine}</span>
+                                                                    {name.secondLine && <span className="block">{name.secondLine}</span>}
+                                                                </DriverProfileLink>
+                                                            ) : (
+                                                                <>
+                                                                    <span className="block">{name.firstLine}</span>
+                                                                    {name.secondLine && <span className="block">{name.secondLine}</span>}
+                                                                </>
+                                                            )
+                                                        ) : winner.subjectName}
                                                     </div>
                                                     <div className="mt-2 font-oxanium text-xs uppercase tracking-[0.16em] text-[var(--text-secondary)]">
                                                         {winner.secondaryLabel}
@@ -441,6 +461,7 @@ export function SeasonAwardsPage({ season }: SeasonAwardsPageProps) {
                             {groupAwards.map((award, index) => (
                                 <AwardSection
                                     key={award.id}
+                                    season={season}
                                     award={award}
                                     index={index}
                                     availability={availabilityFor(award)}

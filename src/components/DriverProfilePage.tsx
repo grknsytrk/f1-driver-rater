@@ -64,11 +64,12 @@ import { CommunityRatingDistribution } from './CommunityRatingDistribution';
 import { DriverSeasonCardGenerator } from './DriverSeasonCardGenerator';
 import { DriverCareerH2HSection } from './driver-profile/DriverCareerH2HSection';
 import { DriverRaceLogTable } from './driver-profile/DriverRaceLogTable';
+import { DriverProfileLink } from './DriverProfileLink';
 
 interface DriverProfilePageProps {
     season: string;
     driverId: string;
-    onSelectDriver?: (driverId: string) => void;
+    onSelectDriver?: (driverId: string, targetSeason?: string) => void;
     onSelectSeason?: (season: string) => void;
     onSelectRace?: (round: string, raceName: string, date: string) => void;
 }
@@ -929,20 +930,30 @@ export function DriverProfilePage({
                                                 <div className="font-display text-lg md:text-xl uppercase text-white">
                                                     {driverIdentity.driverName}{' '}
                                                     <span className="text-[var(--accent-red)]">VS</span>{' '}
-                                                    {battle.teammateName}
+                                                    <DriverProfileLink
+                                                        season={season}
+                                                        driverId={battle.teammateId}
+                                                        onNavigate={onSelectDriver ? () => onSelectDriver(battle.teammateId) : undefined}
+                                                        title={`View ${battle.teammateName} profile`}
+                                                        className="hover:text-[var(--accent-yellow)] transition-colors"
+                                                    >
+                                                        {battle.teammateName}
+                                                    </DriverProfileLink>
                                                 </div>
                                             </div>
                                         </div>
 
                                         {onSelectDriver && (
-                                            <button
-                                                type="button"
-                                                onClick={() => onSelectDriver(battle.teammateId)}
+                                            <DriverProfileLink
+                                                season={season}
+                                                driverId={battle.teammateId}
+                                                onNavigate={() => onSelectDriver(battle.teammateId)}
+                                                title={`View ${battle.teammateName} profile`}
                                                 className="inline-flex items-center gap-1.5 border border-[var(--border-color)] bg-[var(--bg-panel)] px-3 py-1.5 font-oxanium text-[10px] font-bold uppercase tracking-wider text-white transition-colors hover:border-[var(--accent-yellow)] hover:text-[var(--accent-yellow)]"
                                             >
                                                 <span>{battle.teammateName} PROFILE</span>
                                                 <ArrowUpRight size={12} />
-                                            </button>
+                                            </DriverProfileLink>
                                         )}
                                     </div>
 
@@ -1194,6 +1205,7 @@ export function DriverProfilePage({
                     expandedRaceId={expandedRaceId}
                     onToggleQuali={id => setExpandedQualiId(current => (current === id ? null : id))}
                     onToggleRace={id => setExpandedRaceId(current => (current === id ? null : id))}
+                    onSelectDriver={onSelectDriver}
                 />
             </m.div>
 

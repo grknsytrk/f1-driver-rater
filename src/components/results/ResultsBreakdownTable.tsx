@@ -8,6 +8,7 @@ import type { CommunityStatus } from '../../utils/communityRatings';
 import { CountryFlag } from '../../utils/countryFlags';
 import { getDriverLabel, type BreakdownSource } from '../../utils/raceBreakdown';
 import { getRatingColor } from '../../utils/ratingColor';
+import { DriverProfileLink } from '../DriverProfileLink';
 
 export interface ResultsBreakdownTableProps {
     season: string;
@@ -176,9 +177,10 @@ export function ResultsBreakdownTable({
                                     {/* Driver Name */}
                                     <td className="sticky left-12 z-10 bg-[var(--bg-panel)] px-3 py-2">
                                         {onSelectDriver ? (
-                                            <button
-                                                type="button"
-                                                onClick={() => onSelectDriver(driver.driverId)}
+                                            <DriverProfileLink
+                                                season={season}
+                                                driverId={driver.driverId}
+                                                onNavigate={() => onSelectDriver(driver.driverId)}
                                                 title={`View ${driver.driverName} profile`}
                                                 className="group/drv flex items-center gap-2 text-left cursor-pointer"
                                             >
@@ -191,7 +193,7 @@ export function ResultsBreakdownTable({
                                                         {driver.constructorName}
                                                     </div>
                                                 </div>
-                                            </button>
+                                            </DriverProfileLink>
                                         ) : (
                                             <div className="flex items-center gap-2">
                                                 <div className="w-1 h-6" style={{ backgroundColor: getTeamColor(driver.constructorId) }} />

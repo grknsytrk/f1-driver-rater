@@ -121,7 +121,9 @@ function normalizeRound(round: string): string {
     return Number.isFinite(parsed) ? String(parsed) : round;
 }
 
-function classifiedRacePosition(result: SeasonRaceResult | undefined): number | null {
+export function classifiedRacePosition(
+    result: Pick<SeasonRaceResult, 'position' | 'status'> | undefined,
+): number | null {
     if (!result || result.position === null) return null;
     const status = result.status?.trim();
     if (!status) return result.position;

@@ -1,0 +1,175 @@
+{
+  "source": "https://www.formula1.com/en/drivers",
+  "season": "2024",
+  "retrievedOn": "2026-11-21",
+  "portraits": [
+    {
+      "driverId": "gasly",
+      "name": "Pierre Gasly",
+      "constructorId": "alpine",
+      "file": "gasly.webp",
+      "originalImage": "https://media.formula1.com/image/upload/c_lfill,w_440/q_auto/v1740000000/common/f1/2024/alpine/piegas01/2024alpinepiegas01right.webp"
+    },
+    {
+      "driverId": "ocon",
+      "name": "Esteban Ocon",
+      "constructorId": "alpine",
+      "file": "ocon.webp",
+      "originalImage": "https://media.formula1.com/image/upload/c_lfill,w_440/q_auto/v1740000000/common/f1/2024/alpine/estoco01/2024alpineestoco01right.webp"
+    },
+    {
+      "driverId": "alonso",
+      "name": "Fernando Alonso",
+      "constructorId": "aston_martin",
+      "file": "alonso.webp",
+      "originalImage": "https://media.formula1.com/image/upload/c_lfill,w_440/q_auto/v1740000000/common/f1/2024/astonmartin/feralo01/2024astonmartinferalo01right.webp"
+    },
+    {
+      "driverId": "stroll",
+      "name": "Lance Stroll",
+      "constructorId": "aston_martin",
+      "file": "stroll.webp",
+      "originalImage": "https://media.formula1.com/image/upload/c_lfill,w_440/q_auto/v1740000000/common/f1/2024/astonmartin/lanstr01/2024astonmartinlanstr01right.webp"
+    },
+    {
+      "driverId": "bearman",
+      "name": "Oliver Bearman",
+      "constructorId": "ferrari",
+      "file": "bearman-ferrari.webp",
+      "originalImage": "https://media.formula1.com/image/upload/c_lfill,w_440/q_auto/v1740000000/common/f1/2024/ferrari/olibea01/2024ferrariolibea01right.webp"
+    },
+    {
+      "driverId": "leclerc",
+      "name": "Charles Leclerc",
+      "constructorId": "ferrari",
+      "file": "leclerc.webp",
+      "originalImage": "https://media.formula1.com/image/upload/c_lfill,w_440/q_auto/v1740000000/common/f1/2024/ferrari/chalec01/2024ferrarichalec01right.webp"
+    },
+    {
+      "driverId": "sainz",
+      "name": "Carlos Sainz",
+      "constructorId": "ferrari",
+      "file": "sainz.webp",
+      "originalImage": "https://media.formula1.com/image/upload/c_lfill,w_440/q_auto/v1740000000/common/f1/2024/ferrari/carsai01/2024ferraricarsai01right.webp"
+    },
+    {
+      "driverId": "bearman",
+      "name": "Oliver Bearman",
+      "constructorId": "haas",
+      "file": "bearman-haas.webp",
+      "originalImage": "https://media.formula1.com/image/upload/c_lfill,w_440/q_auto/v1740000000/common/f1/2024/haas/olibea01/2024haasolibea01right.webp"
+    },
+    {
+      "driverId": "hulkenberg",
+      "name": "Nico Hülkenberg",
+      "constructorId": "haas",
+      "file": "hulkenberg.webp",
+      "originalImage": "https://media.formula1.com/image/upload/c_lfill,w_440/q_auto/v1740000000/common/f1/2024/haas/nichul01/2024haasnichul01right.webp"
+    },
+    {
+      "driverId": "kevin_magnussen",
+      "name": "Kevin Magnussen",
+      "constructorId": "haas",
+      "file": "kevin_magnussen.webp",
+      "originalImage": "https://media.formula1.com/image/upload/c_lfill,w_440/q_auto/v1740000000/common/f1/2024/haas/kevmag01/2024haaskevmag01right.webp"
+    },
+    {
+      "driverId": "norris",
+      "name": "Lando Norris",
+      "constructorId": "mclaren",
+      "file": "norris.webp",
+      "originalImage": "https://media.formula1.com/image/upload/c_lfill,w_440/q_auto/v1740000000/common/f1/2024/mclaren/lannor01/2024mclarenlannor01right.webp"
+    },
+    {
+      "driverId": "piastri",
+      "name": "Oscar Piastri",
+      "constructorId": "mclaren",
+      "file": "piastri.webp",
+      "originalImage": "https://media.formula1.com/image/upload/c_lfill,w_440/q_auto/v1740000000/common/f1/2024/mclaren/oscpia01/2024mclarenoscpia01right.webp"
+    },
+    {
+      "driverId": "hamilton",
+      "name": "Lewis Hamilton",
+      "constructorId": "mercedes",
+      "file": "hamilton.webp",
+      "originalImage": "https://media.formula1.com/image/upload/c_lfill,w_440/q_auto/v1740000000/common/f1/2024/mercedes/lewham01/2024mercedeslewham01right.webp"
+    },
+    {
+      "driverId": "russell",
+      "name": "George Russell",
+      "constructorId": "mercedes",
+      "file": "russell.webp",
+      "originalImage": "https://media.formula1.com/image/upload/c_lfill,w_440/q_auto/v1740000000/common/f1/2024/mercedes/georus01/2024mercedesgeorus01right.webp"
+    },
+    {
+      "driverId": "lawson",
+      "name": "Liam Lawson",
+      "constructorId": "rb",
+      "file": "lawson.webp",
+      "originalImage": "https://media.formula1.com/image/upload/c_lfill,w_440/q_auto/v1740000000/common/f1/2024/rb/lialaw01/2024rblialaw01right.webp"
+    },
+    {
+      "driverId": "ricciardo",
+      "name": "Daniel Ricciardo",
+      "constructorId": "rb",
+      "file": "ricciardo.webp",
+      "originalImage": "https://media.formula1.com/image/upload/c_lfill,w_440/q_auto/v1740000000/common/f1/2024/rb/danric01/2024rbdanric01right.webp"
+    },
+    {
+      "driverId": "tsunoda",
+      "name": "Yuki Tsunoda",
+      "constructorId": "rb",
+      "file": "tsunoda.webp",
+      "originalImage": "https://media.formula1.com/image/upload/c_lfill,w_440/q_auto/v1740000000/common/f1/2024/rb/yuktsu01/2024rbyuktsu01right.webp"
+    },
+    {
+      "driverId": "max_verstappen",
+      "name": "Max Verstappen",
+      "constructorId": "red_bull",
+      "file": "max_verstappen.webp",
+      "originalImage": "https://media.formula1.com/image/upload/c_lfill,w_440/q_auto/v1740000000/common/f1/2024/redbullracing/maxver01/2024redbullracingmaxver01right.webp"
+    },
+    {
+      "driverId": "perez",
+      "name": "Sergio Pérez",
+      "constructorId": "red_bull",
+      "file": "perez.webp",
+      "originalImage": "https://media.formula1.com/image/upload/c_lfill,w_440/q_auto/v1740000000/common/f1/2024/redbullracing/serper01/2024redbullracingserper01right.webp"
+    },
+    {
+      "driverId": "bottas",
+      "name": "Valtteri Bottas",
+      "constructorId": "sauber",
+      "file": "bottas.webp",
+      "originalImage": "https://media.formula1.com/image/upload/c_lfill,w_440/q_auto/v1740000000/common/f1/2024/kicksauber/valbot01/2024kicksaubervalbot01right.webp"
+    },
+    {
+      "driverId": "zhou",
+      "name": "Guanyu Zhou",
+      "constructorId": "sauber",
+      "file": "zhou.webp",
+      "originalImage": "https://media.formula1.com/image/upload/c_lfill,w_440/q_auto/v1740000000/common/f1/2024/kicksauber/guazho01/2024kicksauberguazho01right.webp"
+    },
+    {
+      "driverId": "albon",
+      "name": "Alexander Albon",
+      "constructorId": "williams",
+      "file": "albon.webp",
+      "originalImage": "https://media.formula1.com/image/upload/c_lfill,w_440/q_auto/v1740000000/common/f1/2024/williams/alealb01/2024williamsalealb01right.webp"
+    },
+    {
+      "driverId": "colapinto",
+      "name": "Franco Colapinto",
+      "constructorId": "williams",
+      "file": "colapinto.webp",
+      "originalImage": "https://media.formula1.com/image/upload/c_lfill,w_440/q_auto/v1740000000/common/f1/2024/williams/fracol01/2024williamsfracol01right.webp"
+    },
+    {
+      "driverId": "sargeant",
+      "name": "Logan Sargeant",
+      "constructorId": "williams",
+      "file": "sargeant.webp",
+      "originalImage": "https://media.formula1.com/image/upload/c_lfill,w_440/q_auto/v1740000000/common/f1/2024/williams/logsar01/2024williamslogsar01right.webp"
+    }
+  ]
+}

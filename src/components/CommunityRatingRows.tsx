@@ -7,6 +7,7 @@ import type { CommunityComparison, CommunityStatus } from '../utils/communityRat
 import { COMMUNITY_DISTRIBUTION_MIN_VOTES } from '../utils/communityRatingDistribution';
 import { getRatingColor } from '../utils/ratingColor';
 import { CommunityRatingDistribution } from './CommunityRatingDistribution';
+import { DriverProfileLink } from './DriverProfileLink';
 
 export interface CommunityDriverRatingRow {
     driver: AverageRating;
@@ -38,81 +39,135 @@ export function CommunityRatingRows({ rows, season, source, communityStatus, com
                     ? 'grid-cols-[minmax(0,1fr)_60px_104px] md:grid-cols-[minmax(0,1fr)_72px_112px_40px]'
                     : 'grid-cols-[minmax(0,1fr)_60px] md:grid-cols-[minmax(0,1fr)_72px]';
                 const interactive = communityVisible || Boolean(onSelectDriver);
+                const rowClassName = `grid w-full items-center gap-2 p-2 text-left transition-colors md:p-3 ${gridColumns} ${interactive ? 'cursor-pointer hover:bg-white/[0.03]' : 'cursor-default'}`;
+                const toggleExpand = () => {
+                    setExpandedDriverId(current => current === driver.driverId ? null : driver.driverId);
+                };
+                const driverNameNode = communityVisible && onSelectDriver ? (
+                    <DriverProfileLink
+                        season={season}
+                        driverId={driver.driverId}
+                        onNavigate={() => onSelectDriver(driver.driverId)}
+                        stopPropagation
+                        title={`View ${driver.driverName} profile`}
+                        className="block break-words font-display-condensed text-sm uppercase leading-tight text-white hover:text-[var(--accent-yellow)] transition-colors md:text-lg"
+                    >
+                        {driver.driverName}
+                    </DriverProfileLink>
+                ) : (
+                    <span className="block break-words font-display-condensed text-sm uppercase leading-tight text-white md:text-lg" title={driver.driverName}>
+                        {driver.driverName}
+                    </span>
+                );
+                const rowContent = (
+                    <>
+                        <span className="flex min-w-0 items-center gap-2">
+                            <span className="w-4 shrink-0 font-oxanium text-[10px] text-[var(--text-muted)]">{index + 1}</span>
+                            <span className="flex min-w-0 flex-1 items-center justify-between gap-1 border-l-2 pl-2" style={{ borderColor: getTeamColor(driver.constructorId) }}>
+                                <span className="min-w-0">
+                                    {driverNameNode}
+                                    <span className="block truncate font-ui text-[8px] uppercase text-[var(--text-muted)]">{driver.constructorName}</span>
+                                </span>
+                                {communityVisible && (
+                                    <ChevronDown
+                                        size={13}
+                                        aria-hidden="true"
+                                        className={`shrink-0 text-[var(--text-muted)] transition-transform ${expanded ? 'rotate-180 text-[var(--accent-yellow)]' : ''}`}
+                                    />
+                                )}
+                            </span>
+                        </span>
+                        <span className="flex min-h-[54px] w-full min-w-0 flex-col items-start justify-center text-left font-oxanium">
+                            <span className="whitespace-nowrap text-sm font-normal leading-none tabular-nums md:text-lg" style={{ color: (communityVisible ? comparison.myAverage : driver.averageRating) > 0 ? getRatingColor(communityVisible ? comparison.myAverage : driver.averageRating) : 'var(--text-muted)' }}>
+                                {(communityVisible ? comparison.myAverage : driver.averageRating) > 0 ? (communityVisible ? comparison.myAverage : driver.averageRating).toFixed(2) : '—'}
+                            </span>
+                            {communityVisible && <span className="mt-1 h-[9px]" aria-hidden="true" />}
+                        </span>
+                        {communityVisible && <>
+                            <span className="flex min-h-[54px] w-full min-w-0 flex-col items-center justify-center text-center font-oxanium">
+                                {comparison.communityAverage !== null ? (
+                                    <span className="whitespace-nowrap text-sm font-normal leading-none tabular-nums md:text-lg" style={{ color: getRatingColor(comparison.communityAverage) }}>
+                                        {comparison.communityAverage.toFixed(2)}
+                                    </span>
+                                ) : (
+                                    <span className="whitespace-nowrap text-[8px] leading-tight text-[var(--text-muted)]">NO COMMUNITY DATA</span>
+                                )}
+                                <span className="mt-1 h-[9px] text-[8px] leading-tight text-[var(--text-muted)]">
+                                    {source === 'race' && comparison.raceCount > 0 && <span className="block">{comparison.raceCount} RACES</span>}
+                                    {comparison.voteCount > 0 && <span className="block md:hidden">{comparison.voteCount} VOTES</span>}
+                                </span>
+                            </span>
+                            <span className="hidden w-full translate-x-1 items-center justify-center whitespace-nowrap text-center font-oxanium text-[10px] tabular-nums text-[var(--text-muted)] md:flex">
+                                {comparison.voteCount || '—'}
+                            </span>
+                        </>}
+                    </>
+                );
                 return (
                     <div key={driver.driverId} className="border-b border-[var(--border-color)]">
-                        <button
-                            type="button"
-                            data-testid={`community-rating-row-${driver.driverId}`}
-                            aria-label={communityVisible
-                                ? `${expanded ? 'Hide' : 'Show'} community distribution for ${driver.driverName}`
-                                : `View ${driver.driverName} profile`}
-                            aria-expanded={communityVisible ? expanded : undefined}
-                            aria-controls={communityVisible && expanded ? panelId : undefined}
-                            disabled={!interactive}
-                            onClick={() => {
-                                if (communityVisible) {
-                                    setExpandedDriverId(current => current === driver.driverId ? null : driver.driverId);
-                                } else if (onSelectDriver) {
-                                    onSelectDriver(driver.driverId);
-                                }
-                            }}
-                            className={`grid w-full items-center gap-2 p-2 text-left transition-colors md:p-3 ${gridColumns} ${interactive ? 'cursor-pointer hover:bg-white/[0.03]' : 'cursor-default'}`}
-                        >
-                            <span className="flex min-w-0 items-center gap-2">
-                                <span className="w-4 shrink-0 font-oxanium text-[10px] text-[var(--text-muted)]">{index + 1}</span>
-                                <span className="flex min-w-0 flex-1 items-center justify-between gap-1 border-l-2 pl-2" style={{ borderColor: getTeamColor(driver.constructorId) }}>
-                                    <span className="min-w-0">
-                                        <span className="block break-words font-display-condensed text-sm uppercase leading-tight text-white md:text-lg" title={driver.driverName}>
-                                            {driver.driverName}
-                                        </span>
-                                        <span className="block truncate font-ui text-[8px] uppercase text-[var(--text-muted)]">{driver.constructorName}</span>
-                                    </span>
-                                    {communityVisible && (
-                                        <ChevronDown
-                                            size={13}
-                                            aria-hidden="true"
-                                            className={`shrink-0 text-[var(--text-muted)] transition-transform ${expanded ? 'rotate-180 text-[var(--accent-yellow)]' : ''}`}
-                                        />
-                                    )}
-                                </span>
-                            </span>
-                            <span className="flex min-h-[54px] w-full min-w-0 flex-col items-start justify-center text-left font-oxanium">
-                                <span className="whitespace-nowrap text-sm font-normal leading-none tabular-nums md:text-lg" style={{ color: (communityVisible ? comparison.myAverage : driver.averageRating) > 0 ? getRatingColor(communityVisible ? comparison.myAverage : driver.averageRating) : 'var(--text-muted)' }}>
-                                    {(communityVisible ? comparison.myAverage : driver.averageRating) > 0 ? (communityVisible ? comparison.myAverage : driver.averageRating).toFixed(2) : '—'}
-                                </span>
-                                {communityVisible && <span className="mt-1 h-[9px]" aria-hidden="true" />}
-                            </span>
-                            {communityVisible && <>
-                                <span className="flex min-h-[54px] w-full min-w-0 flex-col items-center justify-center text-center font-oxanium">
-                                    {comparison.communityAverage !== null ? (
-                                        <span className="whitespace-nowrap text-sm font-normal leading-none tabular-nums md:text-lg" style={{ color: getRatingColor(comparison.communityAverage) }}>
-                                            {comparison.communityAverage.toFixed(2)}
-                                        </span>
-                                    ) : (
-                                        <span className="whitespace-nowrap text-[8px] leading-tight text-[var(--text-muted)]">NO COMMUNITY DATA</span>
-                                    )}
-                                    <span className="mt-1 h-[9px] text-[8px] leading-tight text-[var(--text-muted)]">
-                                        {source === 'race' && comparison.raceCount > 0 && <span className="block">{comparison.raceCount} RACES</span>}
-                                        {comparison.voteCount > 0 && <span className="block md:hidden">{comparison.voteCount} VOTES</span>}
-                                    </span>
-                                </span>
-                                <span className="hidden w-full translate-x-1 items-center justify-center whitespace-nowrap text-center font-oxanium text-[10px] tabular-nums text-[var(--text-muted)] md:flex">
-                                    {comparison.voteCount || '—'}
-                                </span>
-                            </>}
-                        </button>
+                        {!communityVisible && onSelectDriver ? (
+                            <DriverProfileLink
+                                season={season}
+                                driverId={driver.driverId}
+                                onNavigate={() => onSelectDriver(driver.driverId)}
+                                data-testid={`community-rating-row-${driver.driverId}`}
+                                aria-label={`View ${driver.driverName} profile`}
+                                className={rowClassName}
+                            >
+                                {rowContent}
+                            </DriverProfileLink>
+                        ) : communityVisible && onSelectDriver ? (
+                            <div
+                                role="button"
+                                tabIndex={0}
+                                data-testid={`community-rating-row-${driver.driverId}`}
+                                aria-label={`${expanded ? 'Hide' : 'Show'} community distribution for ${driver.driverName}`}
+                                aria-expanded={expanded}
+                                aria-controls={expanded ? panelId : undefined}
+                                onClick={toggleExpand}
+                                onKeyDown={(e) => {
+                                    if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) {
+                                        e.preventDefault();
+                                        toggleExpand();
+                                    }
+                                }}
+                                className={rowClassName}
+                            >
+                                {rowContent}
+                            </div>
+                        ) : (
+                            <button
+                                type="button"
+                                data-testid={`community-rating-row-${driver.driverId}`}
+                                aria-label={communityVisible
+                                    ? `${expanded ? 'Hide' : 'Show'} community distribution for ${driver.driverName}`
+                                    : `View ${driver.driverName} profile`}
+                                aria-expanded={communityVisible ? expanded : undefined}
+                                aria-controls={communityVisible && expanded ? panelId : undefined}
+                                disabled={!interactive}
+                                onClick={() => {
+                                    if (communityVisible) {
+                                        toggleExpand();
+                                    }
+                                }}
+                                className={rowClassName}
+                            >
+                                {rowContent}
+                            </button>
+                        )}
                         {expanded && (
                             <div id={panelId} role="region" aria-label={`${driver.driverName} community distribution details`} className="border-t border-[var(--border-color)] bg-[var(--bg-darker)] px-3 py-3 md:px-5">
                                 {onSelectDriver && (
                                     <div className="mb-3 flex justify-end">
-                                        <button
-                                            type="button"
-                                            onClick={() => onSelectDriver(driver.driverId)}
+                                        <DriverProfileLink
+                                            season={season}
+                                            driverId={driver.driverId}
+                                            onNavigate={() => onSelectDriver(driver.driverId)}
                                             className="inline-flex items-center gap-1.5 border border-[var(--border-color)] bg-[var(--bg-panel)] px-3 py-1 font-oxanium text-[10px] uppercase tracking-wider text-white transition-colors hover:border-[var(--accent-yellow)] hover:text-[var(--accent-yellow)]"
                                         >
                                             <User size={11} />
                                             <span>VIEW DRIVER PROFILE</span>
-                                        </button>
+                                        </DriverProfileLink>
                                     </div>
                                 )}
                                 <CommunityRatingDistribution

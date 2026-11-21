@@ -27,7 +27,7 @@ export default function DriverProfileRoute() {
             <DriverProfilePage
                 season={season}
                 driverId={driverId}
-                onSelectDriver={nextDriverId => navigate(`/${season}/driver/${nextDriverId}`)}
+                onSelectDriver={(nextDriverId, targetSeason) => navigate(`/${targetSeason ?? season}/driver/${nextDriverId}`)}
                 onSelectSeason={nextSeason => navigate(`/${nextSeason}/driver/${driverId}`)}
                 onSelectRace={(round, raceName, date) => navigate(`/${season}/race/${round}`, {
                     state: {

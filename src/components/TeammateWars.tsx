@@ -6,6 +6,7 @@ import { useExportImage } from '../hooks/useExportImage';
 import { useCommunityRatings, useRatingStorage } from '../hooks/useCommunityRatings';
 import { calculateAverages, getQuickRatings, getSeasonRatings } from '../utils/storage';
 import { validRatings } from '../utils/ratingData';
+import { classifiedRacePosition } from '../utils/driverProfile';
 import {
     buildTeammateCommunityAverages,
     calculateTeammateRatingH2H,
@@ -15,6 +16,8 @@ import { getAllSeasonResults, getAllSeasonQualifying, getConstructorStandings, g
 import type { SeasonRaceResult, SeasonQualifyingResult, ConstructorStanding, DriverStanding } from '../api/f1Api';
 import { RateLimitError } from '../api/f1Api';
 import { getTeamColor } from '../types';
+import { DriverVersus } from './DriverVersus';
+import { DriverProfileLink } from './DriverProfileLink';
 import { TeamVersus } from './TeamVersus';
 import { VersusModeToggle } from './VersusModeToggle';
 import type { VersusMode } from './VersusModeToggle';
@@ -31,7 +34,7 @@ import {
 interface TeammateWarsProps {
     season: string;
     onBack: () => void;
-    onSelectDriver?: (driverId: string) => void;
+    onSelectDriver?: (driverId: string, targetSeason?: string) => void;
 }
 
 function getDriverFamilyName(driverName: string): string {
@@ -57,17 +60,26 @@ export function TeammateWars({ season, onSelectDriver }: TeammateWarsProps) {
     const [ratingSource, setRatingSource] = useState<TeammateRatingSource>('personal');
 
     const [searchParams, setSearchParams] = useSearchParams();
-    const mode: VersusMode = searchParams.get('mode') === 'teams' ? 'teams' : 'drivers';
+    const rawMode = searchParams.get('mode');
+    const mode: VersusMode = rawMode === 'teams' ? 'teams' : rawMode === 'driver-vs' ? 'driver-vs' : 'drivers';
 
     const handleModeChange = (nextMode: VersusMode) => {
         setSearchParams(prev => {
             const next = new URLSearchParams(prev);
-            if (nextMode === 'teams') {
-                next.set('mode', 'teams');
-            } else {
+            if (nextMode === 'drivers') {
                 next.delete('mode');
+            } else {
+                next.set('mode', nextMode);
+            }
+            if (nextMode !== 'teams') {
                 next.delete('a');
                 next.delete('b');
+            }
+            if (nextMode !== 'driver-vs') {
+                next.delete('sa');
+                next.delete('da');
+                next.delete('sb');
+                next.delete('db');
             }
             return next;
         }, { replace: true });
@@ -177,11 +189,13 @@ export function TeammateWars({ season, onSelectDriver }: TeammateWarsProps) {
             // Race H2H - only count when BOTH finished (not DNF/DSQ)
             const raceA = raceResults.find(r => r.round === round && r.driverId === driverAId && r.constructorId === constructorId);
             const raceB = raceResults.find(r => r.round === round && r.driverId === driverBId && r.constructorId === constructorId);
+            const posA = classifiedRacePosition(raceA);
+            const posB = classifiedRacePosition(raceB);
 
-            if (raceA?.position && raceB?.position) {
+            if (posA !== null && posB !== null) {
                 totalRaces++;
-                if (raceA.position < raceB.position) raceWinsA++;
-                else if (raceB.position < raceA.position) raceWinsB++;
+                if (posA < posB) raceWinsA++;
+                else if (posB < posA) raceWinsB++;
             }
 
             // Quali H2H
@@ -367,6 +381,16 @@ export function TeammateWars({ season, onSelectDriver }: TeammateWarsProps) {
         };
     });
 
+    if (mode === 'driver-vs') {
+        return (
+            <DriverVersus
+                defaultSeason={season}
+                toggle={modeToggle}
+                onSelectDriver={onSelectDriver}
+            />
+        );
+    }
+
     // Team mode reuses the data fetched above; the drivers-only loading/empty states below don't apply to it.
     if (mode === 'teams') {
         return (
@@ -380,6 +404,7 @@ export function TeammateWars({ season, onSelectDriver }: TeammateWarsProps) {
                 raceStatus={raceStatus}
                 qualiStatus={qualiStatus}
                 toggle={modeToggle}
+                onSelectDriver={onSelectDriver}
             />
         );
     }
@@ -762,28 +787,40 @@ export function TeammateWars({ season, onSelectDriver }: TeammateWarsProps) {
                                             </m.span>
                                         </AnimatePresence>
                                     </div>
-                                    <button
-                                        type="button"
-                                        disabled={!onSelectDriver}
-                                        onClick={(e) => {
-                                            if (!onSelectDriver) return;
-                                            e.stopPropagation();
-                                            onSelectDriver(driverA.driverId);
-                                        }}
-                                        title={onSelectDriver ? `View ${driverA.driverName} profile` : undefined}
-                                        className={`group/drv flex w-full max-w-full flex-col items-center ${onSelectDriver ? 'cursor-pointer' : 'cursor-default'}`}
-                                    >
-                                        <div className={`h2h-battle__name mb-1 w-full max-w-full truncate px-1 font-display text-base leading-[0.95] uppercase tracking-tight sm:text-xl ${
-                                            standingsByDriverId[driverA.driverId]?.position === "1"
-                                                ? 'text-[var(--accent-yellow)] opacity-75'
-                                                : ''
-                                        } ${onSelectDriver ? 'group-hover/drv:text-[var(--accent-yellow)] transition-colors' : ''}`}>
-                                            {driverAFamilyName}
+                                    {onSelectDriver ? (
+                                        <DriverProfileLink
+                                            season={season}
+                                            driverId={driverA.driverId}
+                                            onNavigate={() => onSelectDriver(driverA.driverId)}
+                                            stopPropagation
+                                            title={`View ${driverA.driverName} profile`}
+                                            className="group/drv flex w-full max-w-full flex-col items-center cursor-pointer"
+                                        >
+                                            <div className={`h2h-battle__name mb-1 w-full max-w-full truncate px-1 font-display text-base leading-[0.95] uppercase tracking-tight sm:text-xl ${
+                                                standingsByDriverId[driverA.driverId]?.position === "1"
+                                                    ? 'text-[var(--accent-yellow)] opacity-75'
+                                                    : ''
+                                            } group-hover/drv:text-[var(--accent-yellow)] transition-colors`}>
+                                                {driverAFamilyName}
+                                            </div>
+                                            <div className="w-full max-w-full truncate px-1 font-oxanium text-[9px] uppercase text-[var(--text-muted)] sm:text-[10px]">
+                                                {driverAGivenName}
+                                            </div>
+                                        </DriverProfileLink>
+                                    ) : (
+                                        <div className="flex w-full max-w-full flex-col items-center cursor-default">
+                                            <div className={`h2h-battle__name mb-1 w-full max-w-full truncate px-1 font-display text-base leading-[0.95] uppercase tracking-tight sm:text-xl ${
+                                                standingsByDriverId[driverA.driverId]?.position === "1"
+                                                    ? 'text-[var(--accent-yellow)] opacity-75'
+                                                    : ''
+                                            }`}>
+                                                {driverAFamilyName}
+                                            </div>
+                                            <div className="w-full max-w-full truncate px-1 font-oxanium text-[9px] uppercase text-[var(--text-muted)] sm:text-[10px]">
+                                                {driverAGivenName}
+                                            </div>
                                         </div>
-                                        <div className="w-full max-w-full truncate px-1 font-oxanium text-[9px] uppercase text-[var(--text-muted)] sm:text-[10px]">
-                                            {driverAGivenName}
-                                        </div>
-                                    </button>
+                                    )}
                                 </div>
 
                                 {/* Progress Bar */}
@@ -823,28 +860,40 @@ export function TeammateWars({ season, onSelectDriver }: TeammateWarsProps) {
                                             </m.span>
                                         </AnimatePresence>
                                     </div>
-                                    <button
-                                        type="button"
-                                        disabled={!onSelectDriver}
-                                        onClick={(e) => {
-                                            if (!onSelectDriver) return;
-                                            e.stopPropagation();
-                                            onSelectDriver(driverB.driverId);
-                                        }}
-                                        title={onSelectDriver ? `View ${driverB.driverName} profile` : undefined}
-                                        className={`group/drv flex w-full max-w-full flex-col items-center ${onSelectDriver ? 'cursor-pointer' : 'cursor-default'}`}
-                                    >
-                                        <div className={`h2h-battle__name mb-1 w-full max-w-full truncate px-1 font-display text-base leading-[0.95] uppercase tracking-tight sm:text-xl ${
-                                            standingsByDriverId[driverB.driverId]?.position === "1"
-                                                ? 'text-[var(--accent-yellow)] opacity-75'
-                                                : ''
-                                        } ${onSelectDriver ? 'group-hover/drv:text-[var(--accent-yellow)] transition-colors' : ''}`}>
-                                            {driverBFamilyName}
+                                    {onSelectDriver ? (
+                                        <DriverProfileLink
+                                            season={season}
+                                            driverId={driverB.driverId}
+                                            onNavigate={() => onSelectDriver(driverB.driverId)}
+                                            stopPropagation
+                                            title={`View ${driverB.driverName} profile`}
+                                            className="group/drv flex w-full max-w-full flex-col items-center cursor-pointer"
+                                        >
+                                            <div className={`h2h-battle__name mb-1 w-full max-w-full truncate px-1 font-display text-base leading-[0.95] uppercase tracking-tight sm:text-xl ${
+                                                standingsByDriverId[driverB.driverId]?.position === "1"
+                                                    ? 'text-[var(--accent-yellow)] opacity-75'
+                                                    : ''
+                                            } group-hover/drv:text-[var(--accent-yellow)] transition-colors`}>
+                                                {driverBFamilyName}
+                                            </div>
+                                            <div className="w-full max-w-full truncate px-1 font-oxanium text-[9px] uppercase text-[var(--text-muted)] sm:text-[10px]">
+                                                {driverBGivenName}
+                                            </div>
+                                        </DriverProfileLink>
+                                    ) : (
+                                        <div className="flex w-full max-w-full flex-col items-center cursor-default">
+                                            <div className={`h2h-battle__name mb-1 w-full max-w-full truncate px-1 font-display text-base leading-[0.95] uppercase tracking-tight sm:text-xl ${
+                                                standingsByDriverId[driverB.driverId]?.position === "1"
+                                                    ? 'text-[var(--accent-yellow)] opacity-75'
+                                                    : ''
+                                            }`}>
+                                                {driverBFamilyName}
+                                            </div>
+                                            <div className="w-full max-w-full truncate px-1 font-oxanium text-[9px] uppercase text-[var(--text-muted)] sm:text-[10px]">
+                                                {driverBGivenName}
+                                            </div>
                                         </div>
-                                        <div className="w-full max-w-full truncate px-1 font-oxanium text-[9px] uppercase text-[var(--text-muted)] sm:text-[10px]">
-                                            {driverBGivenName}
-                                        </div>
-                                    </button>
+                                    )}
                                 </div>
                             </div>
 

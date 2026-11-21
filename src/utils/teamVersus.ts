@@ -476,7 +476,7 @@ function bestPositionByRound(
  * Per round, the team whose best classified driver finished ahead wins the round.
  * A team with no classified driver loses to one that has; rounds where neither has one are skipped.
  */
-function compareBestPositions(
+export function compareBestPositions(
     a: Map<string, number | null>,
     b: Map<string, number | null>,
 ): { winsA: number; winsB: number; total: number } {
@@ -571,7 +571,7 @@ export function getTeamDrivers(
         .slice(0, limit);
 }
 
-function numericRow(
+export function numericRow(
     key: string,
     label: string,
     a: number | null,
@@ -595,7 +595,7 @@ function numericRow(
     return { key, label, displayA, displayB, winner, shareA, note };
 }
 
-function h2hRow(key: string, label: string, winsA: number, winsB: number, total: number, available: boolean, unit: string): VersusRow {
+export function h2hRow(key: string, label: string, winsA: number, winsB: number, total: number, available: boolean, unit: string): VersusRow {
     if (!available || total === 0) {
         return { key, label, displayA: '—', displayB: '—', winner: 'none', shareA: null };
     }

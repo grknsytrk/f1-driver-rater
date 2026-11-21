@@ -35,6 +35,7 @@ import {
     type BreakdownSource,
 } from '../utils/raceBreakdown';
 import { PodiumFlagBackdrop } from './PodiumFlagBackdrop';
+import { DriverProfileLink } from './DriverProfileLink';
 import { ResultsBreakdownTable } from './results/ResultsBreakdownTable';
 import { ResultsShareCard } from './results/ResultsShareCard';
 
@@ -732,23 +733,43 @@ export function ResultsDashboard({ season, onReset, onSelectDriver }: ResultsDas
                                             className={`flex flex-col w-[30%] max-w-[100px] md:max-w-none md:w-56 ${isWinner ? 'z-10' : 'z-0'}`}
                                         >
                                             {/* DRIVER INFO */}
-                                            <div
-                                                onClick={onSelectDriver ? () => onSelectDriver(driver.driverId) : undefined}
-                                                title={onSelectDriver ? `View ${driver.driverName} profile` : undefined}
-                                                className={`group/pod mb-1 md:mb-2 bg-[var(--bg-panel)] border border-[var(--border-color)] border-l-2 p-1.5 md:p-3 overflow-hidden ${onSelectDriver ? 'cursor-pointer hover:border-[var(--accent-yellow)] transition-colors' : ''}`}
-                                                style={{ borderLeftColor: getTeamColor(driver.constructorId) }}
-                                            >
-                                                <div className="flex justify-between items-start mb-0.5 md:mb-1">
-                                                    <span className="font-oxanium text-[7px] md:text-xs text-[var(--text-secondary)]">P{rank}</span>
-                                                    <div className="w-1 h-1 md:w-2 md:h-2 rounded-full flex-shrink-0" style={{ backgroundColor: getTeamColor(driver.constructorId) }} />
+                                            {onSelectDriver ? (
+                                                <DriverProfileLink
+                                                    season={season}
+                                                    driverId={driver.driverId}
+                                                    onNavigate={() => onSelectDriver(driver.driverId)}
+                                                    title={`View ${driver.driverName} profile`}
+                                                    className="block group/pod mb-1 md:mb-2 bg-[var(--bg-panel)] border border-[var(--border-color)] border-l-2 p-1.5 md:p-3 overflow-hidden cursor-pointer hover:border-[var(--accent-yellow)] transition-colors"
+                                                    style={{ borderLeftColor: getTeamColor(driver.constructorId) }}
+                                                >
+                                                    <div className="flex justify-between items-start mb-0.5 md:mb-1">
+                                                        <span className="font-oxanium text-[7px] md:text-xs text-[var(--text-secondary)]">P{rank}</span>
+                                                        <div className="w-1 h-1 md:w-2 md:h-2 rounded-full flex-shrink-0" style={{ backgroundColor: getTeamColor(driver.constructorId) }} />
+                                                    </div>
+                                                    <div className="font-display-condensed text-[10px] md:text-2xl leading-none text-white group-hover/pod:text-[var(--accent-yellow)] transition-colors uppercase tracking-tight truncate">
+                                                        {driver.driverName.split(' ')[1] || driver.driverName}
+                                                    </div>
+                                                    <div className="font-ui text-[6px] md:text-[10px] text-[var(--text-muted)] uppercase tracking-wider mt-0.5 md:mt-1 truncate">
+                                                        {driver.constructorName}
+                                                    </div>
+                                                </DriverProfileLink>
+                                            ) : (
+                                                <div
+                                                    className="group/pod mb-1 md:mb-2 bg-[var(--bg-panel)] border border-[var(--border-color)] border-l-2 p-1.5 md:p-3 overflow-hidden"
+                                                    style={{ borderLeftColor: getTeamColor(driver.constructorId) }}
+                                                >
+                                                    <div className="flex justify-between items-start mb-0.5 md:mb-1">
+                                                        <span className="font-oxanium text-[7px] md:text-xs text-[var(--text-secondary)]">P{rank}</span>
+                                                        <div className="w-1 h-1 md:w-2 md:h-2 rounded-full flex-shrink-0" style={{ backgroundColor: getTeamColor(driver.constructorId) }} />
+                                                    </div>
+                                                    <div className="font-display-condensed text-[10px] md:text-2xl leading-none text-white uppercase tracking-tight truncate">
+                                                        {driver.driverName.split(' ')[1] || driver.driverName}
+                                                    </div>
+                                                    <div className="font-ui text-[6px] md:text-[10px] text-[var(--text-muted)] uppercase tracking-wider mt-0.5 md:mt-1 truncate">
+                                                        {driver.constructorName}
+                                                    </div>
                                                 </div>
-                                                <div className="font-display-condensed text-[10px] md:text-2xl leading-none text-white group-hover/pod:text-[var(--accent-yellow)] transition-colors uppercase tracking-tight truncate">
-                                                    {driver.driverName.split(' ')[1] || driver.driverName}
-                                                </div>
-                                                <div className="font-ui text-[6px] md:text-[10px] text-[var(--text-muted)] uppercase tracking-wider mt-0.5 md:mt-1 truncate">
-                                                    {driver.constructorName}
-                                                </div>
-                                            </div>
+                                            )}
 
                                             {/* RATING DISPLAY */}
                                             <div className="bg-[var(--bg-darker)] border-x border-[var(--border-color)] px-1.5 md:px-4 py-0.5 md:py-2 flex justify-between items-center">
