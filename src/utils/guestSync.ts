@@ -1,5 +1,5 @@
 import type { SupabaseClient, User } from '@supabase/supabase-js';
-import { supabase } from '../lib/supabaseClient';
+import { getSupabaseClient, isSupabaseConfigured } from '../lib/supabaseClient';
 import {
     entryKey, validRatings, localEntries, matchesScope, mergeRemoteEntry,
     notifyLocalRatings, readStored, type RatingEntry, type RatingScope,
@@ -66,9 +66,31 @@ function isRateLimitError(error: unknown): boolean {
     return authError.status === 429 || authError.code === 'over_request_rate_limit';
 }
 
+type GuestSyncClientInput = SupabaseClient | (() => Promise<SupabaseClient | null>) | null;
+
 // Persistent operations retain offline edits/deletes across reloads. Injecting the
 // client lets tests exercise real journal and merge behavior with controlled I/O.
-export function createGuestSync(client: SupabaseClient | null, options: GuestSyncOptions = {}) {
+export function createGuestSync(clientOrLoader: GuestSyncClientInput, options: GuestSyncOptions = {}) {
+    const hasClient = clientOrLoader !== null;
+    let resolvedClient: SupabaseClient | null = typeof clientOrLoader === 'function' ? null : clientOrLoader;
+    let clientPromise: Promise<SupabaseClient | null> | null = null;
+    async function resolveClient(): Promise<SupabaseClient | null> {
+        if (!clientOrLoader) return null;
+        if (resolvedClient) return resolvedClient;
+        if (typeof clientOrLoader !== 'function') return clientOrLoader;
+        if (!clientPromise) {
+            clientPromise = clientOrLoader()
+                .then(client => {
+                    resolvedClient = client;
+                    return client;
+                })
+                .catch(error => {
+                    clientPromise = null;
+                    throw error;
+                });
+        }
+        return clientPromise;
+    }
     const sessionStore = options.sessionStorage ?? null;
     let userPromise: Promise<User> | null = null;
     let freshlyCreatedUserId: string | null = null;
@@ -124,6 +146,7 @@ export function createGuestSync(client: SupabaseClient | null, options: GuestSyn
     }
 
     async function refreshSuspensionStatus(hasPendingMutations = false) {
+        const client = await resolveClient();
         if (!client || typeof client.rpc !== 'function') return;
         const now = Date.now();
         const cooldownMs = hasPendingMutations ? 60_000 : 300_000;
@@ -167,6 +190,7 @@ export function createGuestSync(client: SupabaseClient | null, options: GuestSyn
     }
 
     async function ensureUser(): Promise<User> {
+        const client = await resolveClient();
         if (!client) throw new Error('Cloud sync is not configured.');
         if (!userPromise) {
             userPromise = (async () => {
@@ -211,10 +235,12 @@ export function createGuestSync(client: SupabaseClient | null, options: GuestSyn
         if (isBrandNewAnonymousUser) {
             freshlyCreatedUserId = null;
         } else {
+            const client = await resolveClient();
+            if (!client) throw new Error('Cloud sync is not configured.');
             for (const kind of ['race', 'quick'] as const) {
                 const columns = kind === 'race' ? RACE_SELECT_COLUMNS : QUICK_SELECT_COLUMNS;
                 for (let offset = 0; ; offset += 1000) {
-                    let query = client!.from(kind === 'race' ? 'user_race_ratings' : 'user_quick_ratings')
+                    let query = client.from(kind === 'race' ? 'user_race_ratings' : 'user_quick_ratings')
                         .select<string, CloudRating>(columns).eq('user_id', userId).order('season').order('driver_id');
                     if (kind === 'race') query = query.order('round');
                     const { data, error } = await query.range(offset, offset + 999).abortSignal(AbortSignal.timeout(8000));
@@ -250,6 +276,8 @@ export function createGuestSync(client: SupabaseClient | null, options: GuestSyn
     }
 
     async function flush() {
+        const client = await resolveClient();
+        if (!client) throw new Error('Cloud sync is not configured.');
         const user = await ensureUser();
         const wasFreshAnonymousUser = freshlyCreatedUserId === user.id;
         if (!hydrated) await hydrate(user.id);
@@ -265,7 +293,7 @@ export function createGuestSync(client: SupabaseClient | null, options: GuestSyn
             const scopes: RatingScope[] = [];
             if (first.operation === 'policy-acceptance') {
                 sent = [first];
-                const { error } = await client!.from('community_policy_acceptances')
+                const { error } = await client.from('community_policy_acceptances')
                     .upsert([{
                         user_id: user.id,
                         policy_version: first.policyVersion,
@@ -284,7 +312,7 @@ export function createGuestSync(client: SupabaseClient | null, options: GuestSyn
                     entries.push(mutation.entry);
                 }
                 const kind = first.entry.kind;
-                const { error } = await client!.from(kind === 'race' ? 'user_race_ratings' : 'user_quick_ratings')
+                const { error } = await client.from(kind === 'race' ? 'user_race_ratings' : 'user_quick_ratings')
                     .upsert(entries.map(entry => toCloud(entry, user.id)), {
                         onConflict: kind === 'race' ? 'user_id,season,round,driver_id' : 'user_id,season,driver_id',
                     }).abortSignal(AbortSignal.timeout(8000));
@@ -294,7 +322,7 @@ export function createGuestSync(client: SupabaseClient | null, options: GuestSyn
                 sent = [first];
                 const scope = first.scope;
                 for (const kind of scope.kind ? [scope.kind] : ['race', 'quick'] as const) {
-                    let query = client!.from(kind === 'race' ? 'user_race_ratings' : 'user_quick_ratings')
+                    let query = client.from(kind === 'race' ? 'user_race_ratings' : 'user_quick_ratings')
                         .delete().eq('user_id', user.id);
                     if (scope.season) query = query.eq('season', scope.season);
                     if (scope.round && kind === 'race') query = query.eq('round', scope.round);
@@ -315,7 +343,7 @@ export function createGuestSync(client: SupabaseClient | null, options: GuestSyn
     }
 
     function sync(): Promise<void> {
-        if (!client) return Promise.resolve();
+        if (!hasClient) return Promise.resolve();
         if (running) return running;
         running = flush().catch(() => {
             userPromise = null;
@@ -326,7 +354,7 @@ export function createGuestSync(client: SupabaseClient | null, options: GuestSyn
     }
 
     function schedule() {
-        if (!client || scheduled !== null) return;
+        if (!hasClient || scheduled !== null) return;
         scheduled = setTimeout(() => { scheduled = null; void sync(); }, 150);
     }
 
@@ -360,7 +388,7 @@ export function createGuestSync(client: SupabaseClient | null, options: GuestSyn
     }
 
     function queuePolicyAcceptance(policyVersion: string, acceptedAt = new Date().toISOString()) {
-        if (!client) return;
+        if (!hasClient) return;
         const pending = outbox().filter(mutation =>
             mutation.operation !== 'policy-acceptance' || mutation.policyVersion !== policyVersion);
         pending.unshift({
@@ -374,7 +402,7 @@ export function createGuestSync(client: SupabaseClient | null, options: GuestSyn
     }
 
     function initialize() {
-        if (!listening && client) {
+        if (!listening && hasClient) {
             listening = true;
             window.addEventListener('online', schedule);
             window.addEventListener('storage', event => { if (event.key === OUTBOX_KEY) schedule(); });
@@ -396,7 +424,7 @@ function getDefaultSessionStorage(): Storage | null {
     }
 }
 
-const guestSync = createGuestSync(supabase, {
+const guestSync = createGuestSync(isSupabaseConfigured ? getSupabaseClient : null, {
     sessionStorage: getDefaultSessionStorage(),
 });
 export const initializeGuestSync = guestSync.initialize;

@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { AverageRating, SeasonRatings } from '../types';
-import { supabase } from '../lib/supabaseClient';
+import { getSupabaseClient, isSupabaseConfigured } from '../lib/supabaseClient';
 import { COMMUNITY_CHANGE_EVENT, ensureGuestUser } from './guestSync';
 import { validRatings, type RatingScope } from './ratingData';
 import { normalizeCommunityDistributions, type CommunityRatingDistribution } from './communityRatingDistribution';
@@ -44,12 +44,34 @@ interface StoredCommunityEntry<T, Q> {
     data: T;
 }
 
+type CommunityClientInput = SupabaseClient | (() => Promise<SupabaseClient | null>) | null;
+
 export function createCommunityClient(
-    client: SupabaseClient | null,
+    clientOrLoader: CommunityClientInput,
     ensureUser: () => Promise<unknown>,
     now = Date.now,
     options: CommunityClientOptions = {},
 ) {
+    const hasClient = clientOrLoader !== null;
+    let resolvedClient: SupabaseClient | null = typeof clientOrLoader === 'function' ? null : clientOrLoader;
+    let clientPromise: Promise<SupabaseClient | null> | null = null;
+    async function resolveClient(): Promise<SupabaseClient | null> {
+        if (!clientOrLoader) return null;
+        if (resolvedClient) return resolvedClient;
+        if (typeof clientOrLoader !== 'function') return clientOrLoader;
+        if (!clientPromise) {
+            clientPromise = clientOrLoader()
+                .then(client => {
+                    resolvedClient = client;
+                    return client;
+                })
+                .catch(error => {
+                    clientPromise = null;
+                    throw error;
+                });
+        }
+        return clientPromise;
+    }
     const storage = options.storage ?? null;
     const resolveTtl = (season: string) =>
         typeof options.ttlMs === 'function' ? options.ttlMs(season) : (options.ttlMs ?? 60_000);
@@ -154,7 +176,7 @@ export function createCommunityClient(
     }
 
     function load(query: CommunityQuery): Promise<CommunityRating[]> {
-        if (!client) return Promise.resolve([]);
+        if (!hasClient) return Promise.resolve([]);
         const key = queryKey(query);
         const cached = cache.get(key);
         if (cached && cached.expires > now()) return cached.promise;
@@ -196,6 +218,8 @@ export function createCommunityClient(
         const request = (async () => {
             await ensureUser();
             if (controller.signal.aborted) throw new Error('Community request timed out');
+            const client = await resolveClient();
+            if (!client) return [];
             const { data, error } = await client.rpc(
                 query.kind === 'race' ? 'get_race_community_ratings' : 'get_quick_community_ratings',
                 { p_season: query.season, ...(query.kind === 'race' ? { p_round: query.round ?? null } : {}) },
@@ -229,7 +253,7 @@ export function createCommunityClient(
         return entry.promise;
     }
     function loadDistribution(query: CommunityDistributionQuery): Promise<CommunityRatingDistribution[]> {
-        if (!client) return Promise.resolve([]);
+        if (!hasClient) return Promise.resolve([]);
         const key = JSON.stringify(['distribution', query.kind, query.season]);
         const cached = distributionCache.get(key);
         if (cached && cached.expires > now()) return cached.promise;
@@ -256,6 +280,8 @@ export function createCommunityClient(
         const request = (async () => {
             await ensureUser();
             if (controller.signal.aborted) throw new Error('Community distribution request timed out');
+            const client = await resolveClient();
+            if (!client) return [];
             const { data, error } = await client.rpc('get_community_rating_distributions_by_round', {
                 p_kind: query.kind, p_season: query.season,
             }).abortSignal(controller.signal);
@@ -283,7 +309,7 @@ export function createCommunityClient(
         distributionCache.set(key, entry);
         return entry.promise;
     }
-    return { load, loadDistribution, invalidate, configured: client !== null };
+    return { load, loadDistribution, invalidate, configured: hasClient };
 }
 
 function getDefaultSessionStorage(): Storage | null {
@@ -294,7 +320,7 @@ function getDefaultSessionStorage(): Storage | null {
     }
 }
 
-export const communityClient = createCommunityClient(supabase, ensureGuestUser, Date.now, {
+export const communityClient = createCommunityClient(isSupabaseConfigured ? getSupabaseClient : null, ensureGuestUser, Date.now, {
     ttlMs: season => getCommunityCacheTtlMs(season),
     storage: getDefaultSessionStorage(),
 });

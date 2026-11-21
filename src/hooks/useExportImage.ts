@@ -1,5 +1,4 @@
 import { useState, useCallback } from 'react';
-import { toPng } from 'html-to-image';
 
 interface UseExportImageOptions {
   fileName?: string;
@@ -15,13 +14,15 @@ export function useExportImage() {
       
       try {
         setIsExporting(true);
-        
-        // Let the state update propagate so spinners appear before taking snapshot
+
+        // Start loading html-to-image immediately while waiting a frame for spinners to paint
+        const htmlToImagePromise = import('html-to-image');
         await new Promise(resolve => setTimeout(resolve, 50));
 
         const { fileName = 'f1-rating-export.png', backgroundColor = '#0a0a0b' } = options;
 
         // Generate image using html-to-image exactly like ResultsDashboard handles its tables
+        const { toPng } = await htmlToImagePromise;
         const dataUrl = await toPng(elementHash, {
             cacheBust: true,
             pixelRatio: 2,

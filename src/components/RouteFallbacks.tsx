@@ -1,4 +1,4 @@
-import { motion } from 'framer-motion';
+import { m } from 'framer-motion';
 import { Loader2 } from 'lucide-react';
 import { PageLoadingSkeleton, QuickRateDriverSkeleton, RatingDriverSkeleton } from './Skeleton';
 
@@ -9,7 +9,7 @@ interface FullPageRouteFallbackProps {
 
 export function FullPageRouteFallback({ title, eyebrow }: FullPageRouteFallbackProps) {
     return (
-        <motion.div
+        <m.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             className="min-h-screen py-4 md:py-8 px-3 md:px-6"
@@ -34,7 +34,7 @@ export function FullPageRouteFallback({ title, eyebrow }: FullPageRouteFallbackP
                     <PageLoadingSkeleton />
                 </div>
             </div>
-        </motion.div>
+        </m.div>
     );
 }
 

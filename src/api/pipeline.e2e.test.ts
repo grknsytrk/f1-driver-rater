@@ -12,6 +12,7 @@ import bundle2026Json from '../../public/data/seasons/2026.json';
 import { withMinimumDelay } from '../utils/delay';
 import {
     clearStaticSeasonCache,
+    hydrateSeasonBundle,
     type CompactSeasonBundle,
     type SeasonManifest,
 } from './staticSeasonData';
@@ -40,15 +41,25 @@ import {
     resetRoutePrefetchCache,
 } from '../routes/routeChunks';
 
-const STATIC_BUNDLES: Record<string, CompactSeasonBundle> = {
-    '2020': bundle2020Json as unknown as CompactSeasonBundle,
-    '2021': bundle2021Json as unknown as CompactSeasonBundle,
-    '2022': bundle2022Json as unknown as CompactSeasonBundle,
-    '2023': bundle2023Json as unknown as CompactSeasonBundle,
-    '2024': bundle2024Json as unknown as CompactSeasonBundle,
-    '2025': bundle2025Json as unknown as CompactSeasonBundle,
-    '2026': bundle2026Json as unknown as CompactSeasonBundle,
+const RAW_STATIC_BUNDLES: Record<string, Record<string, unknown>> = {
+    '2020': bundle2020Json as unknown as Record<string, unknown>,
+    '2021': bundle2021Json as unknown as Record<string, unknown>,
+    '2022': bundle2022Json as unknown as Record<string, unknown>,
+    '2023': bundle2023Json as unknown as Record<string, unknown>,
+    '2024': bundle2024Json as unknown as Record<string, unknown>,
+    '2025': bundle2025Json as unknown as Record<string, unknown>,
+    '2026': bundle2026Json as unknown as Record<string, unknown>,
 };
+
+const STATIC_BUNDLES: Record<string, CompactSeasonBundle> = Object.fromEntries(
+    Object.entries(RAW_STATIC_BUNDLES).map(([year, raw]) => {
+        const hydrated = hydrateSeasonBundle(raw, year);
+        if (!hydrated) {
+            throw new Error(`Failed to hydrate static season bundle ${year}`);
+        }
+        return [year, hydrated];
+    }),
+);
 
 describe('Milestone 5 — End-to-End Pipeline & Adversarial Hardening (R1–R5)', () => {
     beforeEach(() => {
@@ -77,6 +88,18 @@ describe('Milestone 5 — End-to-End Pipeline & Adversarial Hardening (R1–R5)'
             expect(getHeader('/fonts/(.*)')).toBe('public, max-age=31536000, immutable');
             expect(getHeader('/data/(.*)')).toContain('stale-while-revalidate');
             expect(getHeader('/images/(.*)')).toContain('stale-while-revalidate');
+        });
+
+        it('configures HTTP security headers on all routes in vercel.json', () => {
+            const getSecurityHeader = (key: string) =>
+                vercelConfig.headers
+                    .find(h => h.source === '/(.*)')
+                    ?.headers.find(kv => kv.key === key)?.value;
+
+            expect(getSecurityHeader('X-Content-Type-Options')).toBe('nosniff');
+            expect(getSecurityHeader('Referrer-Policy')).toBe('strict-origin-when-cross-origin');
+            expect(getSecurityHeader('X-Frame-Options')).toBe('DENY');
+            expect(getSecurityHeader('Permissions-Policy')).toBe('camera=(), microphone=(), geolocation=()');
         });
 
         it('includes preconnect and dns-prefetch hints for https://api.jolpi.ca in index.html', () => {
@@ -197,6 +220,13 @@ describe('Milestone 5 — End-to-End Pipeline & Adversarial Hardening (R1–R5)'
                 const entry = manifest.seasons[year];
                 expect(entry).toBeDefined();
 
+                const rawBundle = RAW_STATIC_BUNDLES[year];
+                expect(rawBundle.version).toBe(2);
+                expect(rawBundle.results).toBeUndefined();
+                expect(rawBundle.qualifying).toBeUndefined();
+                expect(rawBundle.drivers).toBeDefined();
+                expect(rawBundle.constructors).toBeDefined();
+
                 const bundle = STATIC_BUNDLES[year];
                 expect(bundle.season).toBe(year);
                 expect(bundle.isArchived).toBe(Number(year) < 2026);
@@ -232,11 +262,12 @@ describe('Milestone 5 — End-to-End Pipeline & Adversarial Hardening (R1–R5)'
         });
 
         it('hydrates full 2025 Standings, Awards & Teammate Wars data from real disk bundle with 0 Jolpica calls', async () => {
+            const raw2025 = RAW_STATIC_BUNDLES['2025'];
             const bundle2025 = STATIC_BUNDLES['2025'];
 
             const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue({
                 ok: true,
-                json: async () => bundle2025,
+                json: async () => raw2025,
             } as Response);
 
             const [races, stats, wcc, wdc, results, qualifying, sprints] = await Promise.all([
@@ -274,9 +305,10 @@ describe('Milestone 5 — End-to-End Pipeline & Adversarial Hardening (R1–R5)'
             vi.useFakeTimers();
             vi.setSystemTime(pinnedTime);
             try {
+                const raw2026 = RAW_STATIC_BUNDLES['2026'];
                 const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue({
                     ok: true,
-                    json: async () => bundle2026,
+                    json: async () => raw2026,
                 } as Response);
 
                 const [races, stats, wcc, wdc, results, qualifying, sprints] = await Promise.all([

@@ -1,4 +1,4 @@
-import type { Race, RaceResult } from '../types';
+import type { Constructor, Driver, Race, RaceResult } from '../types';
 import { parseF1TimeSeconds } from '../utils/f1Time';
 import manifestData from '../../public/data/seasons/manifest.json';
 import type {
@@ -12,8 +12,35 @@ import type {
 
 export type SeasonDataset = 'results' | 'qualifying' | 'sprints' | 'driverStandings' | 'constructorStandings';
 
+export interface CompactRoundRaceResult {
+    number: string;
+    position: string;
+    positionText: string;
+    points: string;
+    driverId: string;
+    constructorId: string;
+    grid: string;
+    laps: string;
+    status: string;
+    Time?: {
+        millis?: string;
+        time?: string;
+    };
+    FastestLap?: RaceResult['FastestLap'];
+}
+
+export interface CompactRoundQualifyingResult {
+    position: string;
+    driverId: string;
+    constructorId: string;
+    Q1?: string;
+    Q2?: string;
+    Q3?: string;
+}
+
 /**
  * Compact static bundle schema stored at `/public/data/seasons/${season}.json`.
+ * Supports both v1 (denormalized) and v2 (normalized driver/constructor tables).
  */
 export interface CompactSeasonBundle {
     season: string;
@@ -28,6 +55,8 @@ export interface CompactSeasonBundle {
     sprints: SeasonSprintResult[];
     driverStandings: DriverStanding[];
     constructorStandings: ConstructorStanding[];
+    drivers?: Record<string, Driver>;
+    constructors?: Record<string, Constructor>;
     roundResults?: Record<string, RaceResult[]>;
     roundQualifying?: Record<string, RaceQualifyingResult[]>;
     lastResultsRound?: number | null;
@@ -68,15 +97,156 @@ export function clearStaticSeasonCache(): void {
     failedSeasonFetches.clear();
 }
 
-function isValidSeasonBundle(data: unknown, expectedSeason: string): data is CompactSeasonBundle {
-    if (!data || typeof data !== 'object') return false;
-    const b = data as Partial<CompactSeasonBundle>;
-    return (
-        b.season === expectedSeason &&
-        Array.isArray(b.results) &&
-        Array.isArray(b.races) &&
-        typeof b.isArchived === 'boolean'
+interface RawSeasonBundleV2 {
+    season: string;
+    version: number;
+    generatedAt: string;
+    isArchived: boolean;
+    lastCompletedRound: number | null;
+    totalRounds: number;
+    races: Race[];
+    drivers?: Record<string, Omit<Driver, 'url'> & { url?: string }>;
+    constructors?: Record<string, Omit<Constructor, 'url'> & { url?: string }>;
+    sprints?: SeasonSprintResult[];
+    driverStandings?: DriverStanding[];
+    constructorStandings?: ConstructorStanding[];
+    roundResults?: Record<string, CompactRoundRaceResult[]>;
+    roundQualifying?: Record<string, CompactRoundQualifyingResult[]>;
+    lastResultsRound?: number | null;
+    lastQualifyingRound?: number | null;
+    lastSprintsRound?: number | null;
+    lastDriverStandingsRound?: number | null;
+    lastConstructorStandingsRound?: number | null;
+}
+
+/**
+ * Validates and hydrates either a v1 (denormalized) or v2 (normalized) static season bundle
+ * into a canonical `CompactSeasonBundle`. Returns `null` if the payload is invalid.
+ */
+export function hydrateSeasonBundle(data: unknown, expectedSeason: string): CompactSeasonBundle | null {
+    if (!data || typeof data !== 'object') return null;
+    const raw = data as Partial<CompactSeasonBundle>;
+    if (
+        raw.season !== expectedSeason
+        || !Array.isArray(raw.races)
+        || typeof raw.isArchived !== 'boolean'
+    ) {
+        return null;
+    }
+
+    // v1 bundles already carry precomputed results & qualifying arrays
+    if (Array.isArray(raw.results)) {
+        return raw as CompactSeasonBundle;
+    }
+
+    const rawV2 = data as Partial<RawSeasonBundleV2> & Pick<RawSeasonBundleV2, 'season' | 'isArchived' | 'races'>;
+    const isV2 = rawV2.version === 2 || Boolean(rawV2.drivers && rawV2.constructors);
+    if (!isV2) {
+        return null;
+    }
+
+    const driversDict = rawV2.drivers ?? {};
+    const constructorsDict = rawV2.constructors ?? {};
+    const resolveDriver = (driverId: string): Driver => {
+        const entry = driversDict[driverId];
+        if (!entry) {
+            return { driverId, givenName: '', familyName: '', url: '' };
+        }
+        return { ...entry, url: entry.url ?? '' };
+    };
+    const resolveConstructor = (constructorId: string): Constructor => {
+        const entry = constructorsDict[constructorId];
+        if (!entry) {
+            return { constructorId, name: constructorId, url: '' };
+        }
+        return { ...entry, url: entry.url ?? '' };
+    };
+
+    const raceByRound = new Map<string, Race>();
+    for (const race of rawV2.races) {
+        raceByRound.set(String(race.round), race);
+    }
+
+    const hydratedRoundResults: Record<string, RaceResult[]> = {};
+    const results: SeasonRaceResult[] = [];
+    const sortedResultRounds = Object.keys(rawV2.roundResults ?? {}).sort(
+        (a, b) => Number.parseInt(a, 10) - Number.parseInt(b, 10),
     );
+    for (const round of sortedResultRounds) {
+        const compactEntries = rawV2.roundResults?.[round] ?? [];
+        const fullEntries: RaceResult[] = compactEntries.map(entry => ({
+            number: entry.number ?? '',
+            position: entry.position,
+            positionText: entry.positionText ?? '',
+            points: entry.points ?? '0',
+            Driver: resolveDriver(entry.driverId),
+            Constructor: resolveConstructor(entry.constructorId),
+            grid: entry.grid ?? '0',
+            laps: entry.laps ?? '0',
+            status: entry.status ?? '',
+            ...(entry.Time ? { Time: entry.Time } : {}),
+            ...(entry.FastestLap ? { FastestLap: entry.FastestLap } : {}),
+        }));
+        hydratedRoundResults[round] = fullEntries;
+        const race = raceByRound.get(String(round));
+        results.push(
+            ...mapRaceResultsToSeasonResults(
+                round,
+                race?.raceName ?? `Round ${round}`,
+                race?.date ?? '',
+                fullEntries,
+            ),
+        );
+    }
+
+    const hydratedRoundQualifying: Record<string, RaceQualifyingResult[]> = {};
+    const qualifying: SeasonQualifyingResult[] = [];
+    const sortedQualiRounds = Object.keys(rawV2.roundQualifying ?? {}).sort(
+        (a, b) => Number.parseInt(a, 10) - Number.parseInt(b, 10),
+    );
+    for (const round of sortedQualiRounds) {
+        const compactEntries = rawV2.roundQualifying?.[round] ?? [];
+        const fullEntries: RaceQualifyingResult[] = compactEntries.map(entry => ({
+            position: entry.position,
+            Driver: resolveDriver(entry.driverId),
+            Constructor: resolveConstructor(entry.constructorId),
+            ...(entry.Q1 ? { Q1: entry.Q1 } : {}),
+            ...(entry.Q2 ? { Q2: entry.Q2 } : {}),
+            ...(entry.Q3 ? { Q3: entry.Q3 } : {}),
+        }));
+        hydratedRoundQualifying[round] = fullEntries;
+        const race = raceByRound.get(String(round));
+        qualifying.push(
+            ...mapQualifyingResultsToSeasonQualifying(
+                round,
+                race?.raceName ?? `Round ${round}`,
+                race?.date ?? '',
+                fullEntries,
+            ),
+        );
+    }
+
+    return {
+        season: rawV2.season,
+        version: rawV2.version ?? 2,
+        generatedAt: rawV2.generatedAt ?? '',
+        isArchived: rawV2.isArchived,
+        lastCompletedRound: rawV2.lastCompletedRound ?? null,
+        totalRounds: rawV2.totalRounds ?? rawV2.races.length,
+        races: rawV2.races,
+        results,
+        qualifying,
+        sprints: rawV2.sprints ?? [],
+        driverStandings: rawV2.driverStandings ?? [],
+        constructorStandings: rawV2.constructorStandings ?? [],
+        roundResults: hydratedRoundResults,
+        roundQualifying: hydratedRoundQualifying,
+        lastResultsRound: rawV2.lastResultsRound,
+        lastQualifyingRound: rawV2.lastQualifyingRound,
+        lastSprintsRound: rawV2.lastSprintsRound,
+        lastDriverStandingsRound: rawV2.lastDriverStandingsRound,
+        lastConstructorStandingsRound: rawV2.lastConstructorStandingsRound,
+    };
 }
 
 const STATIC_MANIFEST = manifestData as unknown as SeasonManifest;
@@ -162,8 +332,9 @@ export async function loadStaticSeasonData(season: string | number): Promise<Com
                 return null;
             }
 
-            const data = await response.json();
-            if (!isValidSeasonBundle(data, seasonKey)) {
+            const raw = await response.json();
+            const data = hydrateSeasonBundle(raw, seasonKey);
+            if (!data) {
                 failedSeasonFetches.add(seasonKey);
                 return null;
             }

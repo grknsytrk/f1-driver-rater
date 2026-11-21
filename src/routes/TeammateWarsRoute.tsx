@@ -1,4 +1,4 @@
-import { motion } from 'framer-motion';
+import { m } from 'framer-motion';
 import { useNavigate, useParams } from 'react-router-dom';
 import { SEOHead } from '../components/SEOHead';
 import { TeammateWars } from '../components/TeammateWars';
@@ -10,7 +10,7 @@ export default function TeammateWarsRoute() {
     if (!season) return null;
 
     return (
-        <motion.div
+        <m.div
             key="teammate-wars"
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
@@ -28,6 +28,6 @@ export default function TeammateWarsRoute() {
                 onBack={() => navigate(`/${season}`)}
                 onSelectDriver={(driverId) => navigate(`/${season}/driver/${driverId}`)}
             />
-        </motion.div>
+        </m.div>
     );
 }

@@ -13,6 +13,7 @@ import {
     getStaticSeasonQualifying,
     getStaticSeasonResults,
     getStaticSeasonSprints,
+    hydrateSeasonBundle,
     isRoundFinished,
     isRoundInStaticBundle,
     loadStaticSeasonData,
@@ -857,6 +858,120 @@ describe('Milestone 4 (Requirement R4) - Static Season Data Pipeline', () => {
             const postRaceTime = new Date('2026-11-08T22:00:00Z');
             const sprintDiff = detectNewlyCompletedRounds(bundle, undefined, postRaceTime, 'sprints');
             expect(sprintDiff).toHaveLength(0);
+        });
+    });
+
+    describe('hydrateSeasonBundle v1 & v2 compatibility', () => {
+        it('losslessly hydrates compact v2 bundles with normalized driver and constructor tables', () => {
+            const v2Payload = {
+                season: '2026',
+                version: 2,
+                generatedAt: '2026-06-01T18:00:00Z',
+                isArchived: false,
+                lastCompletedRound: 1,
+                totalRounds: 24,
+                races: [
+                    {
+                        season: '2026',
+                        round: '1',
+                        raceName: 'Australian Grand Prix',
+                        date: '2026-03-08',
+                        time: '04:00:00Z',
+                        Circuit: mock2023Bundle.races[0].Circuit,
+                    },
+                ],
+                drivers: {
+                    russell: {
+                        driverId: 'russell',
+                        givenName: 'George',
+                        familyName: 'Russell',
+                        code: 'RUS',
+                        permanentNumber: '63',
+                        nationality: 'British',
+                    },
+                },
+                constructors: {
+                    mercedes: {
+                        constructorId: 'mercedes',
+                        name: 'Mercedes',
+                        nationality: 'German',
+                    },
+                },
+                driverStandings: [],
+                constructorStandings: [],
+                sprints: [],
+                roundResults: {
+                    '1': [
+                        {
+                            number: '63',
+                            position: '1',
+                            positionText: '1',
+                            points: '25',
+                            driverId: 'russell',
+                            constructorId: 'mercedes',
+                            grid: '1',
+                            laps: '58',
+                            status: 'Finished',
+                        },
+                    ],
+                },
+                roundQualifying: {
+                    '1': [
+                        {
+                            position: '1',
+                            driverId: 'russell',
+                            constructorId: 'mercedes',
+                            Q1: '1:16.200',
+                            Q2: '1:15.800',
+                            Q3: '1:15.100',
+                        },
+                    ],
+                },
+            };
+
+            const hydrated = hydrateSeasonBundle(v2Payload, '2026');
+            expect(hydrated).not.toBeNull();
+            expect(hydrated!.results).toEqual([
+                {
+                    round: '1',
+                    raceName: 'Australian Grand Prix',
+                    date: '2026-03-08',
+                    driverId: 'russell',
+                    driverName: 'George Russell',
+                    constructorId: 'mercedes',
+                    constructorName: 'Mercedes',
+                    position: 1,
+                    positionText: '1',
+                    gridPosition: 1,
+                    points: 25,
+                    status: 'Finished',
+                    raceTimeGapSeconds: 0,
+                    started: true,
+                },
+            ]);
+            expect(hydrated!.qualifying).toEqual([
+                {
+                    round: '1',
+                    raceName: 'Australian Grand Prix',
+                    date: '2026-03-08',
+                    driverId: 'russell',
+                    driverName: 'George Russell',
+                    constructorId: 'mercedes',
+                    constructorName: 'Mercedes',
+                    position: 1,
+                    bestTimeSeconds: 75.1,
+                },
+            ]);
+            expect(hydrated!.roundResults?.['1']?.[0].Driver.familyName).toBe('Russell');
+            expect(hydrated!.roundResults?.['1']?.[0].Constructor.name).toBe('Mercedes');
+            expect(hydrated!.roundQualifying?.['1']?.[0].Q1).toBe('1:16.200');
+            expect(hydrated!.roundQualifying?.['1']?.[0].Q2).toBe('1:15.800');
+            expect(hydrated!.roundQualifying?.['1']?.[0].Q3).toBe('1:15.100');
+        });
+
+        it('preserves v1 bundles with flat results and qualifying arrays unchanged', () => {
+            const hydrated = hydrateSeasonBundle(mock2023Bundle, '2023');
+            expect(hydrated).toBe(mock2023Bundle);
         });
     });
 });

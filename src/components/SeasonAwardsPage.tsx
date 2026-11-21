@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { motion } from 'framer-motion';
+import { m } from 'framer-motion';
 import {
     Activity,
     Award,
@@ -205,7 +205,7 @@ function AwardSection({
                     : 'There is not enough eligible data for this award yet.';
 
     return (
-        <motion.section
+        <m.section
             initial={{ opacity: 0, y: 32 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, amount: 0.2 }}
@@ -299,14 +299,14 @@ function AwardSection({
                     </div>
                 </div>
             </div>
-        </motion.section>
+        </m.section>
     );
 }
 
 function AwardsStatus({ title, description }: { title: string; description: string }) {
     return (
         <div className="flex min-h-[60vh] items-center justify-center px-4 py-10">
-            <motion.div
+            <m.div
                 initial={{ opacity: 0, y: 24 }}
                 animate={{ opacity: 1, y: 0 }}
                 className="w-full max-w-3xl border border-[var(--border-color)] border-t-2 border-t-[var(--accent-red)] bg-[var(--bg-panel)] p-6 md:p-10"
@@ -315,7 +315,7 @@ function AwardsStatus({ title, description }: { title: string; description: stri
                 <div className="font-oxanium text-xs uppercase tracking-[0.26em] text-[var(--accent-red)]">Season Awards</div>
                 <h1 className="mt-4 font-display text-4xl uppercase leading-none tracking-tight text-white md:text-6xl">{title}</h1>
                 <p className="mt-5 max-w-2xl font-ui text-sm leading-relaxed text-[var(--text-secondary)] md:text-lg">{description}</p>
-            </motion.div>
+            </m.div>
         </div>
     );
 }
@@ -403,7 +403,7 @@ export function SeasonAwardsPage({ season }: SeasonAwardsPageProps) {
     return (
         <div className="min-h-screen py-6 md:py-10">
             <div className="mx-auto max-w-6xl space-y-8 md:space-y-12">
-                <motion.section
+                <m.section
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     className="relative overflow-hidden border border-[var(--border-color)] bg-[var(--bg-panel)] p-6 md:p-10"
@@ -426,7 +426,7 @@ export function SeasonAwardsPage({ season }: SeasonAwardsPageProps) {
                             <HeroStat label="Awards ready" value={String(readyAwardsCount)} accentColor="#38BDF8" />
                         </div>
                     </div>
-                </motion.section>
+                </m.section>
 
                 {(['community', 'track'] as const).map(group => {
                     const groupAwards = awardsSummary.awards.filter(award => award.group === group);

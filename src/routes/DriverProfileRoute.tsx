@@ -1,4 +1,4 @@
-import { motion } from 'framer-motion';
+import { m } from 'framer-motion';
 import { useNavigate, useParams } from 'react-router-dom';
 import { SEOHead } from '../components/SEOHead';
 import { DriverProfilePage } from '../components/DriverProfilePage';
@@ -12,7 +12,7 @@ export default function DriverProfileRoute() {
     const readableDriver = driverId.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 
     return (
-        <motion.div
+        <m.div
             key={`driver-profile-${season}-${driverId}`}
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -40,6 +40,6 @@ export default function DriverProfileRoute() {
                     },
                 })}
             />
-        </motion.div>
+        </m.div>
     );
 }

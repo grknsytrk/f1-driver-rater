@@ -1,4 +1,4 @@
-import { motion } from 'framer-motion';
+import { m } from 'framer-motion';
 import { useNavigate, useParams } from 'react-router-dom';
 import { SEOHead } from '../components/SEOHead';
 import { StandingsPage } from '../components/StandingsPage';
@@ -10,7 +10,7 @@ export default function StandingsRoute() {
     if (!season) return null;
 
     return (
-        <motion.div
+        <m.div
             key="standings"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -28,6 +28,6 @@ export default function StandingsRoute() {
                 onBack={() => navigate(`/${season}`)}
                 onSelectDriver={(driverId) => navigate(`/${season}/driver/${driverId}`)}
             />
-        </motion.div>
+        </m.div>
     );
 }

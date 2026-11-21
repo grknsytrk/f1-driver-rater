@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { motion } from 'framer-motion';
+import { m } from 'framer-motion';
 import { Medal, Users, Loader2, AlertTriangle, Download, Share2 } from 'lucide-react';
 import { useExportImage } from '../hooks/useExportImage';
 import { getDriverSeasonStats, getConstructorStandings, getAllSeasonResults, getAllSeasonSprints, getRaces, RateLimitError } from '../api/f1Api';
@@ -228,7 +228,7 @@ export function StandingsPage({ season, onSelectDriver }: StandingsPageProps) {
         <div className="max-w-7xl mx-auto px-4 py-8" ref={setExportContainerRef}>
             {/* Header */}
             <div className="mb-8">
-                <motion.div
+                <m.div
                     initial={{ opacity: 0, y: -20 }}
                     animate={{ opacity: 1, y: 0 }}
                     className="flex flex-col items-start border-l-4 border-[var(--accent-yellow)] pl-4 md:pl-6"
@@ -237,7 +237,7 @@ export function StandingsPage({ season, onSelectDriver }: StandingsPageProps) {
                         {season} <span className="text-[var(--accent-yellow)]">STANDINGS</span>
                     </h2>
                     <div className="h-px w-16 md:w-32 bg-[var(--accent-yellow)] mt-2" />
-                </motion.div>
+                </m.div>
             </div>
 
             {/* Tabs & Export */}
@@ -349,7 +349,7 @@ function WDCTable({ drivers, races, raceMap, latestTeamMap, getTeamColor, onSele
     }
 
     return (
-        <motion.div
+        <m.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             className="bg-[var(--bg-panel)] border border-[var(--border-color)] overflow-hidden"
@@ -519,7 +519,7 @@ function WDCTable({ drivers, races, raceMap, latestTeamMap, getTeamColor, onSele
                     </tbody>
                 </table>
             </div>
-        </motion.div>
+        </m.div>
     );
 }
 
@@ -543,7 +543,7 @@ function WCCTable({ constructors, races, raceMap, polesMap, podiumsMap, getTeamC
     }
 
     return (
-        <motion.div
+        <m.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             className="bg-[var(--bg-panel)] border border-[var(--border-color)] overflow-hidden"
@@ -657,6 +657,6 @@ function WCCTable({ constructors, races, raceMap, polesMap, podiumsMap, getTeamC
                     </tbody>
                 </table>
             </div>
-        </motion.div>
+        </m.div>
     );
 }

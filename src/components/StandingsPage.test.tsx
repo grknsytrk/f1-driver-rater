@@ -236,6 +236,7 @@ describe('standings points tracker', () => {
         });
         await clickButton('SAVE IMAGE');
         await advance(50);
+        await act(async () => { await vi.dynamicImportSettled(); });
         expect(chart.export).toHaveBeenCalledOnce();
         expect(container.textContent).toContain('EXPORTING...');
         await act(async () => finishExport('data:image/png;base64,AA=='));

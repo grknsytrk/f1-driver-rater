@@ -778,3 +778,9 @@ export function buildDriverCareerRatedSeasons(driverId: string): DriverCareerSea
 
     return summaries.sort((a, b) => Number.parseInt(b.season, 10) - Number.parseInt(a.season, 10));
 }
+
+/** Strip trailing "Grand Prix" / "GP" labels for compact race table cells. */
+export function formatShortRaceName(raceName: string | null | undefined): string {
+    if (!raceName) return 'N/A';
+    return raceName.replace(' Grand Prix', '').replace(' GP', '');
+}

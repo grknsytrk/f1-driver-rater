@@ -1,8 +1,7 @@
 import { useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { motion } from 'framer-motion';
-import { toPng } from 'html-to-image';
+import { m } from 'framer-motion';
 import { ArrowLeftRight, ChevronDown, Download, ImageDown, Loader2, Share2, Swords } from 'lucide-react';
 import { useExportImage } from '../hooks/useExportImage';
 import type { ConstructorStanding, SeasonQualifyingResult, SeasonRaceResult } from '../api/f1Api';
@@ -114,14 +113,14 @@ function VersusRowView({ row, colorA, colorB }: VersusRowViewProps) {
             <div className="mt-2 flex h-1 w-full gap-[2px] bg-[var(--border-color)]">
                 {row.shareA === null ? null : (
                     <>
-                        <motion.div
+                        <m.div
                             className="h-full"
                             style={{ backgroundColor: colorA }}
                             initial={{ width: '50%' }}
                             animate={{ width: `${row.shareA * 100}%` }}
                             transition={{ duration: 0.4 }}
                         />
-                        <motion.div
+                        <m.div
                             className="h-full flex-1"
                             style={{ backgroundColor: colorB }}
                         />
@@ -254,6 +253,7 @@ export function TeamVersus({
         await new Promise(resolve => setTimeout(resolve, 100));
 
         try {
+            const { toPng } = await import('html-to-image');
             const dataUrl = await toPng(cardRef.current, {
                 cacheBust: true,
                 pixelRatio: 2,
@@ -280,7 +280,7 @@ export function TeamVersus({
 
     const header = (
         <div className="mb-8 text-center">
-            <motion.div
+            <m.div
                 initial={{ scale: 0.9, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 className="inline-flex items-center justify-center gap-3 mb-4"
@@ -290,7 +290,7 @@ export function TeamVersus({
                     TEAM <span className="text-[var(--accent-red)]">VS</span>
                 </h2>
                 <Swords size={32} className="text-[var(--accent-red)] scale-x-[-1]" />
-            </motion.div>
+            </m.div>
             <div className="h-1 w-24 bg-[var(--accent-red)] mx-auto" />
             {toggle}
             {loading && (
@@ -300,7 +300,7 @@ export function TeamVersus({
                 </div>
             )}
             {!loading && versus && (
-                <motion.div
+                <m.div
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     className="mt-6 flex gap-2 justify-center hide-on-export"
@@ -332,7 +332,7 @@ export function TeamVersus({
                             {isExporting ? 'EXPORTING...' : 'SAVE IMAGE'}
                         </span>
                     </button>
-                </motion.div>
+                </m.div>
             )}
         </div>
     );
@@ -411,7 +411,7 @@ export function TeamVersus({
             </div>
 
             {/* VS panel */}
-            <motion.div
+            <m.div
                 key={`${statsA.teamId}-${statsB.teamId}`}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -459,7 +459,7 @@ export function TeamVersus({
                 {rows.map(row => (
                     <VersusRowView key={row.key} row={row} colorA={colorA} colorB={colorB} />
                 ))}
-            </motion.div>
+            </m.div>
 
             {notices.length > 0 && (
                 <p className="mt-3 text-center font-oxanium text-[10px] text-[var(--text-muted)] uppercase tracking-wider">
@@ -534,7 +534,7 @@ export function TeamVersus({
 
             {/* Shareable card section */}
             {showCardSection && (
-                <motion.div
+                <m.div
                     ref={shareSectionRef}
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -606,7 +606,7 @@ export function TeamVersus({
                             </div>
                         </div>
                     </div>
-                </motion.div>
+                </m.div>
             )}
         </div>
     );

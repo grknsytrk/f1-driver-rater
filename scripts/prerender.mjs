@@ -8,6 +8,7 @@
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { formatDriverFallback, getSeasonDriversMap } from './season-drivers.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DIST_DIR = resolve(__dirname, '..', 'dist');
@@ -37,6 +38,11 @@ function getRoutes() {
     routes.push(`/${year}`);
     routes.push(`/${year}/standings`);
     routes.push(`/${year}/teammate-wars`);
+    routes.push(`/${year}/awards`);
+
+    for (const driverId of getSeasonDriversMap(year).keys()) {
+      routes.push(`/${year}/driver/${driverId}`);
+    }
   }
 
   return routes;
@@ -108,12 +114,12 @@ function getSeoConfig(route) {
     };
   }
 
-  const match = route.match(/^\/(\d{4})(?:\/(standings|teammate-wars))?$/);
+  const match = route.match(/^\/(\d{4})(?:\/(standings|teammate-wars|awards|driver\/([^/]+)))?$/);
   if (!match) {
     return null;
   }
 
-  const [, season, page] = match;
+  const [, season, page, driverId] = match;
 
   if (!page) {
     return {
@@ -130,6 +136,25 @@ function getSeoConfig(route) {
       description: `F1 ${season} driver and constructor championship standings. Track points, wins, and positions throughout the Formula 1 ${season} season.`,
       path: route,
       keywords: `f1 ${season} standings, f1 ${season} championship, driver standings ${season}, constructor standings ${season}, f1 points ${season}, formula 1 ${season} rankings, f1 ${season} driver rating`,
+    };
+  }
+
+  if (page === 'awards') {
+    return {
+      title: `F1 ${season} Season Awards – Community MVP & Wrapped`,
+      description: `View the community-rated F1 ${season} Season Awards, MVP leaderboard, and wrapped-style season highlights.`,
+      path: route,
+      keywords: `f1 ${season} awards, f1 ${season} mvp, formula 1 ${season} season summary, f1 ${season} driver awards, f1 driver rater`,
+    };
+  }
+
+  if (driverId) {
+    const driverName = getSeasonDriversMap(season).get(driverId) ?? formatDriverFallback(driverId);
+    return {
+      title: `${driverName} – F1 ${season} Driver Profile & Ratings`,
+      description: `View ${driverName}'s F1 ${season} driver ratings, teammate head-to-head battles, race-by-race telemetry, and community score distribution.`,
+      path: route,
+      keywords: `${driverName}, ${driverName} f1 ${season}, f1 ${season} driver ratings, ${driverName} teammate comparison, ${driverName} telemetry`,
     };
   }
 

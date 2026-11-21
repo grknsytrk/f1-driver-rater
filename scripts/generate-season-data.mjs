@@ -731,13 +731,98 @@ function syncManifestEntry(manifestSeasons, season, bundle) {
     }
 }
 
+function compactBundleToV2(bundle) {
+    const drivers = {};
+    const constructors = {};
+
+    const registerDriver = (dr) => {
+        if (!dr?.driverId) return 'unknown';
+        if (!drivers[dr.driverId]) {
+            drivers[dr.driverId] = {
+                driverId: dr.driverId,
+                givenName: dr.givenName ?? '',
+                familyName: dr.familyName ?? '',
+                ...(dr.code ? { code: dr.code } : {}),
+                ...(dr.permanentNumber ? { permanentNumber: dr.permanentNumber } : {}),
+                ...(dr.dateOfBirth ? { dateOfBirth: dr.dateOfBirth } : {}),
+                ...(dr.nationality ? { nationality: dr.nationality } : {}),
+            };
+        }
+        return dr.driverId;
+    };
+
+    const registerConstructor = (c) => {
+        if (!c?.constructorId) return 'unknown';
+        if (!constructors[c.constructorId]) {
+            constructors[c.constructorId] = {
+                constructorId: c.constructorId,
+                name: c.name ?? c.constructorId,
+                ...(c.nationality ? { nationality: c.nationality } : {}),
+            };
+        }
+        return c.constructorId;
+    };
+
+    const compactRoundResults = {};
+    for (const [round, entries] of Object.entries(bundle.roundResults ?? {})) {
+        compactRoundResults[round] = entries.map(entry => ({
+            number: entry.number ?? '',
+            position: entry.position,
+            positionText: entry.positionText ?? '',
+            points: entry.points ?? '0',
+            driverId: registerDriver(entry.Driver),
+            constructorId: registerConstructor(entry.Constructor),
+            grid: entry.grid ?? '0',
+            laps: entry.laps ?? '0',
+            status: entry.status ?? '',
+            ...(entry.Time ? { Time: entry.Time } : {}),
+            ...(entry.FastestLap ? { FastestLap: entry.FastestLap } : {}),
+        }));
+    }
+
+    const compactRoundQualifying = {};
+    for (const [round, entries] of Object.entries(bundle.roundQualifying ?? {})) {
+        compactRoundQualifying[round] = entries.map(entry => ({
+            position: entry.position,
+            driverId: registerDriver(entry.Driver),
+            constructorId: registerConstructor(entry.Constructor),
+            ...(entry.Q1 ? { Q1: entry.Q1 } : {}),
+            ...(entry.Q2 ? { Q2: entry.Q2 } : {}),
+            ...(entry.Q3 ? { Q3: entry.Q3 } : {}),
+        }));
+    }
+
+    return {
+        season: bundle.season,
+        version: 2,
+        generatedAt: bundle.generatedAt,
+        isArchived: bundle.isArchived,
+        lastCompletedRound: bundle.lastCompletedRound,
+        lastResultsRound: bundle.lastResultsRound,
+        lastQualifyingRound: bundle.lastQualifyingRound,
+        lastSprintsRound: bundle.lastSprintsRound,
+        lastDriverStandingsRound: bundle.lastDriverStandingsRound,
+        lastConstructorStandingsRound: bundle.lastConstructorStandingsRound,
+        totalRounds: bundle.totalRounds,
+        races: bundle.races,
+        drivers,
+        constructors,
+        sprints: bundle.sprints,
+        driverStandings: bundle.driverStandings,
+        constructorStandings: bundle.constructorStandings,
+        roundResults: compactRoundResults,
+        roundQualifying: compactRoundQualifying,
+    };
+}
+
 async function writeBundleAtomic(season, bundle, dryRun = false) {
     validateSeasonBundle(bundle);
+    const v2Bundle = compactBundleToV2(bundle);
     const filename = `${season}.json`;
     const targetPath = resolve(OUTPUT_DIR, filename);
     const tempPath = resolve(OUTPUT_DIR, `${filename}.tmp`);
 
-    const jsonStr = JSON.stringify(bundle);
+    const jsonStr = JSON.stringify(v2Bundle);
     const sizeKb = (Buffer.byteLength(jsonStr, 'utf8') / 1024).toFixed(1);
 
     if (dryRun) {
@@ -805,7 +890,7 @@ async function main() {
         try {
             const raw = await readFile(bundlePath, 'utf8');
             const parsed = JSON.parse(raw);
-            if (parsed.season === season && Array.isArray(parsed.results)) {
+            if (parsed.season === season && (Array.isArray(parsed.results) || parsed.version === 2)) {
                 existingBundle = parsed;
             }
         } catch {
@@ -820,11 +905,12 @@ async function main() {
         }
 
         const bundle = await generateSeasonBundle(season, { mock });
+        const comparableBundle = existingBundle?.version === 2 ? compactBundleToV2(bundle) : bundle;
 
         if (
             skipUnchanged &&
             existingBundle &&
-            isDeepEqual(stripVolatileFields(bundle), stripVolatileFields(existingBundle))
+            isDeepEqual(stripVolatileFields(comparableBundle), stripVolatileFields(existingBundle))
         ) {
             console.log(`No data changes for season ${season}; skipping write.`);
             syncManifestEntry(manifestSeasons, season, existingBundle);

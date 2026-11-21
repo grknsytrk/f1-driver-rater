@@ -2,18 +2,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { getAllSeasonQualifying, getAllSeasonResults } from './f1Api';
 
 const apiGet = vi.hoisted(() => vi.fn());
-vi.mock('axios', () => ({
-    default: {
-        create: () => ({
+vi.mock('./jolpicaClient', async importOriginal => {
+    const actual = await importOriginal<typeof import('./jolpicaClient')>();
+    return {
+        ...actual,
+        jolpicaClient: {
             get: apiGet,
-            interceptors: {
-                request: { use: () => undefined },
-                response: { use: () => undefined },
-            },
-        }),
-        isAxiosError: () => false,
-    },
-}));
+        },
+    };
+});
 
 function driver(driverId: string) {
     return { driverId, givenName: driverId, familyName: 'Driver', url: '' };

@@ -1,4 +1,4 @@
-import { motion } from 'framer-motion';
+import { m } from 'framer-motion';
 import { Calendar, Trophy, ChevronRight } from 'lucide-react';
 import type { Season } from '../types';
 import { getRatedRacesCount } from '../utils/storage';
@@ -15,7 +15,7 @@ export function SeasonCard({ season, index, onClick }: SeasonCardProps) {
     const isCurrentSeason = season.season === String(new Date().getFullYear());
 
     return (
-        <motion.div
+        <m.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{
@@ -79,7 +79,7 @@ export function SeasonCard({ season, index, onClick }: SeasonCardProps) {
             {/* Corner Markers */}
             <div className="absolute top-0 right-0 w-2 h-2 border-t border-r border-[var(--text-muted)] opacity-50" />
             <div className="absolute bottom-0 left-0 w-2 h-2 border-b border-l border-[var(--text-muted)] opacity-50" />
-        </motion.div>
+        </m.div>
     );
 }
 

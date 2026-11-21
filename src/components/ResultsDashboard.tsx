@@ -1,8 +1,7 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Trophy, BarChart3, RotateCcw, ImageDown, Download, Share2, AlertTriangle, Table, Upload, FileJson, ChevronsUp } from 'lucide-react';
+import { m, AnimatePresence } from 'framer-motion';
+import { Trophy, BarChart3, RotateCcw, ImageDown, AlertTriangle, Upload, FileJson, ChevronsUp } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, LineChart, CartesianGrid, ReferenceLine } from 'recharts';
-import { toPng } from 'html-to-image';
 import { toast } from 'sonner';
 import { Tooltip as ShadcnTooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import {
@@ -24,7 +23,6 @@ import { compareCommunity } from '../utils/communityRatings';
 import { buildFormChartData, reconcileFormDriverSelection, toggleFormDriverSelection, type FormChartPoint } from '../utils/formTracker';
 import { getSeasonRatings, getQuickRatings } from '../utils/storage';
 import { validRatings } from '../utils/ratingData';
-import { CountryFlag } from '../utils/countryFlags';
 import { buildDriverLineDashes } from '../utils/standings';
 import { FormTrackerLines } from './FormTrackerLines';
 import { FormLineSwatch } from './FormLineSwatch';
@@ -32,10 +30,13 @@ import {
     buildCommunityBreakdown,
     buildCommunityFormSeries,
     buildCommunitySeasonAverages,
+    getDriverLabel,
     type BreakdownDriverIdentity,
+    type BreakdownSource,
 } from '../utils/raceBreakdown';
-import { getRatingColor } from '../utils/ratingColor';
 import { PodiumFlagBackdrop } from './PodiumFlagBackdrop';
+import { ResultsBreakdownTable } from './results/ResultsBreakdownTable';
+import { ResultsShareCard } from './results/ResultsShareCard';
 
 interface ResultsDashboardProps {
     season: string;
@@ -44,7 +45,6 @@ interface ResultsDashboardProps {
 }
 
 type DriverRatingsSortKey = 'myAverage' | 'communityAverage' | 'votes';
-type BreakdownSource = 'personal' | 'community';
 interface BreakdownCalendar {
     season: string;
     races: RaceColumn[];
@@ -52,10 +52,6 @@ interface BreakdownCalendar {
 interface SeasonDriverMetadata {
     season: string;
     drivers: Array<BreakdownDriverIdentity & { nationality?: string }>;
-}
-
-function getDriverLabel(driverName: string): string {
-    return driverName.split(' ').pop()?.toUpperCase() || driverName.toUpperCase();
 }
 
 function formatRaceDisplayName(raceName: string | null): string {
@@ -379,6 +375,7 @@ export function ResultsDashboard({ season, onReset, onSelectDriver }: ResultsDas
         await new Promise(resolve => setTimeout(resolve, 100));
 
         try {
+            const { toPng } = await import('html-to-image');
             const dataUrl = await toPng(cardRef.current, {
                 cacheBust: true,
                 pixelRatio: 2,
@@ -434,6 +431,7 @@ export function ResultsDashboard({ season, onReset, onSelectDriver }: ResultsDas
         }
 
         try {
+            const { toPng } = await import('html-to-image');
             const dataUrl = await toPng(tableRef.current, {
                 cacheBust: true,
                 pixelRatio: 2,
@@ -526,7 +524,7 @@ export function ResultsDashboard({ season, onReset, onSelectDriver }: ResultsDas
             <div className="max-w-6xl mx-auto space-y-8 md:space-y-20">
 
                 {/* 1. SECTION: HEADER */}
-                <motion.div
+                <m.div
                     initial={{ opacity: 0, y: -20 }}
                     animate={{ opacity: 1, y: 0 }}
                     className="space-y-4 md:space-y-6"
@@ -673,10 +671,10 @@ export function ResultsDashboard({ season, onReset, onSelectDriver }: ResultsDas
                         </div>
                     </div>
 
-                </motion.div>
+                </m.div>
 
                 {activeRankedAverages.length === 0 ? (
-                    <motion.div
+                    <m.div
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         className="flex flex-col items-center justify-center p-8 md:p-20 border border-[var(--border-color)] bg-[var(--bg-panel)] min-h-[300px] md:min-h-[400px]"
@@ -709,7 +707,7 @@ export function ResultsDashboard({ season, onReset, onSelectDriver }: ResultsDas
                                 </p>
                             </>
                         )}
-                    </motion.div>
+                    </m.div>
                 ) : (
                     <>
                         {/* 2. SECTION: PODIUM (TECHNICAL BLOCKS) */}
@@ -726,7 +724,7 @@ export function ResultsDashboard({ season, onReset, onSelectDriver }: ResultsDas
                                     const rank = isWinner ? 1 : pos === 1 ? 2 : 3;
 
                                     return (
-                                        <motion.div
+                                        <m.div
                                             key={driver.driverId}
                                             initial={{ opacity: 0, y: 50 }}
                                             animate={{ opacity: 1, y: 0 }}
@@ -776,7 +774,7 @@ export function ResultsDashboard({ season, onReset, onSelectDriver }: ResultsDas
                                                     {rank}
                                                 </span>
                                             </div>
-                                        </motion.div>
+                                        </m.div>
                                     );
                                 })}
                             </div>
@@ -896,7 +894,7 @@ export function ResultsDashboard({ season, onReset, onSelectDriver }: ResultsDas
                         </div>
 
                         {/* 4. SECTION: FORM TRACKER */}
-                        <motion.div
+                        <m.div
                             initial={{ opacity: 0, y: 20 }}
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ delay: 0.25 }}
@@ -1129,374 +1127,50 @@ export function ResultsDashboard({ season, onReset, onSelectDriver }: ResultsDas
                                     </div>
                                 </div>
                             )}
-                        </motion.div>
+                        </m.div>
                     </>
                 )}
 
                 {/* 5. SECTION: RACE-BY-RACE TABLE */}
                 {showBreakdownSection && (
-                    <motion.div
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.3 }}
-                        className="mt-12"
-                    >
-                        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border-color)] pb-2">
-                            <div className="flex items-center gap-3">
-                                <Table size={16} className="text-[var(--accent-red)]" />
-                                <h3 className="font-display text-2xl text-white uppercase tracking-wider">RACE-BY-RACE BREAKDOWN</h3>
-                            </div>
-                            <div className="flex items-center gap-4">
-                                <span className="font-oxanium text-[10px] text-[var(--text-muted)] uppercase tracking-widest">
-                                    {breakdownRaces.length} RACES • {breakdownDrivers.length} DRIVERS
-                                </span>
-                                <ShadcnTooltip>
-                                    <TooltipTrigger asChild>
-                                        <button
-                                            aria-label="Download the race-by-race breakdown table as a PNG image"
-                                            onClick={handleDownloadTable}
-                                            disabled={generatingTable || !canDownloadBreakdown}
-                                            className="group flex items-center gap-2 px-4 py-1.5 bg-[var(--bg-panel)] border border-[var(--border-color)] hover:border-white transition-all hover:bg-[var(--bg-panel-hover)] disabled:opacity-50"
-                                        >
-                                            {generatingTable ? (
-                                                <div className="w-3 h-3 border-2 border-[var(--accent-red)] border-t-transparent rounded-full animate-spin" />
-                                            ) : (
-                                                <Download size={12} className="text-[var(--text-muted)] group-hover:text-white" />
-                                            )}
-                                            <span className="font-ui font-bold text-[10px] text-white uppercase tracking-wider">
-                                                {generatingTable ? 'GENERATING...' : 'DOWNLOAD PNG'}
-                                            </span>
-                                        </button>
-                                    </TooltipTrigger>
-                                    <TooltipContent
-                                        side="bottom"
-                                        sideOffset={8}
-                                        className="bg-[var(--bg-darker)] text-white border border-[var(--border-color)]"
-                                    >
-                                        Download the full race-by-race breakdown table as a PNG image
-                                    </TooltipContent>
-                                </ShadcnTooltip>
-                            </div>
-                        </div>
-
-                        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-                            <div role="group" aria-label="Race breakdown rating source" className="inline-flex border border-[var(--border-color)] bg-[var(--bg-darker)] p-1">
-                                <button
-                                    type="button"
-                                    aria-pressed={breakdownSource === 'personal'}
-                                    disabled={generatingTable}
-                                    onClick={() => setUserSelectedBreakdownSource('personal')}
-                                    className={`px-3 py-2 font-ui text-[10px] font-bold uppercase tracking-wider transition-colors disabled:opacity-50 ${breakdownSource === 'personal'
-                                        ? 'bg-[var(--accent-red)] text-white'
-                                        : 'text-[var(--text-secondary)] hover:text-white'}`}
-                                >
-                                    MY RATINGS
-                                </button>
-                                <button
-                                    type="button"
-                                    aria-pressed={breakdownSource === 'community'}
-                                    disabled={generatingTable}
-                                    onClick={() => setUserSelectedBreakdownSource('community')}
-                                    className={`px-3 py-2 font-ui text-[10px] font-bold uppercase tracking-wider transition-colors disabled:opacity-50 ${breakdownSource === 'community'
-                                        ? 'bg-[var(--accent-yellow)] text-black'
-                                        : 'text-[var(--text-secondary)] hover:text-white'}`}
-                                >
-                                    COMMUNITY AVG
-                                </button>
-                            </div>
-                            <span className="font-oxanium text-[9px] uppercase tracking-wider text-[var(--text-muted)]">
-                                {breakdownSource === 'community' ? 'Community vote average per race · AVG of races shown' : 'Your saved race ratings'}
-                            </span>
-                        </div>
-
-                        <div ref={tableRef} className="bg-[var(--bg-panel)] border border-[var(--border-color)] overflow-hidden">
-                            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--border-color)] bg-[var(--bg-darker)] px-3 py-2 font-oxanium text-[9px] uppercase tracking-wider text-[var(--text-muted)]">
-                                <span>{breakdownSource === 'community' ? 'COMMUNITY RACE AVERAGES' : 'MY RACE RATINGS'}</span>
-                                <span>{season} SEASON</span>
-                            </div>
-                            {showCommunityBreakdownStatus && (
-                                <div className="flex min-h-48 flex-col items-center justify-center gap-2 px-4 py-8 text-center" role="status">
-                                    <p className="font-display text-lg uppercase text-white">
-                                        {community.status === 'loading' ? 'LOADING COMMUNITY RATINGS'
-                                            : community.status === 'ready' ? 'NO COMMUNITY RATINGS YET'
-                                                : 'COMMUNITY RATINGS UNAVAILABLE'}
-                                    </p>
-                                    <p className="font-ui text-sm text-[var(--text-secondary)]">
-                                        {community.status === 'ready'
-                                            ? 'No community race averages are available for this season.'
-                                            : community.status === 'loading'
-                                                ? 'Fetching the community averages for this season.'
-                                                : 'Community data could not be loaded right now.'}
-                                    </p>
-                                </div>
-                            )}
-                            <div className={`overflow-x-auto ${showCommunityBreakdownStatus ? 'hidden' : ''}`}>
-                                <table aria-label="Race-by-race breakdown" className="w-full min-w-max">
-                                    {/* Header */}
-                                    <thead>
-                                        <tr className="border-b border-[var(--border-color)]">
-                                            <th className="sticky left-0 z-10 bg-[var(--bg-darker)] px-3 py-2 text-left w-12">
-                                                <span className="font-oxanium text-[10px] text-[var(--text-muted)] uppercase">#</span>
-                                            </th>
-                                            <th className="sticky left-12 z-10 bg-[var(--bg-darker)] px-3 py-2 text-left min-w-[140px]">
-                                                <span className="font-oxanium text-[10px] text-[var(--text-muted)] uppercase">DRIVER</span>
-                                            </th>
-                                            <th className="sticky left-[188px] z-10 bg-[var(--bg-darker)] px-3 py-2 text-center w-16 border-r border-[var(--border-color)]" title="Average of the scores shown in this row; each race counts equally">
-                                                <span className="font-oxanium text-[10px] text-[var(--accent-yellow)] uppercase">AVG</span>
-                                            </th>
-                                            {breakdownRaces.map(race => (
-                                                <th key={race.round} className="bg-[var(--bg-darker)] px-2 py-2 text-center min-w-[48px]" title={race.raceName}>
-                                                    <div className="flex flex-col items-center gap-1">
-                                                        {race.countryCode === 'XX'
-                                                            ? <span className="font-oxanium text-[10px] text-[var(--text-muted)]">R{race.round}</span>
-                                                            : <CountryFlag country={race.countryCode} size="sm" />}
-                                                    </div>
-                                                </th>
-                                            ))}
-                                        </tr>
-                                    </thead>
-
-                                    {/* Body */}
-                                    <tbody>
-                                        {breakdownDrivers.map((driver, index) => (
-                                            <tr
-                                                key={driver.driverId}
-                                                className="border-b border-[var(--border-color)] hover:bg-[var(--bg-panel-hover)] transition-colors"
-                                            >
-                                                {/* Position */}
-                                                <td className="sticky left-0 z-10 bg-[var(--bg-panel)] px-3 py-2 text-center">
-                                                    <span className="font-oxanium text-sm text-[var(--text-muted)]">{index + 1}</span>
-                                                </td>
-
-                                                {/* Driver Name */}
-                                                <td className="sticky left-12 z-10 bg-[var(--bg-panel)] px-3 py-2">
-                                                    {onSelectDriver ? (
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => onSelectDriver(driver.driverId)}
-                                                            title={`View ${driver.driverName} profile`}
-                                                            className="group/drv flex items-center gap-2 text-left cursor-pointer"
-                                                        >
-                                                            <div className="w-1 h-6" style={{ backgroundColor: getTeamColor(driver.constructorId) }} />
-                                                            <div>
-                                                                <div className="font-display text-sm text-white group-hover/drv:text-[var(--accent-yellow)] transition-colors uppercase leading-none">
-                                                                    {getDriverLabel(driver.driverName)}
-                                                                </div>
-                                                                <div className="font-oxanium text-[8px] text-[var(--text-muted)] uppercase">
-                                                                    {driver.constructorName}
-                                                                </div>
-                                                            </div>
-                                                        </button>
-                                                    ) : (
-                                                        <div className="flex items-center gap-2">
-                                                            <div className="w-1 h-6" style={{ backgroundColor: getTeamColor(driver.constructorId) }} />
-                                                            <div>
-                                                                <div className="font-display text-sm text-white uppercase leading-none">
-                                                                    {getDriverLabel(driver.driverName)}
-                                                                </div>
-                                                                <div className="font-oxanium text-[8px] text-[var(--text-muted)] uppercase">
-                                                                    {driver.constructorName}
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    )}
-                                                </td>
-
-                                                {/* Average */}
-                                                <td className="sticky left-[188px] z-10 px-3 py-2 text-center bg-[var(--bg-darker)] border-r border-[var(--border-color)]">
-                                                    <span className="font-oxanium text-sm font-bold text-[var(--accent-yellow)]">
-                                                        {Object.keys(driver.raceRatings).length === 0 ? '—'
-                                                            : breakdownSource === 'community' ? driver.totalAverage.toFixed(2) : driver.totalAverage.toFixed(1)}
-                                                    </span>
-                                                </td>
-
-                                                {/* Race Ratings */}
-                                                {breakdownRaces.map(race => {
-                                                    const rating = driver.raceRatings[race.round];
-                                                    const hasRating = rating !== undefined && rating > 0;
-
-                                                    const voteCount = driver.voteCounts?.[race.round];
-
-                                                    return (
-                                                        <td key={race.round} className="px-2 py-2 text-center">
-                                                            <span
-                                                                className="font-oxanium text-sm font-medium"
-                                                                style={{ color: hasRating ? getRatingColor(rating) : 'var(--text-muted)' }}
-                                                                title={voteCount ? `${voteCount} community ${voteCount === 1 ? 'vote' : 'votes'}` : undefined}
-                                                            >
-                                                                {hasRating ? (breakdownSource === 'community' ? rating.toFixed(2)
-                                                                    : rating % 1 === 0 ? rating : rating.toFixed(1)) : '-'}
-                                                            </span>
-                                                        </td>
-                                                    );
-                                                })}
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                    </motion.div>
+                    <ResultsBreakdownTable
+                        season={season}
+                        tableRef={tableRef}
+                        breakdownRaces={breakdownRaces}
+                        breakdownDrivers={breakdownDrivers}
+                        breakdownSource={breakdownSource}
+                        onChangeBreakdownSource={setUserSelectedBreakdownSource}
+                        generatingTable={generatingTable}
+                        canDownloadBreakdown={canDownloadBreakdown}
+                        onDownloadTable={handleDownloadTable}
+                        showCommunityBreakdownStatus={showCommunityBreakdownStatus}
+                        communityStatus={community.status}
+                        onSelectDriver={onSelectDriver}
+                    />
                 )}
             </div>
 
-            {/* Hidden Card for Image Generation */}
-            <div className="fixed -left-[9999px] top-0">
-                <div
-                    ref={cardRef}
-                    className="w-[600px] p-8"
-                    style={{
-                        background: 'linear-gradient(135deg, #0a0a0b 0%, #1a1a1c 50%, #0a0a0b 100%)',
-                        fontFamily: 'Formula1, sans-serif'
-                    }}
-                >
-                    {/* Card Header */}
-                    <div className="border-l-4 border-[#e10600] pl-4 mb-6">
-                        <div className="text-[10px] text-[#e10600] tracking-[0.3em] mb-1">
-                            {activeMode === 'community' ? 'COMMUNITY DRIVER RATINGS' : 'MY DRIVER RATINGS'}
-                        </div>
-                        <div className="text-5xl font-black text-white tracking-tight">{season} SEASON</div>
-                        <div className="text-xs text-gray-500 mt-1">
-                            {activeMode === 'community' ? `${votedCommunityRaces} COMMUNITY RACES` : `${ratedCount} RACES RATED`}
-                        </div>
-                    </div>
-
-                    {/* Top 10 Drivers */}
-                    <div className="space-y-1">
-                        {activeRankedAverages.slice(0, 10).map((driver, index) => {
-                            const isTop3 = index < 3;
-                            const positionColor = index === 0 ? '#FFD700' : index === 1 ? '#C0C0C0' : index === 2 ? '#CD7F32' : '#888';
-
-                            return (
-                                <div
-                                    key={driver.driverId}
-                                    className="flex items-center gap-3 py-2 px-3"
-                                    style={{
-                                        background: isTop3 ? 'rgba(255,255,255,0.03)' : 'transparent',
-                                        borderLeft: `3px solid ${getTeamColor(driver.constructorId)}`
-                                    }}
-                                >
-                                    {/* Position */}
-                                    <div
-                                        className="w-8 text-2xl font-black text-center"
-                                        style={{ color: positionColor }}
-                                    >
-                                        {index + 1}
-                                    </div>
-
-                                    {/* Driver Info */}
-                                    <div className="flex-1">
-                                        <div className="text-white font-bold text-lg uppercase tracking-wide">
-                                            {driver.driverName}
-                                        </div>
-                                        <div className="text-gray-500 text-[10px] uppercase tracking-wider">
-                                            {driver.constructorName}
-                                        </div>
-                                    </div>
-
-                                    {/* Rating */}
-                                    <div
-                                        className="text-2xl font-black"
-                                        style={{ color: isTop3 ? '#FFD700' : '#fff' }}
-                                    >
-                                        {driver.averageRating.toFixed(2)}
-                                    </div>
-                                </div>
-                            );
-                        })}
-                    </div>
-
-                    {/* Footer */}
-                    <div className="mt-6 pt-4 border-t border-gray-800 flex justify-between items-center">
-                        <div className="text-[10px] text-gray-600 uppercase tracking-widest">F1 DRIVER RATING</div>
-                        <div className="text-[10px] text-gray-600">{new Date().toLocaleDateString()}</div>
-                    </div>
-                </div>
-            </div>
-
-            {/* 6. SECTION: SHARE YOUR CARD - Shows after clicking Generate Card */}
-            {showCardSection && (
-                <motion.div
-                    ref={shareSectionRef}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="mt-20 pt-12 border-t border-[var(--border-color)]"
-                >
-                    <div className="mb-6 flex items-center justify-between">
-                        <div className="flex items-center gap-4">
-                            <Share2 size={20} className="text-[var(--accent-red)]" />
-                            <h3 className="font-display text-3xl text-white uppercase tracking-wider">SHARE YOUR CARD</h3>
-                        </div>
-                        <button
-                            onClick={() => setShowCardSection(false)}
-                            className="font-oxanium text-xs text-[var(--text-muted)] hover:text-white uppercase tracking-wider transition-colors"
-                        >
-                            HIDE
-                        </button>
-                    </div>
-
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
-                        {/* Card Preview */}
-                        <div className="bg-[var(--bg-panel)] border border-[var(--border-color)] p-6">
-                            <div className="mb-4">
-                                <span className="font-oxanium text-[10px] text-[var(--text-muted)] uppercase tracking-widest">PREVIEW</span>
-                            </div>
-                            <div className="border border-[var(--border-color)] overflow-hidden">
-                                {generating ? (
-                                    <div className="flex flex-col items-center justify-center h-80 bg-[var(--bg-darker)] gap-4">
-                                        <div className="animate-spin w-10 h-10 border-2 border-[var(--accent-red)] border-t-transparent rounded-full" />
-                                        <span className="font-oxanium text-xs text-[var(--text-muted)] uppercase tracking-widest animate-pulse">Generating...</span>
-                                    </div>
-                                ) : cardImage ? (
-                                    <img src={cardImage} alt="Generated Card" className="w-full" />
-                                ) : (
-                                    <div className="flex items-center justify-center h-80 bg-[var(--bg-darker)] text-[var(--text-muted)]">
-                                        Error generating card
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-
-                        {/* Actions Panel */}
-                        <div className="space-y-6">
-                            <div className="bg-[var(--bg-panel)] border border-[var(--border-color)] p-6">
-                                <h4 className="font-display text-xl text-white uppercase tracking-wider mb-4">DOWNLOAD</h4>
-                                <p className="font-oxanium text-sm text-[var(--text-secondary)] mb-6">
-                                    Save your personalized F1 driver ratings card as a high-quality PNG image.
-                                </p>
-                                <button
-                                    onClick={handleDownloadCard}
-                                    disabled={!cardImage || generating}
-                                    className="w-full flex items-center justify-center gap-3 py-4 bg-[var(--accent-red)] hover:bg-[#ff0000] text-white font-display text-xl uppercase tracking-widest transition-colors disabled:opacity-50"
-                                >
-                                    <Download size={22} />
-                                    DOWNLOAD PNG
-                                </button>
-                            </div>
-
-                            <div className="bg-[var(--bg-panel)] border border-[var(--border-color)] p-6">
-                                <h4 className="font-display text-xl text-white uppercase tracking-wider mb-4">REGENERATE</h4>
-                                <p className="font-oxanium text-sm text-[var(--text-secondary)] mb-6">
-                                    Update the card with your latest ratings.
-                                </p>
-                                <button
-                                    onClick={handleGenerateCard}
-                                    disabled={generating}
-                                    className="w-full flex items-center justify-center gap-3 py-4 bg-[var(--bg-darker)] border border-[var(--border-color)] hover:border-white text-white font-display text-xl uppercase tracking-widest transition-colors disabled:opacity-50"
-                                >
-                                    <ImageDown size={22} />
-                                    REGENERATE CARD
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </motion.div>
-            )}
+            {/* 6. SECTION: SHARE YOUR CARD + Hidden Card for Image Generation */}
+            <ResultsShareCard
+                season={season}
+                activeMode={activeMode}
+                votedCommunityRaces={votedCommunityRaces}
+                ratedCount={ratedCount}
+                activeRankedAverages={activeRankedAverages}
+                cardRef={cardRef}
+                shareSectionRef={shareSectionRef}
+                showCardSection={showCardSection}
+                onHide={() => setShowCardSection(false)}
+                generating={generating}
+                cardImage={cardImage}
+                onDownloadCard={handleDownloadCard}
+                onGenerateCard={handleGenerateCard}
+            />
 
             {/* F1 Style Scroll to Top Button */}
             <AnimatePresence>
                 {showScrollTop && (
-                    <motion.button
+                    <m.button
                         initial={{ opacity: 0, y: 50, x: 20 }}
                         animate={{ opacity: 1, y: 0, x: 0 }}
                         exit={{ opacity: 0, y: 50, x: 20 }}
@@ -1516,7 +1190,7 @@ export function ResultsDashboard({ season, onReset, onSelectDriver }: ResultsDas
                         {/* Decorative corner accent */}
                         <div className="absolute -top-1 -right-1 w-2 h-2 bg-white skew-x-12 opacity-50" />
                         <div className="absolute -bottom-1 -left-1 w-2 h-2 bg-[var(--bg-darker)] skew-x-12 opacity-50" />
-                    </motion.button>
+                    </m.button>
                 )}
             </AnimatePresence>
 

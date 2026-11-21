@@ -1,6 +1,7 @@
 import { lazy, type ComponentType } from 'react';
 
 type RouteModule<TProps = object> = { default: ComponentType<TProps> };
+const IS_TEST_ENV = typeof import.meta !== 'undefined' && import.meta.env?.MODE === 'test';
 
 function createLazyRoute<TProps = object>(loader: () => Promise<RouteModule<TProps>>) {
     let pendingImport: Promise<RouteModule<TProps>> | null = null;
@@ -16,7 +17,10 @@ function createLazyRoute<TProps = object>(loader: () => Promise<RouteModule<TPro
     return {
         Route: lazy(load),
         preload: () => {
-            void load();
+            if (IS_TEST_ENV) return;
+            void load().catch(() => {
+                pendingImport = null;
+            });
         },
     };
 }
@@ -26,12 +30,16 @@ const teammateWarsRoute = createLazyRoute(() => import('./TeammateWarsRoute'));
 const standingsRoute = createLazyRoute(() => import('./StandingsRoute'));
 const awardsRoute = createLazyRoute(() => import('./SeasonAwardsRoute'));
 const driverProfileRoute = createLazyRoute(() => import('./DriverProfileRoute'));
+const quickRateRoute = createLazyRoute(() => import('./QuickRateRoute'));
+const raceRatingRoute = createLazyRoute(() => import('./RaceRatingRoute'));
 
 export const ResultsRoute = resultsRoute.Route;
 export const TeammateWarsRoute = teammateWarsRoute.Route;
 export const StandingsRoute = standingsRoute.Route;
 export const AwardsRoute = awardsRoute.Route;
 export const DriverProfileRoute = driverProfileRoute.Route;
+export const QuickRateRoute = quickRateRoute.Route;
+export const RaceRatingRoute = raceRatingRoute.Route;
 
 import { getRaceRatingContext, getDriverSeasonStats } from '../api/f1Api';
 import { loadStaticSeasonData } from '../api/staticSeasonData';
@@ -68,6 +76,7 @@ export function resetRoutePrefetchCache(): void {
 
 export function preloadRaceRatingRoute(season?: string, round?: string): void {
     if (!season || !round) return;
+    raceRatingRoute.preload();
     const key = `${season}:${round}`;
     if (prefetchedRaceRatings.has(key)) return;
     prefetchedRaceRatings.add(key);
@@ -79,6 +88,7 @@ export function preloadRaceRatingRoute(season?: string, round?: string): void {
 
 export function preloadQuickRateRoute(season?: string): void {
     if (!season) return;
+    quickRateRoute.preload();
     if (prefetchedQuickRates.has(season)) return;
     prefetchedQuickRates.add(season);
 

@@ -1,6 +1,6 @@
 import { Suspense, useEffect, useState } from 'react';
 import { Link, Routes, Route, useNavigate, useParams, useLocation } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import { LazyMotion, domAnimation, m, AnimatePresence } from 'framer-motion';
 import { ChevronLeft, Trophy, Zap, Swords, Medal, Award } from 'lucide-react';
 import { SeasonSelector } from './components/SeasonSelector';
 import { RaceList } from './components/RaceList';
@@ -12,6 +12,8 @@ import { SEOHead } from './components/SEOHead';
 import { HomeJsonLd } from './components/JsonLd';
 import {
   AwardsRouteFallback,
+  QuickRateModalContentFallback,
+  RatingModalContentFallback,
   ResultsRouteFallback,
   StandingsRouteFallback,
   TeammateWarsRouteFallback,
@@ -20,6 +22,8 @@ import { getSeasons, getRaces } from './api/f1Api';
 import {
   AwardsRoute,
   DriverProfileRoute,
+  QuickRateRoute,
+  RaceRatingRoute,
   ResultsRoute,
   StandingsRoute,
   TeammateWarsRoute,
@@ -31,8 +35,6 @@ import {
   preloadTeammateWarsRoute,
   scheduleSeasonRoutePrefetch,
 } from './routes/routeChunks';
-import QuickRateRoute from './routes/QuickRateRoute';
-import RaceRatingRoute from './routes/RaceRatingRoute';
 import { fetchWithMinDelay } from './utils/delay';
 import { useCommunityRatings } from './hooks/useCommunityRatings';
 import { initializeGuestSync } from './utils/guestSync';
@@ -61,7 +63,7 @@ function SeasonAwardsAction({ season, onNavigate, onPreload }: {
     : 0;
 
   return (
-    <motion.button
+    <m.button
       initial={{ opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
       onClick={onNavigate}
@@ -82,7 +84,7 @@ function SeasonAwardsAction({ season, onNavigate, onPreload }: {
           {communityRatedRaceCount}
         </span>
       )}
-    </motion.button>
+    </m.button>
   );
 }
 
@@ -107,7 +109,7 @@ function SeasonPage() {
   }
 
   return (
-    <motion.div
+    <m.div
       key="seasons"
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
@@ -126,7 +128,7 @@ function SeasonPage() {
       <div className="text-center mb-16 relative">
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-2xl h-32 bg-[var(--accent-red)]/5 blur-3xl -z-10" />
 
-        <motion.div
+        <m.div
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
@@ -135,25 +137,25 @@ function SeasonPage() {
           <span className="font-oxanium text-xs font-bold text-[var(--accent-red)] tracking-[0.25em] uppercase">
             F1 Driver Rater
           </span>
-        </motion.div>
+        </m.div>
 
-        <motion.h1
+        <m.h1
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.2 }}
           className="font-display text-5xl md:text-6xl text-white mb-6 uppercase tracking-tight leading-none"
         >
           F1 Driver <span className="text-transparent bg-clip-text bg-gradient-to-b from-white to-[#666]">Rating</span>
-        </motion.h1>
+        </m.h1>
 
-        <motion.p
+        <m.p
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.3 }}
           className="font-ui text-[var(--text-secondary)] text-lg max-w-xl mx-auto tracking-wide"
         >
           Rate every F1 driver race-by-race with your own F1 driver rater and rating tracker. Build season rankings, compare teammates head-to-head, and see who really is the best on the grid.
-        </motion.p>
+        </m.p>
       </div>
 
       {/* Season Grid */}
@@ -162,7 +164,7 @@ function SeasonPage() {
         onSelect={handleSelectSeason}
         loading={loading}
       />
-    </motion.div>
+    </m.div>
   );
 }
 
@@ -209,7 +211,7 @@ function RacesPage() {
   if (!isValidSeason || !season) return <NotFoundPage />;
 
   return (
-    <motion.div
+    <m.div
       key="races"
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
@@ -229,7 +231,7 @@ function RacesPage() {
         onRacePrefetch={preloadRaceRatingRoute}
         loading={loading}
       />
-    </motion.div>
+    </m.div>
   );
 }
 
@@ -245,7 +247,18 @@ function App() {
   }, [location.pathname]);
 
   useEffect(() => {
-    void initializeGuestSync();
+    let cancelIdle: (() => void) | undefined;
+    if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+      const id = window.requestIdleCallback(() => {
+        void initializeGuestSync();
+      }, { timeout: 1500 });
+      cancelIdle = () => window.cancelIdleCallback(id);
+    } else {
+      const id = globalThis.setTimeout(() => {
+        void initializeGuestSync();
+      }, 800);
+      cancelIdle = () => globalThis.clearTimeout(id);
+    }
 
     const handleStorageSync = () => {
       setStorageRevision((revision) => revision + 1);
@@ -254,6 +267,7 @@ function App() {
     window.addEventListener('f1:guest-sync', handleStorageSync);
     window.addEventListener(LOCAL_RATINGS_EVENT, handleStorageSync);
     return () => {
+      cancelIdle?.();
       window.removeEventListener('f1:guest-sync', handleStorageSync);
       window.removeEventListener(LOCAL_RATINGS_EVENT, handleStorageSync);
     };
@@ -311,6 +325,7 @@ function App() {
   }
 
   return (
+    <LazyMotion features={domAnimation}>
     <div className="min-h-screen flex flex-col">
       {/* Header - Frosted Glass */}
       <header className="sticky top-0 z-40 border-b border-white/5 bg-gradient-to-b from-[var(--bg-main)]/80 to-[var(--bg-main)]/60 backdrop-blur-xl backdrop-saturate-150 shadow-[0_4px_30px_rgba(0,0,0,0.3)]">
@@ -324,14 +339,14 @@ function App() {
           <div className="flex items-center justify-between gap-3 min-w-0 w-full md:w-auto md:flex-1">
             <div className="flex items-center gap-3 md:gap-6 min-w-0">
               {!isHomePage && (
-                <motion.button
+                <m.button
                   initial={{ opacity: 0, x: -10 }}
                   animate={{ opacity: 1, x: 0 }}
                   onClick={handleBack}
                   className="h-8 w-8 flex items-center justify-center border border-[var(--border-color)] hover:border-[var(--accent-red)] hover:bg-[var(--accent-red)]/10 transition-colors flex-shrink-0"
                 >
                   <ChevronLeft size={20} className="text-white" />
-                </motion.button>
+                </m.button>
               )}
 
               <div
@@ -408,7 +423,7 @@ function App() {
           {showSeasonActions && (
             <div className={`grid ${mobileActionGridClass} w-full gap-2 md:flex md:w-auto md:items-center md:gap-3 md:justify-end`}>
               {/* Standings Button */}
-              <motion.button
+              <m.button
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 onClick={() => navigate(`/${currentSeason}/standings`)}
@@ -418,7 +433,7 @@ function App() {
               >
                 <Medal size={16} className="text-[var(--text-secondary)] group-hover:text-[var(--accent-yellow)]" />
                 <span className="hidden md:inline font-ui font-bold text-xs text-white uppercase tracking-wider">Standings</span>
-              </motion.button>
+              </m.button>
 
               <SeasonAwardsAction
                 season={currentSeason!}
@@ -427,7 +442,7 @@ function App() {
               />
 
               {/* Teammate Wars Button */}
-              <motion.button
+              <m.button
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 onClick={() => navigate(`/${currentSeason}/teammate-wars`)}
@@ -437,9 +452,9 @@ function App() {
               >
                 <Swords size={16} className="text-[var(--text-secondary)] group-hover:text-[var(--accent-red)]" />
                 <span className="hidden md:inline font-ui font-bold text-xs text-white uppercase tracking-wider">VS</span>
-              </motion.button>
+              </m.button>
               {/* Quick Rate Button */}
-              <motion.button
+              <m.button
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 onClick={() => navigate(`/${currentSeason}/quick-rate`)}
@@ -448,11 +463,11 @@ function App() {
               >
                 <Zap size={16} className="text-[var(--accent-yellow)]" />
                 <span className="hidden md:inline font-ui font-bold text-xs text-[var(--accent-yellow)] uppercase tracking-wider">Quick Rate</span>
-              </motion.button>
+              </m.button>
 
               {/* View Results Button */}
               {showResultsButton && (
-                <motion.button
+                <m.button
                   initial={{ opacity: 0, scale: 0.95 }}
                   animate={{ opacity: 1, scale: 1 }}
                   onClick={() => navigate(`/${currentSeason}/results`)}
@@ -461,7 +476,7 @@ function App() {
                 >
                   <Trophy size={16} className="text-[var(--text-secondary)] group-hover:text-[var(--accent-yellow)]" />
                   <span className="hidden md:inline font-ui font-bold text-xs text-white uppercase tracking-wider">View Results</span>
-                </motion.button>
+                </m.button>
               )}
             </div>
           )}
@@ -475,8 +490,22 @@ function App() {
             <Routes location={location} key={location.pathname}>
               <Route path="/" element={<SeasonPage />} />
               <Route path="/:season" element={<RacesPage />} />
-              <Route path="/:season/race/:round" element={<RaceRatingRoute />} />
-              <Route path="/:season/quick-rate" element={<QuickRateRoute />} />
+              <Route
+                path="/:season/race/:round"
+                element={(
+                  <Suspense fallback={<RatingModalContentFallback />}>
+                    <RaceRatingRoute />
+                  </Suspense>
+                )}
+              />
+              <Route
+                path="/:season/quick-rate"
+                element={(
+                  <Suspense fallback={<QuickRateModalContentFallback />}>
+                    <QuickRateRoute />
+                  </Suspense>
+                )}
+              />
               <Route
                 path="/:season/results"
                 element={(
@@ -628,6 +657,7 @@ function App() {
       <SitePolicyModal open={sitePolicyOpen} onClose={() => setSitePolicyOpen(false)} />
       <DeveloperCredit />
     </div>
+    </LazyMotion>
   );
 }
 

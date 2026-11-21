@@ -1,4 +1,4 @@
-import { supabase } from '../lib/supabaseClient';
+import { getSupabaseClient, isSupabaseConfigured } from '../lib/supabaseClient';
 import { ensureGuestUser, queueGuestPolicyAcceptance } from './guestSync';
 
 export const SITE_POLICY_VERSION = '2026-10-14';
@@ -39,14 +39,14 @@ function writeLocalAcceptance(key: string, acceptedAt: string): void {
 }
 
 export function hasLocalSitePolicyAcceptance(): boolean {
-    if (!supabase) return readLocalAcceptance(LOCAL_ACCEPTANCE_KEY);
+    if (!isSupabaseConfigured) return readLocalAcceptance(LOCAL_ACCEPTANCE_KEY);
     if (activeGuestUserId && readLocalAcceptance(accountAcceptanceKey(activeGuestUserId))) return true;
     return readLocalAcceptance(PENDING_ACCEPTANCE_KEY);
 }
 
 export function saveLocalSitePolicyAcceptance(acceptedAt = new Date().toISOString()): void {
     writeLocalAcceptance(
-        !supabase
+        !isSupabaseConfigured
             ? LOCAL_ACCEPTANCE_KEY
             : activeGuestUserId
                 ? accountAcceptanceKey(activeGuestUserId)
@@ -64,7 +64,7 @@ function clearPendingAcceptance(): void {
 }
 
 export async function hasCurrentSitePolicyAcceptance(): Promise<boolean> {
-    if (!supabase) return readLocalAcceptance(LOCAL_ACCEPTANCE_KEY);
+    if (!isSupabaseConfigured) return readLocalAcceptance(LOCAL_ACCEPTANCE_KEY);
 
     let userId: string;
     try {
@@ -83,6 +83,9 @@ export async function hasCurrentSitePolicyAcceptance(): Promise<boolean> {
         queueGuestPolicyAcceptance(SITE_POLICY_VERSION, acceptedAt);
         return true;
     }
+
+    const supabase = await getSupabaseClient();
+    if (!supabase) throw new Error('Cloud sync is not configured.');
 
     const { data, error } = await supabase
         .from('community_policy_acceptances')

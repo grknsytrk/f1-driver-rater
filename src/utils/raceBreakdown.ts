@@ -180,3 +180,10 @@ export function buildCommunityFormSeries(
             return b.totalRatedRaces - a.totalRatedRaces;
         });
 }
+
+export type BreakdownSource = 'personal' | 'community';
+
+/** Format a driver's surname in uppercase for compact chart/table labels. */
+export function getDriverLabel(driverName: string): string {
+    return driverName.split(' ').pop()?.toUpperCase() || driverName.toUpperCase();
+}

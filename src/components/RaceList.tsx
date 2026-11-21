@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { m, AnimatePresence } from 'framer-motion';
 import { MapPin, Lock, ChevronRight, Hash, Flag, ChevronsUp } from 'lucide-react';
 import type { Race } from '../types';
 import { CountryFlag } from '../utils/countryFlags';
@@ -109,7 +109,7 @@ function RaceCard({ race, season, index, onClick, onPrefetch }: RaceCardProps) {
     const dateStr = raceDate.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }).toUpperCase();
 
     return (
-        <motion.div
+        <m.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{
@@ -252,7 +252,7 @@ function RaceCard({ race, season, index, onClick, onPrefetch }: RaceCardProps) {
                     )}
                 </div>
             </div>
-        </motion.div>
+        </m.div>
     );
 }
 
@@ -337,7 +337,7 @@ export function RaceList({ races, season, onSelectRace, onRacePrefetch, loading 
             {/* F1 Style Scroll to Top Button */}
             <AnimatePresence>
                 {showScrollTop && (
-                    <motion.button
+                    <m.button
                         initial={{ opacity: 0, y: 50, x: 20 }}
                         animate={{ opacity: 1, y: 0, x: 0 }}
                         exit={{ opacity: 0, y: 50, x: 20 }}
@@ -357,7 +357,7 @@ export function RaceList({ races, season, onSelectRace, onRacePrefetch, loading 
                         {/* Decorative corner accent */}
                         <div className="absolute -top-1 -right-1 w-2 h-2 bg-white skew-x-12 opacity-50" />
                         <div className="absolute -bottom-1 -left-1 w-2 h-2 bg-[var(--bg-darker)] skew-x-12 opacity-50" />
-                    </motion.button>
+                    </m.button>
                 )}
             </AnimatePresence>
         </div>

@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState, type RefObject } from 'react';
-import { toBlob } from 'html-to-image';
 import { Download, Flag, ImageDown, Timer } from 'lucide-react';
 import type {
     DriverSeasonStats,
@@ -541,6 +540,7 @@ export function DriverSeasonCardGenerator(props: DriverSeasonCardGeneratorProps)
             const targetHeight = Math.max(1200, HEADER_HEIGHT + Math.ceil(targetEntries.length / 2) * ROW_HEIGHT + BOTTOM_PADDING);
             await document.fonts?.ready;
             await Promise.all(Array.from(cardRef.current.querySelectorAll('img')).map(image => image.decode().catch(() => undefined)));
+            const { toBlob } = await import('html-to-image');
             const blob = await toBlob(cardRef.current, {
                 cacheBust: true,
                 pixelRatio: 2,

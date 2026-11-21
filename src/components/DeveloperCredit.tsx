@@ -1,12 +1,12 @@
 import { useState } from 'react';
-import { motion } from 'framer-motion';
+import { m } from 'framer-motion';
 import { Github, Code, Terminal, Cpu } from 'lucide-react';
 
 export function DeveloperCredit() {
     const [isHovered, setIsHovered] = useState(false);
 
     return (
-        <motion.div
+        <m.div
             className="fixed bottom-6 left-6 z-50 hidden md:flex items-end"
             initial={{ opacity: 0, x: -50 }}
             animate={{ opacity: 1, x: 0 }}
@@ -44,7 +44,7 @@ export function DeveloperCredit() {
                     </div>
 
                     {/* Content Section (Revealed on Hover) */}
-                    <motion.div
+                    <m.div
                         initial={{ width: 0, opacity: 0 }}
                         animate={{
                             width: isHovered ? 'auto' : 0,
@@ -71,9 +71,9 @@ export function DeveloperCredit() {
                                 </span>
                             </div>
                         </div>
-                    </motion.div>
+                    </m.div>
                 </div>
             </a>
-        </motion.div>
+        </m.div>
     );
 }
