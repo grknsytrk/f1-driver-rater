@@ -13,7 +13,7 @@ import { formatDriverFallback, getSeasonDriversMap } from './season-drivers.mjs'
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DIST_DIR = resolve(__dirname, '..', 'dist');
 const CURRENT_YEAR = new Date().getFullYear();
-const START_YEAR = 2020;
+const START_YEAR = 2018;
 const SITE_URL = 'https://f1-driver-rater.vercel.app';
 const SITE_NAME = 'F1 Driver Rating';
 const SITE_ALTERNATE_NAME = 'F1 Driver Rater';

@@ -2,6 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import vercelConfig from '../../vercel.json';
 import indexHtml from '../../index.html?raw';
 import manifestJson from '../../public/data/seasons/manifest.json';
+import bundle2018Json from '../../public/data/seasons/2018.json';
+import bundle2019Json from '../../public/data/seasons/2019.json';
 import bundle2020Json from '../../public/data/seasons/2020.json';
 import bundle2021Json from '../../public/data/seasons/2021.json';
 import bundle2022Json from '../../public/data/seasons/2022.json';
@@ -42,6 +44,8 @@ import {
 } from '../routes/routeChunks';
 
 const RAW_STATIC_BUNDLES: Record<string, Record<string, unknown>> = {
+    '2018': bundle2018Json as unknown as Record<string, unknown>,
+    '2019': bundle2019Json as unknown as Record<string, unknown>,
     '2020': bundle2020Json as unknown as Record<string, unknown>,
     '2021': bundle2021Json as unknown as Record<string, unknown>,
     '2022': bundle2022Json as unknown as Record<string, unknown>,
@@ -212,11 +216,11 @@ describe('Milestone 5 — End-to-End Pipeline & Adversarial Hardening (R1–R5)'
     });
 
     describe('Tier 4 (R4): Real Static Season Bundles on Disk & Zero-API Season Views', () => {
-        it('validates manifest.json and all 2020–2026 static bundle files on disk', () => {
+        it('validates manifest.json and all 2018–2026 static bundle files on disk', () => {
             const manifest = manifestJson as unknown as SeasonManifest;
             expect(manifest.version).toBe(1);
 
-            for (const year of ['2020', '2021', '2022', '2023', '2024', '2025', '2026']) {
+            for (const year of ['2018', '2019', '2020', '2021', '2022', '2023', '2024', '2025', '2026']) {
                 const entry = manifest.seasons[year];
                 expect(entry).toBeDefined();
 

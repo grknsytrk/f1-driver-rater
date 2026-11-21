@@ -43,7 +43,7 @@ import type { Season, Race } from './types';
 
 // Minimum loading time in ms for better UX
 const MIN_LOADING_TIME = 800;
-const MIN_SUPPORTED_SEASON = 2020;
+const MIN_SUPPORTED_SEASON = 2018;
 
 function isValidSeasonParam(season: string | undefined | null): season is string {
   if (!season || !/^\d{4}$/.test(season)) return false;
@@ -621,7 +621,7 @@ function App() {
                 Popular Seasons
               </h3>
               <nav className="flex flex-wrap gap-2" aria-label="Season links">
-                {[2026, 2025, 2024, 2023, 2022, 2021, 2020].map(year => (
+                {[2026, 2025, 2024, 2023, 2022, 2021, 2020, 2019, 2018].map(year => (
                   <Link
                     key={year}
                     to={`/${year}`}

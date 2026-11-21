@@ -11,6 +11,8 @@ describe('getTeamColor', () => {
         expect(getTeamColor('mercedes')).toBe('#00d2be');
         expect(getTeamColor('red_bull')).toBe('#1e41ff');
         expect(getTeamColor('mclaren')).toBe('#ff8700');
+        expect(getTeamColor('force_india')).toBe('#f596c8');
+        expect(getTeamColor('toro_rosso')).toBe('#469bff');
     });
 
     it('falls back gracefully for unknown constructors', () => {

@@ -170,7 +170,7 @@ describe('Milestone 4 (Requirement R4) - Static Season Data Pipeline', () => {
         clearStaticSeasonCache();
     });
 
-    describe('1. Archived Season Bundle Loading (2020–2025)', () => {
+    describe('1. Archived Season Bundle Loading (2018–2025)', () => {
         it('loads archived 2023 season bundle and hydrates SeasonRaceResult[] with all mapped fields', async () => {
             vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce({
                 ok: true,
@@ -251,7 +251,7 @@ describe('Milestone 4 (Requirement R4) - Static Season Data Pipeline', () => {
             expect(isRoundInStaticBundle('2023', '1')).toBe(true);
             expect(isRoundInStaticBundle('2023', '22')).toBe(true);
             expect(isRoundInStaticBundle('2023', '23')).toBe(false);
-            expect(isRoundInStaticBundle('2019', '1')).toBe(false);
+            expect(isRoundInStaticBundle('2017', '1')).toBe(false);
         });
 
         it('retrieves round results and qualifying from bundle', async () => {
@@ -363,7 +363,7 @@ describe('Milestone 4 (Requirement R4) - Static Season Data Pipeline', () => {
         it('immediately returns null for unsupported season without network call', async () => {
             const fetchSpy = vi.spyOn(globalThis, 'fetch');
 
-            const res = await loadStaticSeasonData('2019');
+            const res = await loadStaticSeasonData('2017');
             expect(res).toBeNull();
             expect(fetchSpy).not.toHaveBeenCalled();
         });

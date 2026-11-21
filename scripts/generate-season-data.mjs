@@ -862,7 +862,7 @@ async function main() {
     const currentYearNum = new Date().getUTCFullYear();
     const maxSeasonNum = Math.max(2026, currentYearNum);
     const allSeasons = [];
-    for (let y = 2020; y <= maxSeasonNum; y += 1) {
+    for (let y = 2018; y <= maxSeasonNum; y += 1) {
         allSeasons.push(String(y));
     }
     const targetSeasons = specificSeason ? [specificSeason] : allSeasons;

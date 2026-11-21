@@ -1,7 +1,23 @@
 {
   "version": 1,
-  "generatedAt": "2026-11-15T00:50:05.964Z",
+  "generatedAt": "2026-11-21T15:50:05.315Z",
   "seasons": {
+    "2018": {
+      "season": "2018",
+      "isArchived": true,
+      "lastCompletedRound": 21,
+      "totalRounds": 21,
+      "generatedAt": "2026-11-21T15:49:55.753Z",
+      "bundleUrl": "/data/seasons/2018.json?v=2026-11-21T15%3A49%3A55.753Z"
+    },
+    "2019": {
+      "season": "2019",
+      "isArchived": true,
+      "lastCompletedRound": 21,
+      "totalRounds": 21,
+      "generatedAt": "2026-11-21T15:50:05.301Z",
+      "bundleUrl": "/data/seasons/2019.json?v=2026-11-21T15%3A50%3A05.301Z"
+    },
     "2020": {
       "season": "2020",
       "isArchived": true,

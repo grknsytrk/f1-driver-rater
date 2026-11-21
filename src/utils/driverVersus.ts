@@ -14,7 +14,7 @@ import {
 export type { DataStatus, RowWinner, VersusRow };
 export { countCategoryWins };
 
-export const START_VERSUS_SEASON = 2020;
+export const START_VERSUS_SEASON = 2018;
 
 export interface DriverVersusOption {
     driverId: string;
@@ -70,7 +70,7 @@ export interface DriverVersusSelection {
     driverB: string;
 }
 
-/** Return descending season strings from `max(2026, currentYear)` down to 2020. */
+/** Return descending season strings from `max(2026, currentYear)` down to 2018. */
 export function getAvailableVersusSeasons(currentYear = new Date().getFullYear()): string[] {
     const maxYear = Math.max(2026, currentYear);
     const seasons: string[] = [];

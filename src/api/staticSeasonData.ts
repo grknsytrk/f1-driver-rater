@@ -282,7 +282,7 @@ export async function loadStaticSeasonData(season: string | number): Promise<Com
     const manifestEntry = STATIC_MANIFEST?.seasons?.[seasonKey];
 
     // Guard against unsupported seasons without making wasteful 404 network requests
-    if (!Number.isFinite(seasonNum) || seasonNum < 2020 || (seasonNum > maxSupportedSeason && !manifestEntry)) {
+    if (!Number.isFinite(seasonNum) || seasonNum < 2018 || (seasonNum > maxSupportedSeason && !manifestEntry)) {
         return null;
     }
 
@@ -510,7 +510,7 @@ export function isRoundInStaticBundle(season: string | number, round: string | n
         const manifestEntry = STATIC_MANIFEST?.seasons?.[seasonKey];
         if (!manifestEntry) {
             const seasonNum = Number.parseInt(seasonKey, 10);
-            return Number.isFinite(seasonNum) && seasonNum >= 2020 && seasonNum < new Date().getUTCFullYear();
+            return Number.isFinite(seasonNum) && seasonNum >= 2018 && seasonNum < new Date().getUTCFullYear();
         }
         if (manifestEntry.isArchived) {
             return roundNum <= manifestEntry.totalRounds;

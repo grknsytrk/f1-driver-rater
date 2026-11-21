@@ -124,9 +124,9 @@ const sampleAverages: AverageRating[] = [
 ];
 
 describe('driverVersus utilities', () => {
-    it('returns descending seasons from current/2026 down to 2020', () => {
+    it('returns descending seasons from current/2026 down to 2018', () => {
         const seasons = getAvailableVersusSeasons(2026);
-        expect(seasons).toEqual(['2026', '2025', '2024', '2023', '2022', '2021', '2020']);
+        expect(seasons).toEqual(['2026', '2025', '2024', '2023', '2022', '2021', '2020', '2019', '2018']);
     });
 
     it('builds deduplicated driver options sorted by WDC position then name', () => {

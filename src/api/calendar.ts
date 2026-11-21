@@ -112,16 +112,18 @@ const SEASONS_FALLBACK: Season[] = [
     { season: '2022', url: '' },
     { season: '2021', url: '' },
     { season: '2020', url: '' },
+    { season: '2019', url: '' },
+    { season: '2018', url: '' },
 ];
 
-// Fetch available seasons (2020-current)
+// Fetch available seasons (2018-current)
 export async function getSeasons(options?: ApiRequestOptions): Promise<Season[]> {
     const cacheKey = 'jolpica:seasons';
     return swrFetch<Season[]>(
         cacheKey,
         async (ctx) => {
             const response = await jolpicaClient.get<{ MRData?: { SeasonTable?: { Seasons?: Season[] } } }>(
-                '/seasons.json?limit=10&offset=70',
+                '/seasons.json?limit=20&offset=68',
                 {
                     priority: ctx?.priority ?? options?.priority,
                     isBackground: ctx?.isBackground,
@@ -131,7 +133,7 @@ export async function getSeasons(options?: ApiRequestOptions): Promise<Season[]>
             );
             const seasons = (response.data?.MRData?.SeasonTable?.Seasons ?? []) as Season[];
             // Filter to recent seasons and reverse for newest first
-            return seasons.filter(s => parseInt(s.season, 10) >= 2020).reverse();
+            return seasons.filter(s => parseInt(s.season, 10) >= 2018).reverse();
         },
         24 * 60 * 60 * 1000,
         {

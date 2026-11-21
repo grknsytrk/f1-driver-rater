@@ -139,6 +139,7 @@ export const TEAM_COLORS: Record<string, string> = {
     'alfa': '#900000',
     'racing_point': '#f596c8',
     'renault': '#fff500',
+    'force_india': '#f596c8',
     'toro_rosso': '#469bff',
 };
 

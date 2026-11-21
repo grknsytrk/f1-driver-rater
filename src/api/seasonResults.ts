@@ -1190,7 +1190,7 @@ export async function getAllSeasonQualifying(
  */
 export async function getDriverProfileSeasonResults(season: string): Promise<SeasonRaceResult[]> {
     const seasonNum = Number.parseInt(season, 10);
-    if (Number.isFinite(seasonNum) && seasonNum >= 2020 && seasonNum <= 2026) {
+    if (Number.isFinite(seasonNum) && seasonNum >= 2018 && seasonNum <= 2026) {
         const bundle = await getStaticSeasonBundle(season).catch(() => null);
         if (bundle && bundle.results && bundle.results.length > 0) {
             return getAllSeasonResults(season);
@@ -1207,7 +1207,7 @@ export async function getDriverProfileSeasonResults(season: string): Promise<Sea
 /** Profile qualifying rows need position only; awards pages still use the API-backed helper for lap times. */
 export async function getDriverProfileSeasonQualifying(season: string): Promise<SeasonQualifyingResult[]> {
     const seasonNum = Number.parseInt(season, 10);
-    if (Number.isFinite(seasonNum) && seasonNum >= 2020 && seasonNum <= 2026) {
+    if (Number.isFinite(seasonNum) && seasonNum >= 2018 && seasonNum <= 2026) {
         const bundle = await getStaticSeasonBundle(season).catch(() => null);
         if (bundle && bundle.qualifying && bundle.qualifying.length > 0) {
             return getAllSeasonQualifying(season);

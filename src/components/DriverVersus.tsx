@@ -155,7 +155,7 @@ function DriverSlotSelect({
 
 /**
  * Cross-season and same-driver head-to-head comparison dashboard.
- * Allows comparing any two drivers from any teams/seasons (2020–current), or the same driver across eras.
+ * Allows comparing any two drivers from any teams/seasons (2018–current), or the same driver across eras.
  */
 export function DriverVersus({ defaultSeason, toggle, onSelectDriver }: DriverVersusProps) {
     const ratingSnapshot = useRatingStorage();

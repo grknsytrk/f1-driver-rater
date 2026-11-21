@@ -1,0 +1,205 @@
+{
+  "source": "https://www.formula1.com/en/drivers (via Wayback Machine)",
+  "season": "2022",
+  "retrievedOn": "2026-11-21",
+  "portraits": [
+    {
+      "driverId": "bottas",
+      "name": "Valtteri Bottas",
+      "constructorId": "alfa",
+      "file": "bottas.webp",
+      "originalImage": "https://web.archive.org/web/20221112022546id_/https://www.formula1.com/content/dam/fom-website/drivers/V/VALBOT01_Valtteri_Bottas/valbot01.png.transform/2col/image.png",
+      "captureTimestamp": "20221112022546",
+      "resolution": "206x206"
+    },
+    {
+      "driverId": "zhou",
+      "name": "Guanyu Zhou",
+      "constructorId": "alfa",
+      "file": "zhou.webp",
+      "originalImage": "https://web.archive.org/web/20221112022555id_/https://www.formula1.com/content/dam/fom-website/drivers/G/GUAZHO01_Guanyu_Zhou/guazho01.png.transform/2col/image.png",
+      "captureTimestamp": "20221112022555",
+      "resolution": "206x206"
+    },
+    {
+      "driverId": "gasly",
+      "name": "Pierre Gasly",
+      "constructorId": "alphatauri",
+      "file": "gasly.webp",
+      "originalImage": "https://web.archive.org/web/20220925080716id_/https://www.formula1.com/content/dam/fom-website/drivers/P/PIEGAS01_Pierre_Gasly/piegas01.png.transform/2col/image.png",
+      "captureTimestamp": "20220925080716",
+      "resolution": "206x206"
+    },
+    {
+      "driverId": "tsunoda",
+      "name": "Yuki Tsunoda",
+      "constructorId": "alphatauri",
+      "file": "tsunoda.webp",
+      "originalImage": "https://web.archive.org/web/20220925080716id_/https://www.formula1.com/content/dam/fom-website/drivers/Y/YUKTSU01_Yuki_Tsunoda/yuktsu01.png.transform/2col/image.png",
+      "captureTimestamp": "20220925080716",
+      "resolution": "206x206"
+    },
+    {
+      "driverId": "alonso",
+      "name": "Fernando Alonso",
+      "constructorId": "alpine",
+      "file": "alonso.webp",
+      "originalImage": "https://web.archive.org/web/20220925080716id_/https://www.formula1.com/content/dam/fom-website/drivers/F/FERALO01_Fernando_Alonso/feralo01.png.transform/2col/image.png",
+      "captureTimestamp": "20220925080716",
+      "resolution": "206x206"
+    },
+    {
+      "driverId": "ocon",
+      "name": "Esteban Ocon",
+      "constructorId": "alpine",
+      "file": "ocon.webp",
+      "originalImage": "https://web.archive.org/web/20220925080717id_/https://www.formula1.com/content/dam/fom-website/drivers/E/ESTOCO01_Esteban_Ocon/estoco01.png.transform/2col/image.png",
+      "captureTimestamp": "20220925080717",
+      "resolution": "206x206"
+    },
+    {
+      "driverId": "hulkenberg",
+      "name": "Nico H\u00fclkenberg",
+      "constructorId": "aston_martin",
+      "file": "hulkenberg.webp",
+      "originalImage": "https://web.archive.org/web/20220925080716id_/https://www.formula1.com/content/dam/fom-website/drivers/N/NICHUL01_Nico_Hulkenberg/nichul01.png.transform/2col/image.png",
+      "captureTimestamp": "20220925080716",
+      "resolution": "206x206"
+    },
+    {
+      "driverId": "stroll",
+      "name": "Lance Stroll",
+      "constructorId": "aston_martin",
+      "file": "stroll.webp",
+      "originalImage": "https://web.archive.org/web/20220925080716id_/https://www.formula1.com/content/dam/fom-website/drivers/L/LANSTR01_Lance_Stroll/lanstr01.png.transform/2col/image.png",
+      "captureTimestamp": "20220925080716",
+      "resolution": "206x206"
+    },
+    {
+      "driverId": "vettel",
+      "name": "Sebastian Vettel",
+      "constructorId": "aston_martin",
+      "file": "vettel.webp",
+      "originalImage": "https://media.formula1.com/content/dam/fom-website/drivers/S/SEBVET01_Sebastian_Vettel/sebvet01.png",
+      "captureTimestamp": "20221231",
+      "resolution": "440x440"
+    },
+    {
+      "driverId": "leclerc",
+      "name": "Charles Leclerc",
+      "constructorId": "ferrari",
+      "file": "leclerc.webp",
+      "originalImage": "https://web.archive.org/web/20221024030505id_/https://www.formula1.com/content/dam/fom-website/drivers/C/CHALEC01_Charles_Leclerc/chalec01.png.transform/4col/image.png",
+      "captureTimestamp": "20221024030505",
+      "resolution": "432x432"
+    },
+    {
+      "driverId": "sainz",
+      "name": "Carlos Sainz",
+      "constructorId": "ferrari",
+      "file": "sainz.webp",
+      "originalImage": "https://web.archive.org/web/20220620162237id_/https://www.formula1.com/content/dam/fom-website/drivers/C/CARSAI01_Carlos_Sainz/carsai01.png.transform/4col/image.png",
+      "captureTimestamp": "20220620162237",
+      "resolution": "432x432"
+    },
+    {
+      "driverId": "kevin_magnussen",
+      "name": "Kevin Magnussen",
+      "constructorId": "haas",
+      "file": "kevin_magnussen.webp",
+      "originalImage": "https://web.archive.org/web/20221018062415id_/https://www.formula1.com/content/dam/fom-website/drivers/K/KEVMAG01_Kevin_Magnussen/kevmag01.png",
+      "captureTimestamp": "20221018062415",
+      "resolution": "440x440"
+    },
+    {
+      "driverId": "mick_schumacher",
+      "name": "Mick Schumacher",
+      "constructorId": "haas",
+      "file": "mick_schumacher.webp",
+      "originalImage": "https://web.archive.org/web/20221018062415id_/https://www.formula1.com/content/dam/fom-website/drivers/M/MICSCH02_Mick_Schumacher/micsch02.png",
+      "captureTimestamp": "20221018062415",
+      "resolution": "440x440"
+    },
+    {
+      "driverId": "norris",
+      "name": "Lando Norris",
+      "constructorId": "mclaren",
+      "file": "norris.webp",
+      "originalImage": "https://web.archive.org/web/20220420143526id_/https://www.formula1.com/content/dam/fom-website/drivers/L/LANNOR01_Lando_Norris/lannor01.png.transform/4col-retina/image.png",
+      "captureTimestamp": "20220420143526",
+      "resolution": "440x440"
+    },
+    {
+      "driverId": "ricciardo",
+      "name": "Daniel Ricciardo",
+      "constructorId": "mclaren",
+      "file": "ricciardo.webp",
+      "originalImage": "https://web.archive.org/web/20220925080716id_/https://www.formula1.com/content/dam/fom-website/drivers/D/DANRIC01_Daniel_Ricciardo/danric01.png.transform/2col/image.png",
+      "captureTimestamp": "20220925080716",
+      "resolution": "206x206"
+    },
+    {
+      "driverId": "hamilton",
+      "name": "Lewis Hamilton",
+      "constructorId": "mercedes",
+      "file": "hamilton.webp",
+      "originalImage": "https://web.archive.org/web/20221024030505id_/https://www.formula1.com/content/dam/fom-website/drivers/L/LEWHAM01_Lewis_Hamilton/lewham01.png.transform/4col/image.png",
+      "captureTimestamp": "20221024030505",
+      "resolution": "432x432"
+    },
+    {
+      "driverId": "russell",
+      "name": "George Russell",
+      "constructorId": "mercedes",
+      "file": "russell.webp",
+      "originalImage": "https://web.archive.org/web/20220731155745id_/https://www.formula1.com/content/dam/fom-website/drivers/G/GEORUS01_George_Russell/georus01.png.transform/4col/image.png",
+      "captureTimestamp": "20220731155745",
+      "resolution": "432x432"
+    },
+    {
+      "driverId": "max_verstappen",
+      "name": "Max Verstappen",
+      "constructorId": "red_bull",
+      "file": "max_verstappen.webp",
+      "originalImage": "https://web.archive.org/web/20221018062359id_/https://www.formula1.com/content/dam/fom-website/drivers/M/MAXVER01_Max_Verstappen/maxver01.png",
+      "captureTimestamp": "20221018062359",
+      "resolution": "440x440"
+    },
+    {
+      "driverId": "perez",
+      "name": "Sergio P\u00e9rez",
+      "constructorId": "red_bull",
+      "file": "perez.webp",
+      "originalImage": "https://web.archive.org/web/20221030223219id_/https://www.formula1.com/content/dam/fom-website/drivers/S/SERPER01_Sergio_Perez/serper01.png.transform/4col/image.png",
+      "captureTimestamp": "20221030223219",
+      "resolution": "432x432"
+    },
+    {
+      "driverId": "albon",
+      "name": "Alexander Albon",
+      "constructorId": "williams",
+      "file": "albon.webp",
+      "originalImage": "https://web.archive.org/web/20221112022558id_/https://www.formula1.com/content/dam/fom-website/drivers/A/ALEALB01_Alexander_Albon/alealb01.png.transform/2col/image.png",
+      "captureTimestamp": "20221112022558",
+      "resolution": "206x206"
+    },
+    {
+      "driverId": "de_vries",
+      "name": "Nyck de Vries",
+      "constructorId": "williams",
+      "file": "de_vries.webp",
+      "originalImage": "https://web.archive.org/web/20221219195241id_/https://www.formula1.com/content/dam/fom-website/drivers/N/NYCDEV01_Nyck_De%20Vries/nycdev01.png.transform/2col-retina/image.png",
+      "captureTimestamp": "20221219195241",
+      "resolution": "412x412"
+    },
+    {
+      "driverId": "latifi",
+      "name": "Nicholas Latifi",
+      "constructorId": "williams",
+      "file": "latifi.webp",
+      "originalImage": "https://media.formula1.com/content/dam/fom-website/drivers/N/NICLAF01_Nicholas_Latifi/niclaf01.png",
+      "captureTimestamp": "20221231",
+      "resolution": "440x440"
+    }
+  ]
+}
