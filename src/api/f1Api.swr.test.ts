@@ -331,7 +331,7 @@ describe('End-to-end endpoint SWR integration', () => {
 
     it('getSeasons serves cached seasons immediately and falls back gracefully', async () => {
         const staleSeasons = [{ season: '2026', url: '' }, { season: '2025', url: '' }];
-        setCache('jolpica:seasons', staleSeasons, -5000);
+        setCache('jolpica:seasons:2018', staleSeasons, -5000);
 
         const seasons = await getSeasons();
         expect(seasons).toEqual(staleSeasons);

@@ -118,7 +118,7 @@ const SEASONS_FALLBACK: Season[] = [
 
 // Fetch available seasons (2018-current)
 export async function getSeasons(options?: ApiRequestOptions): Promise<Season[]> {
-    const cacheKey = 'jolpica:seasons';
+    const cacheKey = 'jolpica:seasons:2018';
     return swrFetch<Season[]>(
         cacheKey,
         async (ctx) => {

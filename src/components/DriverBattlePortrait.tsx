@@ -10,8 +10,15 @@ export function DriverBattlePortrait({ src, side }: DriverBattlePortraitProps) {
 
     if (failed) return null;
 
+    const isHeadshot = /\/images\/drivers\/(2019|2020|2021|2022|2023)\//.test(src);
+
     return (
-        <div className="h2h-battle__portrait" data-side={side} aria-hidden="true">
+        <div
+            className="h2h-battle__portrait"
+            data-side={side}
+            data-format={isHeadshot ? 'headshot' : 'full'}
+            aria-hidden="true"
+        >
             <img
                 src={src}
                 alt=""

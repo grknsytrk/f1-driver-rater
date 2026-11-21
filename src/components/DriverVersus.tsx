@@ -745,7 +745,11 @@ export function DriverVersus({ defaultSeason, toggle, onSelectDriver }: DriverVe
                 <div
                     className="h2h-battle relative px-4 md:px-8 py-6 md:py-8"
                     data-portraits={Boolean(portraitA || portraitB)}
-                    style={{ '--battle-color': colorA } as CSSProperties}
+                    style={{
+                        '--battle-color': colorA,
+                        '--battle-color-left': colorA,
+                        '--battle-color-right': colorB,
+                    } as CSSProperties}
                 >
                     {portraitA && <DriverBattlePortrait src={portraitA} side="left" />}
                     {portraitB && <DriverBattlePortrait src={portraitB} side="right" />}
