@@ -1,5 +1,5 @@
 import type { ConstructorStanding, DriverSeasonStats, SeasonRaceResult, SeasonSprintResult } from '../api/f1Api';
-import { TEAM_COLORS, type Race } from '../types';
+import { getTeamColor, type Race } from '../types';
 
 export interface WdcRaceWeekendData {
     position: number | null | undefined;
@@ -72,7 +72,7 @@ export function buildDriverTrackerEntries(drivers: DriverSeasonStats[], latestTe
                 : label.slice(0, 3).toUpperCase(),
             description: `${driver.driverName} · ${team.constructorName}`,
             points: Number(driver.points),
-            color: TEAM_COLORS[team.constructorId] ?? '#888888',
+            color: getTeamColor(team.constructorId),
             dash: patterns.get(driver.driverId),
         };
     });
@@ -85,7 +85,7 @@ export function buildConstructorTrackerEntries(constructors: ConstructorStanding
         label: constructor.constructorName.replace(/\s+F1 Team$/i, ''),
         description: constructor.constructorName,
         points: constructor.points,
-        color: TEAM_COLORS[constructor.constructorId] ?? '#888888',
+        color: getTeamColor(constructor.constructorId),
     }));
 }
 

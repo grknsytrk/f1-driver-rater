@@ -36,7 +36,7 @@ import {
     type SeasonRaceResult,
     type SeasonSprintResult,
 } from '../api/f1Api';
-import { TEAM_COLORS, type Race, type Season } from '../types';
+import { getTeamColor, type Race, type Season } from '../types';
 
 type SeasonDriver = Awaited<ReturnType<typeof getSeasonDrivers>>[number];
 import {
@@ -76,10 +76,6 @@ interface DriverProfilePageProps {
 }
 
 type ProfileRatingMode = 'personal' | 'community';
-
-function getTeamColor(constructorId: string): string {
-    return TEAM_COLORS[constructorId] || '#888888';
-}
 
 // Frozen constructor order based on the 2026 team standings. Keep this local and
 // explicit so the driver selector never reshuffles when live points change.

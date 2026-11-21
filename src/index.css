@@ -1,4 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=Titillium+Web:wght@400;600;700;900&display=swap');
 @import "tw-animate-css";
 @import "tailwindcss";
 
@@ -13,7 +12,7 @@
 
 @font-face {
   font-family: 'Formula1';
-  src: url('/fonts/Formula1-Regular-1.ttf') format('truetype');
+  src: url('/fonts/Formula1-Regular-1.woff2') format('woff2');
   font-weight: 400;
   font-style: normal;
   font-display: swap;
@@ -21,7 +20,7 @@
 
 @font-face {
   font-family: 'Formula1';
-  src: url('/fonts/Formula1-Bold_web.ttf') format('truetype');
+  src: url('/fonts/Formula1-Bold_web.woff2') format('woff2');
   font-weight: 700;
   font-style: normal;
   font-display: swap;
@@ -29,7 +28,7 @@
 
 @font-face {
   font-family: 'Formula1';
-  src: url('/fonts/Formula1-Italic.ttf') format('truetype');
+  src: url('/fonts/Formula1-Italic.woff2') format('woff2');
   font-weight: 400;
   font-style: italic;
   font-display: swap;
@@ -37,7 +36,7 @@
 
 @font-face {
   font-family: 'Formula1-Wide';
-  src: url('/fonts/Formula1-Wide.ttf') format('truetype');
+  src: url('/fonts/Formula1-Wide.woff2') format('woff2');
   font-weight: 400;
   font-style: normal;
   font-display: swap;
@@ -45,7 +44,7 @@
 
 @font-face {
   font-family: 'Formula1-Bold';
-  src: url('/fonts/Formula1-Bold_web.ttf') format('truetype');
+  src: url('/fonts/Formula1-Bold_web.woff2') format('woff2');
   font-weight: 700;
   font-style: normal;
   font-display: swap;
@@ -53,7 +52,7 @@
 
 @font-face {
   font-family: 'Formula1-Black';
-  src: url('/fonts/Formula1-Black.ttf') format('truetype');
+  src: url('/fonts/Formula1-Black.woff2') format('woff2');
   font-weight: 900;
   font-style: normal;
   font-display: swap;

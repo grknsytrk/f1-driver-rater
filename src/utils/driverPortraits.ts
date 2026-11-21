@@ -26,7 +26,7 @@ const PORTRAIT_TEAMS: Record<string, string> = {
 
 const TEAM_PORTRAIT_VARIANTS: Record<string, Record<string, string>> = {
     lawson: {
-        red_bull: '/images/drivers/team-variants/lawson-red-bull.png',
+        red_bull: '/images/drivers/team-variants/lawson-red-bull.webp',
     },
     tsunoda: {
         rb: '/images/drivers/team-variants/tsunoda-racing-bulls.webp',

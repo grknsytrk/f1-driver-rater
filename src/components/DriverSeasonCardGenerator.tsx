@@ -48,18 +48,18 @@ const ROW_HEIGHT = 106;
 const BOTTOM_PADDING = 110;
 
 const TEAM_LOGOS: Record<string, string> = {
-    red_bull: '/images/teams/red-bull.png',
-    ferrari: '/images/teams/ferrari.png',
-    mercedes: '/images/teams/mercedes.png',
-    mclaren: '/images/teams/mclaren.png',
-    rb: '/images/teams/racing-bulls.png',
-    racing_bulls: '/images/teams/racing-bulls.png',
-    audi: '/images/teams/audi.png',
-    alpine: '/images/teams/alpine.png',
-    haas: '/images/teams/haas.png',
-    williams: '/images/teams/williams.png',
-    aston_martin: '/images/teams/aston-martin.png',
-    cadillac: '/images/teams/cadillac.png',
+    red_bull: '/images/teams/red-bull.webp',
+    ferrari: '/images/teams/ferrari.webp',
+    mercedes: '/images/teams/mercedes.webp',
+    mclaren: '/images/teams/mclaren.webp',
+    rb: '/images/teams/racing-bulls.webp',
+    racing_bulls: '/images/teams/racing-bulls.webp',
+    audi: '/images/teams/audi.webp',
+    alpine: '/images/teams/alpine.webp',
+    haas: '/images/teams/haas.webp',
+    williams: '/images/teams/williams.webp',
+    aston_martin: '/images/teams/aston-martin.webp',
+    cadillac: '/images/teams/cadillac.webp',
 };
 
 const CARD_PORTRAIT_OVERRIDES: Record<string, string> = {

@@ -16,7 +16,7 @@ import { CountryFlag } from '../utils/countryFlags';
 import { getAllSeasonResults, getAllSeasonQualifying, getConstructorStandings, getDriverStandings } from '../api/f1Api';
 import type { SeasonRaceResult, SeasonQualifyingResult, ConstructorStanding, DriverStanding } from '../api/f1Api';
 import { RateLimitError } from '../api/f1Api';
-import { TEAM_COLORS } from '../types';
+import { getTeamColor } from '../types';
 import { TeamVersus } from './TeamVersus';
 import { VersusModeToggle } from './VersusModeToggle';
 import type { VersusMode } from './VersusModeToggle';
@@ -377,7 +377,7 @@ export function TeammateWars({ season, onSelectDriver }: TeammateWarsProps) {
         return {
             teamId,
             teamName: driverA.constructorName,
-            teamColor: TEAM_COLORS[teamId] || '#666',
+            teamColor: getTeamColor(teamId, '#666'),
             driverA,
             driverB,
             h2h: dataLoaded ? calculateH2H(driverA.driverId, driverB.driverId, teamId) : null,
@@ -621,7 +621,7 @@ export function TeammateWars({ season, onSelectDriver }: TeammateWarsProps) {
                     const driverBFamilyName = getDriverFamilyName(driverB.driverName);
                     const driverBGivenName = getDriverGivenName(driverB.driverName);
 
-                    const teamColor = TEAM_COLORS[teamId] || '#666';
+                    const teamColor = getTeamColor(teamId, '#666');
                     const teamName = driverA.constructorName;
                     const hasMoreDrivers = allTeamDrivers.length > 2;
                     const wccStats = standingsByConstructorId[teamId];

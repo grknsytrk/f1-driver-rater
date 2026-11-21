@@ -1,12 +1,14 @@
-import { useCallback, useEffect, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { RotateCcw, Zap } from 'lucide-react';
 import { toast } from 'sonner';
-import { TEAM_COLORS } from '../types';
+import { getTeamColor } from '../types';
 import { getDriverSeasonStats } from '../api/f1Api';
 import { clearQuickRatings, saveQuickDriverRating, removeQuickDriverRating, getQuickRatings, markQuickRatingsCommunityEligible } from '../utils/storage';
+import type { CommunityRating, CommunityStatus } from '../utils/communityRatings';
 import { fetchWithMinDelay } from '../utils/delay';
 import { ModalShell } from './ModalShell';
 import { QuickRateModalContentFallback } from './RouteFallbacks';
+import { RatingSegments } from './RatingSegments';
 
 import { useCommunityRatings, useRatingStorage } from '../hooks/useCommunityRatings';
 import { useSitePolicyConsent } from '../hooks/useSitePolicyConsent';
@@ -34,14 +36,135 @@ interface DriverWithRating {
     podiums: number;
 }
 
+interface QuickRateDriverRowProps {
+    driver: DriverWithRating;
+    currentRating: number;
+    communityRating?: CommunityRating;
+    communityStatus: CommunityStatus;
+    onRate: (driver: DriverWithRating, rating: number) => void;
+}
+
+const QuickRateDriverRow = memo(function QuickRateDriverRow({
+    driver,
+    currentRating,
+    communityRating,
+    communityStatus,
+    onRate,
+}: QuickRateDriverRowProps) {
+    const [hoveredVal, setHoveredVal] = useState<number | null>(null);
+    const teamColor = getTeamColor(driver.constructorId);
+    const displayRating = hoveredVal ?? currentRating;
+
+    const handleSelect = useCallback((val: number) => {
+        if (currentRating === val) {
+            setHoveredVal(null);
+        }
+        onRate(driver, val);
+    }, [currentRating, driver, onRate]);
+
+    return (
+        <div
+            className="group relative flex flex-col gap-1 bg-[var(--bg-panel)] p-2 transition-colors hover:bg-[var(--bg-panel-hover)] md:gap-3 md:p-3"
+        >
+            <div className="flex items-center gap-0">
+                <div className="h-10 w-10 flex-shrink-0 border border-[var(--border-color)] bg-[var(--bg-darker)] text-[var(--text-secondary)] md:h-12 md:w-14">
+                    <div className="flex h-full flex-col items-center justify-center">
+                        <span className="mb-0.5 hidden font-oxanium text-[8px] leading-none md:block md:text-[10px]">POS</span>
+                        <span className="font-display text-base leading-none text-white md:text-xl">{driver.position}</span>
+                    </div>
+                </div>
+
+                <div className="flex h-10 min-w-0 flex-1 items-center md:h-12">
+                    <div className="h-full w-1 flex-shrink-0" style={{ backgroundColor: teamColor }} />
+                    <div className="min-w-0 flex-1 pl-2 md:pl-3">
+                        <h3 className="truncate font-display text-sm leading-none text-white uppercase md:text-lg">
+                            {driver.driverName}
+                        </h3>
+                        <p className="mt-0.5 truncate font-oxanium text-[9px] uppercase tracking-wide text-[var(--text-muted)] md:mt-1 md:text-[10px]">
+                            {driver.constructorName}
+                        </p>
+                    </div>
+                </div>
+
+                <div className="ml-auto flex flex-shrink-0 items-center gap-2 pr-2 md:gap-4">
+                    <div className="flex h-10 min-w-[40px] flex-col items-center justify-center md:h-12 md:min-w-[50px]">
+                        <span className="mb-0.5 font-oxanium text-[7px] leading-none text-[var(--text-muted)] md:text-[9px]">
+                            PTS
+                        </span>
+                        <span className="font-oxanium text-sm font-bold leading-none text-[var(--accent-yellow)] md:text-lg">
+                            {driver.points}
+                        </span>
+                    </div>
+
+                    <div className="flex h-10 min-w-[28px] flex-col items-center justify-center md:h-12 md:min-w-[36px]">
+                        <span className="mb-0.5 font-oxanium text-[7px] leading-none text-[var(--text-muted)] md:text-[9px]">
+                            WIN
+                        </span>
+                        <span className={`font-oxanium text-sm font-bold leading-none md:text-lg ${driver.wins > 0 ? 'text-[#00FF88]' : 'text-[var(--text-muted)]'}`}>
+                            {driver.wins}
+                        </span>
+                    </div>
+
+                    <div className="flex h-10 min-w-[28px] flex-col items-center justify-center md:h-12 md:min-w-[36px]">
+                        <span className="mb-0.5 font-oxanium text-[7px] leading-none text-[var(--text-muted)] md:text-[9px]">
+                            PP
+                        </span>
+                        <span className={`font-oxanium text-sm font-bold leading-none md:text-lg ${driver.poles > 0 ? 'text-[#FF00FF]' : 'text-[var(--text-muted)]'}`}>
+                            {driver.poles}
+                        </span>
+                    </div>
+
+                    <div className="flex h-10 min-w-[28px] flex-col items-center justify-center md:h-12 md:min-w-[36px]">
+                        <span className="mb-0.5 font-oxanium text-[7px] leading-none text-[var(--text-muted)] md:text-[9px]">
+                            POD
+                        </span>
+                        <span className={`font-oxanium text-sm font-bold leading-none md:text-lg ${driver.podiums > 0 ? 'text-[var(--accent-orange)]' : 'text-[var(--text-muted)]'}`}>
+                            {driver.podiums}
+                        </span>
+                    </div>
+                </div>
+            </div>
+
+            <div className="flex w-full items-center gap-3 overflow-hidden md:gap-4">
+                <div className="w-20 flex-shrink-0 md:w-24">
+                    <PersonalRatingValue value={displayRating} season />
+                </div>
+                <RatingSegments
+                    driverName={driver.driverName}
+                    currentRating={currentRating}
+                    displayRating={displayRating}
+                    onHoverChange={setHoveredVal}
+                    onSelect={handleSelect}
+                />
+                <CommunityValue
+                    rating={communityRating}
+                    status={communityStatus}
+                    label="COMMUNITY SEASON AVG"
+                />
+            </div>
+        </div>
+    );
+});
+
 export function QuickRateModal({ season, onClose }: QuickRateModalProps) {
-    useRatingStorage();
+    const storageSnapshot = useRatingStorage();
     const policyConsent = useSitePolicyConsent();
+    const requestAcceptance = policyConsent.requestAcceptance;
     const community = useCommunityRatings('quick', season);
-    const savedRatings = getQuickRatings(season) ?? [];
+    const savedRatings = useMemo(() => {
+        void storageSnapshot;
+        return getQuickRatings(season) ?? [];
+    }, [season, storageSnapshot]);
+    const savedRatingByDriverId = useMemo(
+        () => new Map(savedRatings.map(rating => [rating.driverId, rating.rating])),
+        [savedRatings],
+    );
+    const communityByDriverId = useMemo(
+        () => new Map(community.ratings.map(rating => [rating.driverId, rating])),
+        [community.ratings],
+    );
     const [drivers, setDrivers] = useState<DriverWithRating[]>([]);
     const [loading, setLoading] = useState(true);
-    const [hoveredRating, setHoveredRating] = useState<{ id: string, val: number } | null>(null);
 
     const loadDrivers = useCallback(async () => {
         setLoading(true);
@@ -80,23 +203,21 @@ export function QuickRateModal({ season, onClose }: QuickRateModalProps) {
         void loadDrivers();
     }, [loadDrivers]);
 
-    function handleRatingChange(driverId: string, rating: number) {
+    const handleRatingChange = useCallback((driver: DriverWithRating, rating: number) => {
         if (loading) return;
-        const driver = drivers.find(driver => driver.driverId === driverId);
-        if (!driver) return;
+        const { driverId } = driver;
         if (getQuickRatings(season)?.some(saved => saved.driverId === driverId && saved.rating === rating)) {
             removeQuickDriverRating(season, driverId);
-            setHoveredRating(current => (current?.id === driverId ? null : current));
             return;
         }
-        policyConsent.requestAcceptance(() => {
+        requestAcceptance(() => {
             saveQuickDriverRating(season, {
                 driverId, driverName: driver.driverName,
                 constructorId: driver.constructorId, constructorName: driver.constructorName,
                 rating,
             });
         });
-    }
+    }, [loading, requestAcceptance, season]);
 
     function handleClearAll() {
         clearQuickRatings(season);
@@ -114,10 +235,6 @@ export function QuickRateModal({ season, onClose }: QuickRateModalProps) {
             .catch(() => undefined);
         void initializeGuestSync();
         onClose();
-    }
-
-    function getTeamColor(constructorId: string): string {
-        return TEAM_COLORS[constructorId] || '#888888';
     }
 
     return (
@@ -160,140 +277,16 @@ export function QuickRateModal({ season, onClose }: QuickRateModalProps) {
                     <div className="flex-1 overflow-y-auto overflow-x-hidden p-2 md:p-6 custom-scrollbar">
                     <CommunityNotice status={community.status} legacy={savedRatings.some(rating => !rating.communityEligible)} />
                     <div className="grid grid-cols-1 gap-px border border-[var(--border-color)] bg-[var(--border-color)]">
-                        {drivers.map((driver) => {
-                            const teamColor = getTeamColor(driver.constructorId);
-                            const currentRating = savedRatings.find(rating => rating.driverId === driver.driverId)?.rating ?? 0;
-                            const isHovered = hoveredRating?.id === driver.driverId;
-                            const displayRating = isHovered ? hoveredRating.val : currentRating;
-
-                            return (
-                                <div
-                                    key={driver.driverId}
-                                    className="group relative flex flex-col gap-1 bg-[var(--bg-panel)] p-2 transition-colors hover:bg-[var(--bg-panel-hover)] md:gap-3 md:p-3"
-                                >
-                                    <div className="flex items-center gap-0">
-                                        <div className="h-10 w-10 flex-shrink-0 border border-[var(--border-color)] bg-[var(--bg-darker)] text-[var(--text-secondary)] md:h-12 md:w-14">
-                                            <div className="flex h-full flex-col items-center justify-center">
-                                                <span className="mb-0.5 hidden font-oxanium text-[8px] leading-none md:block md:text-[10px]">POS</span>
-                                                <span className="font-display text-base leading-none text-white md:text-xl">{driver.position}</span>
-                                            </div>
-                                        </div>
-
-                                        <div className="flex h-10 min-w-0 flex-1 items-center md:h-12">
-                                            <div className="h-full w-1 flex-shrink-0" style={{ backgroundColor: teamColor }} />
-                                            <div className="min-w-0 flex-1 pl-2 md:pl-3">
-                                                <h3 className="truncate font-display text-sm leading-none text-white uppercase md:text-lg">
-                                                    {driver.driverName}
-                                                </h3>
-                                                <p className="mt-0.5 truncate font-oxanium text-[9px] uppercase tracking-wide text-[var(--text-muted)] md:mt-1 md:text-[10px]">
-                                                    {driver.constructorName}
-                                                </p>
-                                            </div>
-                                        </div>
-
-                                        <div className="ml-auto flex flex-shrink-0 items-center gap-2 pr-2 md:gap-4">
-                                            <div className="flex h-10 min-w-[40px] flex-col items-center justify-center md:h-12 md:min-w-[50px]">
-                                                <span className="mb-0.5 font-oxanium text-[7px] leading-none text-[var(--text-muted)] md:text-[9px]">
-                                                    PTS
-                                                </span>
-                                                <span className="font-oxanium text-sm font-bold leading-none text-[var(--accent-yellow)] md:text-lg">
-                                                    {driver.points}
-                                                </span>
-                                            </div>
-
-                                            <div className="flex h-10 min-w-[28px] flex-col items-center justify-center md:h-12 md:min-w-[36px]">
-                                                <span className="mb-0.5 font-oxanium text-[7px] leading-none text-[var(--text-muted)] md:text-[9px]">
-                                                    WIN
-                                                </span>
-                                                <span className={`font-oxanium text-sm font-bold leading-none md:text-lg ${driver.wins > 0 ? 'text-[#00FF88]' : 'text-[var(--text-muted)]'}`}>
-                                                    {driver.wins}
-                                                </span>
-                                            </div>
-
-                                            <div className="flex h-10 min-w-[28px] flex-col items-center justify-center md:h-12 md:min-w-[36px]">
-                                                <span className="mb-0.5 font-oxanium text-[7px] leading-none text-[var(--text-muted)] md:text-[9px]">
-                                                    PP
-                                                </span>
-                                                <span className={`font-oxanium text-sm font-bold leading-none md:text-lg ${driver.poles > 0 ? 'text-[#FF00FF]' : 'text-[var(--text-muted)]'}`}>
-                                                    {driver.poles}
-                                                </span>
-                                            </div>
-
-                                            <div className="flex h-10 min-w-[28px] flex-col items-center justify-center md:h-12 md:min-w-[36px]">
-                                                <span className="mb-0.5 font-oxanium text-[7px] leading-none text-[var(--text-muted)] md:text-[9px]">
-                                                    POD
-                                                </span>
-                                                <span className={`font-oxanium text-sm font-bold leading-none md:text-lg ${driver.podiums > 0 ? 'text-[var(--accent-orange)]' : 'text-[var(--text-muted)]'}`}>
-                                                    {driver.podiums}
-                                                </span>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div className="flex w-full items-center gap-3 overflow-hidden md:gap-4">
-                                        <div className="w-20 flex-shrink-0 md:w-24">
-                                            <PersonalRatingValue value={displayRating} season />
-                                        </div>
-                                        <div className="min-w-0 flex-1 overflow-x-auto scrollbar-hide md:overflow-visible">
-                                            <div className="flex w-max gap-[2px] py-1" onMouseLeave={() => setHoveredRating(null)}>
-                                                {[...Array(20)].map((_, index) => {
-                                                    const val = (index + 1) * 0.5;
-                                                    const isFilled = val <= displayRating;
-
-                                                    let segmentColor = 'rgba(255,255,255,0.08)';
-                                                    if (isFilled) {
-                                                        const t = index / 19;
-                                                        if (t < 0.4) {
-                                                            const localT = t / 0.4;
-                                                            segmentColor = `rgb(225, ${Math.round(6 + localT * 101)}, 0)`;
-                                                        } else if (t < 0.7) {
-                                                            const localT = (t - 0.4) / 0.3;
-                                                            const r = Math.round(225 + localT * 17);
-                                                            const g = Math.round(107 + localT * 102);
-                                                            const b = Math.round(localT * 61);
-                                                            segmentColor = `rgb(${r}, ${g}, ${b})`;
-                                                        } else {
-                                                            const localT = (t - 0.7) / 0.3;
-                                                            const r = Math.round(242 - localT * 242);
-                                                            const g = Math.round(209 + localT * 46);
-                                                            const b = Math.round(61 + localT * 75);
-                                                            segmentColor = `rgb(${r}, ${g}, ${b})`;
-                                                        }
-                                                    }
-
-                                                    return (
-                                                        <button
-                                                            key={index}
-                                                            aria-label={`${driver.driverName}: ${val.toFixed(1)} out of 10`}
-                                                            aria-pressed={currentRating === val}
-                                                            onFocus={() => setHoveredRating({ id: driver.driverId, val })}
-                                                            onBlur={() => setHoveredRating(null)}
-                                                            onMouseEnter={() => setHoveredRating({ id: driver.driverId, val })}
-                                                            onClick={() => handleRatingChange(driver.driverId, val)}
-                                                            className="relative h-7 w-4 flex-shrink-0 cursor-pointer touch-manipulation focus-visible:outline-2 focus-visible:outline-white focus-visible:outline-offset-2 md:h-10 md:w-5"
-                                                        >
-                                                            <div
-                                                                className="h-full w-full rounded-sm"
-                                                                style={{
-                                                                    backgroundColor: segmentColor,
-                                                                    transform: isFilled ? 'scaleY(1)' : 'scaleY(0.65)',
-                                                                    opacity: isFilled ? 1 : 0.4,
-                                                                }}
-                                                            />
-                                                        </button>
-                                                    );
-                                                })}
-                                            </div>
-                                        </div>
-                                        <CommunityValue
-                                            rating={community.ratings.find(rating => rating.driverId === driver.driverId)}
-                                            status={community.status}
-                                            label="COMMUNITY SEASON AVG"
-                                        />
-                                    </div>
-                                </div>
-                            );
-                        })}
+                        {drivers.map((driver) => (
+                            <QuickRateDriverRow
+                                key={driver.driverId}
+                                driver={driver}
+                                currentRating={savedRatingByDriverId.get(driver.driverId) ?? 0}
+                                communityRating={communityByDriverId.get(driver.driverId)}
+                                communityStatus={community.status}
+                                onRate={handleRatingChange}
+                            />
+                        ))}
                     </div>
                     </div>
                 )}

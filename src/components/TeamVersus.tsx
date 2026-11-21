@@ -6,7 +6,7 @@ import { toPng } from 'html-to-image';
 import { ArrowLeftRight, ChevronDown, Download, ImageDown, Loader2, Share2, Swords } from 'lucide-react';
 import { useExportImage } from '../hooks/useExportImage';
 import type { ConstructorStanding, SeasonQualifyingResult, SeasonRaceResult } from '../api/f1Api';
-import { TEAM_COLORS } from '../types';
+import { getTeamColor } from '../types';
 import type { AverageRating } from '../types';
 import { useCommunityRatings, useRatingStorage } from '../hooks/useCommunityRatings';
 import { getSeasonRatings } from '../utils/storage';
@@ -359,8 +359,8 @@ export function TeamVersus({
     }
 
     const { statsA, statsB, rows, score, driversA, driversB } = versus;
-    const colorA = TEAM_COLORS[statsA.teamId] || '#666';
-    const colorB = TEAM_COLORS[statsB.teamId] || '#666';
+    const colorA = getTeamColor(statsA.teamId, '#666');
+    const colorB = getTeamColor(statsB.teamId, '#666');
     const [scoreA, scoreB] = score;
     const notices = [unavailableMessage('Race', raceStatus), unavailableMessage('Qualifying', qualiStatus)].filter(Boolean);
 

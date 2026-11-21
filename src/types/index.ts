@@ -129,6 +129,9 @@ export const TEAM_COLORS: Record<string, string> = {
     'alpine': '#0090ff',
     'williams': '#005aff',
     'rb': '#2b4562',
+    'racing_bulls': '#2b4562',
+    'audi': '#bb0a30',
+    'cadillac': '#c5a26a',
     'sauber': '#52e252',
     'haas': '#b6babd',
     // Legacy team names
@@ -138,6 +141,11 @@ export const TEAM_COLORS: Record<string, string> = {
     'renault': '#fff500',
     'toro_rosso': '#469bff',
 };
+
+/** Returns the team accent color for a constructor ID, or `fallback` if unknown. */
+export function getTeamColor(constructorId: string, fallback = '#888888'): string {
+    return TEAM_COLORS[constructorId] || fallback;
+}
 
 // Country Flags Map (using emoji flags)
 export const COUNTRY_FLAGS: Record<string, string> = {

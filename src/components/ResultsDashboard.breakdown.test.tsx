@@ -40,20 +40,13 @@ vi.mock('../api/f1Api', async importOriginal => ({
 
 vi.mock('./CommunityRatingRows', () => ({ CommunityRatingRows: () => null }));
 
-vi.mock('../utils/storage', async importOriginal => ({
-    ...await importOriginal<typeof import('../utils/storage')>(),
-    calculateAverages: () => [
+const storageSpies = vi.hoisted(() => ({
+    calculateAverages: vi.fn(() => [
         { driverId: 'lec', driverName: 'Charles Leclerc', constructorId: 'ferrari', constructorName: 'Ferrari', averageRating: 9, totalRaces: 2, ratings: [9, 9] },
         { driverId: 'ham', driverName: 'Lewis Hamilton', constructorId: 'ferrari', constructorName: 'Ferrari', averageRating: 7, totalRaces: 1, ratings: [7] },
-    ],
-    getRatedRacesCount: () => 2,
-    getDriverFormSeries: () => [],
-    getSeasonRatings: () => ({ season: '2026', races: [
-        { round: '1', raceName: 'Australian Grand Prix', date: '2026-03-01', completed: true, ratings: [
-            { driverId: 'lec', driverName: 'Charles Leclerc', constructorId: 'ferrari', constructorName: 'Ferrari', rating: 9 },
-        ] },
-    ] }),
-    getRaceByRaceMatrix: () => ({
+    ]),
+    getDriverFormSeries: vi.fn(() => []),
+    getRaceByRaceMatrix: vi.fn(() => ({
         races: [
             { round: '1', raceName: 'Australian', countryCode: 'AU' },
             { round: '2', raceName: 'Chinese', countryCode: 'CN' },
@@ -62,7 +55,20 @@ vi.mock('../utils/storage', async importOriginal => ({
             { driverId: 'lec', driverName: 'Charles Leclerc', constructorId: 'ferrari', constructorName: 'Ferrari', totalAverage: 9, raceRatings: { '1': 9, '2': 9 } },
             { driverId: 'ham', driverName: 'Lewis Hamilton', constructorId: 'ferrari', constructorName: 'Ferrari', totalAverage: 7, raceRatings: { '1': 7 } },
         ],
-    }),
+    })),
+}));
+
+vi.mock('../utils/storage', async importOriginal => ({
+    ...await importOriginal<typeof import('../utils/storage')>(),
+    calculateAverages: storageSpies.calculateAverages,
+    getRatedRacesCount: () => 2,
+    getDriverFormSeries: storageSpies.getDriverFormSeries,
+    getSeasonRatings: () => ({ season: '2026', races: [
+        { round: '1', raceName: 'Australian Grand Prix', date: '2026-03-01', completed: true, ratings: [
+            { driverId: 'lec', driverName: 'Charles Leclerc', constructorId: 'ferrari', constructorName: 'Ferrari', rating: 9 },
+        ] },
+    ] }),
+    getRaceByRaceMatrix: storageSpies.getRaceByRaceMatrix,
 }));
 
 let container: HTMLDivElement;
@@ -135,5 +141,22 @@ describe('race-by-race rating source', () => {
         expect([...table.querySelectorAll('tbody tr')].every(row =>
             [...row.querySelectorAll('td')].slice(3).every(cell => cell.textContent === '-'))).toBe(true);
         expect(container.querySelector<HTMLButtonElement>('button[aria-label="Download the race-by-race breakdown table as a PNG image"]')?.disabled).toBe(false);
+    });
+
+    it('does not recompute personal averages, matrix, or form series when scroll toggles the scroll-to-top button', async () => {
+        await act(async () => root.render(<TooltipProvider><ResultsDashboard season="2026" onReset={() => {}} /></TooltipProvider>));
+
+        storageSpies.calculateAverages.mockClear();
+        storageSpies.getRaceByRaceMatrix.mockClear();
+        storageSpies.getDriverFormSeries.mockClear();
+
+        Object.defineProperty(window, 'scrollY', { value: 700, writable: true, configurable: true });
+        await act(async () => {
+            window.dispatchEvent(new Event('scroll'));
+        });
+
+        expect(storageSpies.calculateAverages).not.toHaveBeenCalled();
+        expect(storageSpies.getRaceByRaceMatrix).not.toHaveBeenCalled();
+        expect(storageSpies.getDriverFormSeries).not.toHaveBeenCalled();
     });
 });

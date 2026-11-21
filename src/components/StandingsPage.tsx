@@ -5,7 +5,7 @@ import { useExportImage } from '../hooks/useExportImage';
 import { getDriverSeasonStats, getConstructorStandings, getAllSeasonResults, getAllSeasonSprints, getRaces, RateLimitError } from '../api/f1Api';
 import type { DriverSeasonStats, ConstructorStanding, SeasonRaceResult, SeasonSprintResult } from '../api/f1Api';
 import type { Race } from '../types';
-import { TEAM_COLORS } from '../types';
+import { getTeamColor } from '../types';
 import { getCountryCode } from '../utils/storage';
 import { CountryFlag } from '../utils/countryFlags';
 import { buildChampionshipProgress, buildConstructorTrackerEntries, buildDriverTrackerEntries, buildPointsTimeline, buildWccRaceMap, buildWdcRaceMap, getWdcCellDisplay, type LatestTeamMap } from '../utils/standings';
@@ -124,10 +124,6 @@ export function StandingsPage({ season, onSelectDriver }: StandingsPageProps) {
         void loadData();
         return () => { loadVersion.current += 1; };
     }, [loadData]);
-
-    function getTeamColor(constructorId: string): string {
-        return TEAM_COLORS[constructorId] || '#888888';
-    }
 
     // Build WDC race-by-race map with weekend points plus main-race status
     const wdcRaceMap = useMemo(() => buildWdcRaceMap(raceResults, sprintResults), [raceResults, sprintResults]);

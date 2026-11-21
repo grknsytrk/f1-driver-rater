@@ -10,7 +10,7 @@ import {
     Rocket,
     TrendingUp,
 } from 'lucide-react';
-import { TEAM_COLORS } from '../types';
+import { getTeamColor } from '../types';
 import {
     getAllSeasonQualifying,
     getAllSeasonResults,
@@ -170,10 +170,6 @@ function splitDriverName(driverName: string) {
     const parts = driverName.trim().split(/\s+/);
     if (parts.length <= 1) return { firstLine: driverName, secondLine: '' };
     return { firstLine: parts[0], secondLine: parts.slice(1).join(' ') };
-}
-
-function getTeamColor(constructorId: string) {
-    return TEAM_COLORS[constructorId] || '#888888';
 }
 
 function HeroStat({ label, value, accentColor }: { label: string; value: string; accentColor: string }) {

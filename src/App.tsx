@@ -1,11 +1,13 @@
 import { Suspense, useEffect, useState } from 'react';
-import { Routes, Route, useNavigate, useParams, useLocation } from 'react-router-dom';
+import { Link, Routes, Route, useNavigate, useParams, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronLeft, Trophy, Zap, Swords, Medal, Award } from 'lucide-react';
 import { SeasonSelector } from './components/SeasonSelector';
 import { RaceList } from './components/RaceList';
 import { SitePolicyModal } from './components/SitePolicy';
 import { DeveloperCredit } from './components/DeveloperCredit';
+import { ErrorBoundary } from './components/ErrorBoundary';
+import { NotFoundPage } from './components/NotFoundPage';
 import { SEOHead } from './components/SEOHead';
 import { HomeJsonLd } from './components/JsonLd';
 import {
@@ -39,6 +41,14 @@ import type { Season, Race } from './types';
 
 // Minimum loading time in ms for better UX
 const MIN_LOADING_TIME = 800;
+const MIN_SUPPORTED_SEASON = 2020;
+
+function isValidSeasonParam(season: string | undefined | null): season is string {
+  if (!season || !/^\d{4}$/.test(season)) return false;
+  const year = Number.parseInt(season, 10);
+  const maxYear = Math.max(2026, new Date().getUTCFullYear() + 1);
+  return year >= MIN_SUPPORTED_SEASON && year <= maxYear;
+}
 
 function SeasonAwardsAction({ season, onNavigate, onPreload }: {
   season: string;
@@ -159,27 +169,29 @@ function SeasonPage() {
 // Races Page Component
 function RacesPage() {
   const { season } = useParams<{ season: string }>();
+  const isValidSeason = isValidSeasonParam(season);
   const [races, setRaces] = useState<Race[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(isValidSeason);
   const navigate = useNavigate();
 
   useEffect(() => {
+    if (!isValidSeason || !season) return;
+    const validSeason = season;
+
     async function loadRaces() {
-      if (season) {
-        setLoading(true);
-        const data = await fetchWithMinDelay(() => getRaces(season), MIN_LOADING_TIME);
-        setRaces(data);
-        setLoading(false);
-      }
+      setLoading(true);
+      const data = await fetchWithMinDelay(() => getRaces(validSeason), MIN_LOADING_TIME);
+      setRaces(data);
+      setLoading(false);
     }
     void loadRaces();
-  }, [season]);
+  }, [season, isValidSeason]);
 
   useEffect(() => {
-    if (!season || loading) return;
+    if (!isValidSeason || !season || loading) return;
 
     return scheduleSeasonRoutePrefetch();
-  }, [season, loading]);
+  }, [season, isValidSeason, loading]);
 
   function handleSelectRace(race: Race) {
     navigate(`/${season}/race/${race.round}`, {
@@ -194,7 +206,7 @@ function RacesPage() {
     });
   }
 
-  if (!season) return null;
+  if (!isValidSeason || !season) return <NotFoundPage />;
 
   return (
     <motion.div
@@ -250,7 +262,8 @@ function App() {
   // Get current path info from React Router
   const pathname = location.pathname;
   const pathParts = pathname.split('/').filter(Boolean);
-  const currentSeason = pathParts[0] || null;
+  const rawSeason = pathParts[0] || null;
+  const currentSeason = isValidSeasonParam(rawSeason) ? rawSeason : null;
   const isResultsPage = pathParts[1] === 'results';
   const isQuickRatePage = pathParts[1] === 'quick-rate';
   const isRacePage = pathParts[1] === 'race';
@@ -292,7 +305,7 @@ function App() {
       navigate(`/${currentSeason}`);
     } else if (isAwardsPage && currentSeason) {
       navigate(`/${currentSeason}`);
-    } else if (currentSeason) {
+    } else {
       navigate('/');
     }
   }
@@ -457,54 +470,57 @@ function App() {
 
       {/* Main Content - flex-1 pushes footer to bottom */}
       <main className="flex-1 max-w-6xl mx-auto px-4 py-8 w-full">
-        <AnimatePresence mode="wait" onExitComplete={() => window.scrollTo(0, 0)}>
-          <Routes location={location} key={location.pathname}>
-            <Route path="/" element={<SeasonPage />} />
-            <Route path="/:season" element={<RacesPage />} />
-            <Route path="/:season/race/:round" element={<RaceRatingRoute />} />
-            <Route path="/:season/quick-rate" element={<QuickRateRoute />} />
-            <Route
-              path="/:season/results"
-              element={(
-                <Suspense fallback={<ResultsRouteFallback />}>
-                  <ResultsRoute />
-                </Suspense>
-              )}
-            />
-            <Route
-              path="/:season/teammate-wars"
-              element={(
-                <Suspense fallback={<TeammateWarsRouteFallback />}>
-                  <TeammateWarsRoute />
-                </Suspense>
-              )}
-            />
-            <Route
-              path="/:season/standings"
-              element={(
-                <Suspense fallback={<StandingsRouteFallback />}>
-                  <StandingsRoute />
-                </Suspense>
-              )}
-            />
-            <Route
-              path="/:season/awards"
-              element={(
-                <Suspense fallback={<AwardsRouteFallback />}>
-                  <AwardsRoute />
-                </Suspense>
-              )}
-            />
-            <Route
-              path="/:season/driver/:driverId"
-              element={(
-                <Suspense fallback={<ResultsRouteFallback />}>
-                  <DriverProfileRoute />
-                </Suspense>
-              )}
-            />
-          </Routes>
-        </AnimatePresence>
+        <ErrorBoundary resetKey={location.pathname}>
+          <AnimatePresence mode="wait" onExitComplete={() => window.scrollTo(0, 0)}>
+            <Routes location={location} key={location.pathname}>
+              <Route path="/" element={<SeasonPage />} />
+              <Route path="/:season" element={<RacesPage />} />
+              <Route path="/:season/race/:round" element={<RaceRatingRoute />} />
+              <Route path="/:season/quick-rate" element={<QuickRateRoute />} />
+              <Route
+                path="/:season/results"
+                element={(
+                  <Suspense fallback={<ResultsRouteFallback />}>
+                    <ResultsRoute />
+                  </Suspense>
+                )}
+              />
+              <Route
+                path="/:season/teammate-wars"
+                element={(
+                  <Suspense fallback={<TeammateWarsRouteFallback />}>
+                    <TeammateWarsRoute />
+                  </Suspense>
+                )}
+              />
+              <Route
+                path="/:season/standings"
+                element={(
+                  <Suspense fallback={<StandingsRouteFallback />}>
+                    <StandingsRoute />
+                  </Suspense>
+                )}
+              />
+              <Route
+                path="/:season/awards"
+                element={(
+                  <Suspense fallback={<AwardsRouteFallback />}>
+                    <AwardsRoute />
+                  </Suspense>
+                )}
+              />
+              <Route
+                path="/:season/driver/:driverId"
+                element={(
+                  <Suspense fallback={<ResultsRouteFallback />}>
+                    <DriverProfileRoute />
+                  </Suspense>
+                )}
+              />
+              <Route path="*" element={<NotFoundPage />} />
+            </Routes>
+          </AnimatePresence>
+        </ErrorBoundary>
       </main>
 
       {/* Footer - Premium F1 styled */}
@@ -543,22 +559,22 @@ function App() {
                 Quick Links
               </h3>
               <nav className="flex flex-col gap-2" aria-label="Footer navigation">
-                <a href="/" className="font-ui text-xs text-[var(--text-secondary)] hover:text-white hover:translate-x-1 transition-all inline-flex items-center gap-2 group">
+                <Link to="/" className="font-ui text-xs text-[var(--text-secondary)] hover:text-white hover:translate-x-1 transition-all inline-flex items-center gap-2 group">
                   <span className="w-1 h-1 bg-[var(--text-muted)] group-hover:bg-[var(--accent-red)] transition-colors" />
                   All Seasons
-                </a>
-                <a href={`/${new Date().getFullYear()}`} className="font-ui text-xs text-[var(--text-secondary)] hover:text-white hover:translate-x-1 transition-all inline-flex items-center gap-2 group">
+                </Link>
+                <Link to={`/${new Date().getFullYear()}`} className="font-ui text-xs text-[var(--text-secondary)] hover:text-white hover:translate-x-1 transition-all inline-flex items-center gap-2 group">
                   <span className="w-1 h-1 bg-[var(--text-muted)] group-hover:bg-[var(--accent-red)] transition-colors" />
                   {new Date().getFullYear()} Season
-                </a>
-                <a href={`/${new Date().getFullYear()}/standings`} className="font-ui text-xs text-[var(--text-secondary)] hover:text-white hover:translate-x-1 transition-all inline-flex items-center gap-2 group">
+                </Link>
+                <Link to={`/${new Date().getFullYear()}/standings`} className="font-ui text-xs text-[var(--text-secondary)] hover:text-white hover:translate-x-1 transition-all inline-flex items-center gap-2 group">
                   <span className="w-1 h-1 bg-[var(--text-muted)] group-hover:bg-[var(--accent-red)] transition-colors" />
                   Standings
-                </a>
-                <a href={`/${new Date().getFullYear()}/teammate-wars`} className="font-ui text-xs text-[var(--text-secondary)] hover:text-white hover:translate-x-1 transition-all inline-flex items-center gap-2 group">
+                </Link>
+                <Link to={`/${new Date().getFullYear()}/teammate-wars`} className="font-ui text-xs text-[var(--text-secondary)] hover:text-white hover:translate-x-1 transition-all inline-flex items-center gap-2 group">
                   <span className="w-1 h-1 bg-[var(--text-muted)] group-hover:bg-[var(--accent-red)] transition-colors" />
                   Teammate Wars
-                </a>
+                </Link>
                 <button
                   type="button"
                   onClick={() => setSitePolicyOpen(true)}
@@ -577,9 +593,9 @@ function App() {
               </h3>
               <nav className="flex flex-wrap gap-2" aria-label="Season links">
                 {[2026, 2025, 2024, 2023, 2022, 2021, 2020].map(year => (
-                  <a
+                  <Link
                     key={year}
-                    href={`/${year}`}
+                    to={`/${year}`}
                     className={`font-oxanium text-xs px-3 py-1.5 border transition-all ${
                       year === new Date().getFullYear()
                         ? 'border-[var(--accent-red)]/40 text-[var(--accent-red)] hover:bg-[var(--accent-red)]/10'
@@ -587,7 +603,7 @@ function App() {
                     }`}
                   >
                     {year}
-                  </a>
+                  </Link>
                 ))}
               </nav>
             </div>

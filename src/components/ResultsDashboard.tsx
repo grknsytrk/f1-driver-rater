@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Trophy, BarChart3, RotateCcw, ImageDown, Download, Share2, AlertTriangle, Table, Upload, FileJson, ChevronsUp } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, LineChart, CartesianGrid, ReferenceLine } from 'recharts';
@@ -13,7 +13,7 @@ import {
     AlertDialogDescription,
     AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { TEAM_COLORS } from '../types';
+import { getTeamColor } from '../types';
 import { calculateAverages, clearSeasonRatings, getDriverFormSeries, getRatedRacesCount, getRaceByRaceMatrix, getCountryCode, downloadRatingsAsJson, importRatings, type DriverRow, type RaceColumn } from '../utils/storage';
 import { getRaces, getSeasonDrivers, isRaceCompleted } from '../api/f1Api';
 import { useCommunityRatings, useRatingStorage } from '../hooks/useCommunityRatings';
@@ -77,50 +77,79 @@ function rankBreakdownDrivers<T extends DriverRow>(drivers: T[], minimumRatedRac
 }
 
 export function ResultsDashboard({ season, onReset, onSelectDriver }: ResultsDashboardProps) {
-    useRatingStorage();
+    const storageSnapshot = useRatingStorage();
     const policyConsent = useSitePolicyConsent();
-    const averages = calculateAverages(season);
-    const personalRaces = getSeasonRatings(season);
-    const hasPersonalRaceRatings = Boolean(
-        personalRaces?.races.some(race => race.completed && validRatings(race.ratings).length),
-    );
-    const hasPersonalQuickRatings = (getQuickRatings(season) ?? []).length > 0;
-    const source: 'race' | 'quick' = hasPersonalRaceRatings || !hasPersonalQuickRatings ? 'race' : 'quick';
+    const {
+        averages,
+        personalRaces,
+        source,
+        hasLegacy,
+        ratedCount,
+        minimumRatedRaces,
+        rankedAverages,
+        raceMatrix,
+        rankedRaceMatrixDrivers,
+        rankedFormSeries,
+    } = useMemo(() => {
+        void storageSnapshot;
+        const nextAverages = calculateAverages(season);
+        const nextPersonalRaces = getSeasonRatings(season);
+        const nextPersonalQuickRatings = getQuickRatings(season) ?? [];
+        const hasPersonalRaceRatings = Boolean(
+            nextPersonalRaces?.races.some(race => race.completed && validRatings(race.ratings).length),
+        );
+        const hasPersonalQuickRatings = nextPersonalQuickRatings.length > 0;
+        const nextSource: 'race' | 'quick' = hasPersonalRaceRatings || !hasPersonalQuickRatings ? 'race' : 'quick';
+        const nextHasLegacy = (nextSource === 'race'
+            ? nextPersonalRaces?.races.flatMap(race => validRatings(race.ratings)) ?? []
+            : nextPersonalQuickRatings).some(rating => !rating.communityEligible);
+
+        const nextRatedCount = getRatedRacesCount(season);
+        const nextMinimumRatedRaces = nextRatedCount > 0 ? Math.ceil(nextRatedCount * 0.5) : 0;
+        const nextRankedAverages = [...nextAverages].sort((a, b) => {
+            const aQualified = a.totalRaces >= nextMinimumRatedRaces;
+            const bQualified = b.totalRaces >= nextMinimumRatedRaces;
+
+            if (aQualified !== bQualified) {
+                return aQualified ? -1 : 1;
+            }
+
+            return b.averageRating - a.averageRating;
+        });
+        const nextRaceMatrix = getRaceByRaceMatrix(season);
+        const nextRankedRaceMatrixDrivers = rankBreakdownDrivers(nextRaceMatrix.drivers, nextMinimumRatedRaces);
+        const formSeries = getDriverFormSeries(season);
+        const nextRankedFormSeries = [...formSeries].sort((a, b) => {
+            const aQualified = a.totalRatedRaces >= nextMinimumRatedRaces;
+            const bQualified = b.totalRatedRaces >= nextMinimumRatedRaces;
+
+            if (aQualified !== bQualified) {
+                return aQualified ? -1 : 1;
+            }
+
+            if (b.seasonAverage !== a.seasonAverage) {
+                return b.seasonAverage - a.seasonAverage;
+            }
+
+            return b.totalRatedRaces - a.totalRatedRaces;
+        });
+
+        return {
+            averages: nextAverages,
+            personalRaces: nextPersonalRaces,
+            source: nextSource,
+            hasLegacy: nextHasLegacy,
+            ratedCount: nextRatedCount,
+            minimumRatedRaces: nextMinimumRatedRaces,
+            rankedAverages: nextRankedAverages,
+            raceMatrix: nextRaceMatrix,
+            rankedRaceMatrixDrivers: nextRankedRaceMatrixDrivers,
+            rankedFormSeries: nextRankedFormSeries,
+        };
+    }, [season, storageSnapshot]);
+
     const community = useCommunityRatings(source, season);
     const communityVisible = community.status !== 'disabled' && community.status !== 'unavailable';
-    const hasLegacy = (source === 'race'
-        ? personalRaces?.races.flatMap(race => validRatings(race.ratings)) ?? []
-        : getQuickRatings(season) ?? []).some(rating => !rating.communityEligible);
-
-    const ratedCount = getRatedRacesCount(season);
-    const minimumRatedRaces = ratedCount > 0 ? Math.ceil(ratedCount * 0.5) : 0;
-    const rankedAverages = [...averages].sort((a, b) => {
-        const aQualified = a.totalRaces >= minimumRatedRaces;
-        const bQualified = b.totalRaces >= minimumRatedRaces;
-
-        if (aQualified !== bQualified) {
-            return aQualified ? -1 : 1;
-        }
-
-        return b.averageRating - a.averageRating;
-    });
-    const raceMatrix = getRaceByRaceMatrix(season);
-    const rankedRaceMatrixDrivers = rankBreakdownDrivers(raceMatrix.drivers, minimumRatedRaces);
-    const formSeries = getDriverFormSeries(season);
-    const rankedFormSeries = [...formSeries].sort((a, b) => {
-        const aQualified = a.totalRatedRaces >= minimumRatedRaces;
-        const bQualified = b.totalRatedRaces >= minimumRatedRaces;
-
-        if (aQualified !== bQualified) {
-            return aQualified ? -1 : 1;
-        }
-
-        if (b.seasonAverage !== a.seasonAverage) {
-            return b.seasonAverage - a.seasonAverage;
-        }
-
-        return b.totalRatedRaces - a.totalRatedRaces;
-    });
     const [showCardSection, setShowCardSection] = useState(false);
     const [showScrollTop, setShowScrollTop] = useState(false);
     const [cardImage, setCardImage] = useState<string | null>(null);
@@ -144,26 +173,48 @@ export function ResultsDashboard({ season, onReset, onSelectDriver }: ResultsDas
     const activeMode: BreakdownSource = userSelectedMode ?? (averages.length > 0 ? 'personal' : 'community');
     const breakdownSource: BreakdownSource = userSelectedBreakdownSource ?? activeMode;
 
-    const completedCalendarRaces = breakdownCalendar?.season === season ? breakdownCalendar.races : [];
-    const seasonDriverIdentities = seasonDriverMetadata?.season === season ? seasonDriverMetadata.drivers : [];
-    const communityBreakdown = buildCommunityBreakdown(
-        raceMatrix.races, raceMatrix.drivers, community.ratings,
-        completedCalendarRaces, seasonDriverIdentities,
+    const completedCalendarRaces = useMemo(
+        () => (breakdownCalendar?.season === season ? breakdownCalendar.races : []),
+        [breakdownCalendar, season],
+    );
+    const seasonDriverIdentities = useMemo(
+        () => (seasonDriverMetadata?.season === season ? seasonDriverMetadata.drivers : []),
+        [seasonDriverMetadata, season],
+    );
+    const communityBreakdown = useMemo(
+        () => buildCommunityBreakdown(
+            raceMatrix.races,
+            raceMatrix.drivers,
+            community.ratings,
+            completedCalendarRaces,
+            seasonDriverIdentities,
+        ),
+        [raceMatrix.races, raceMatrix.drivers, community.ratings, completedCalendarRaces, seasonDriverIdentities],
     );
     const breakdownRaces = communityBreakdown.races;
-    const votedCommunityRaces = breakdownRaces.filter(race =>
-        communityBreakdown.drivers.some(driver => driver.raceRatings[race.round] !== undefined)).length;
-    const rankedCommunityBreakdownDrivers = rankBreakdownDrivers(
-        communityBreakdown.drivers, Math.ceil(votedCommunityRaces * 0.5),
+    const votedCommunityRaces = useMemo(
+        () => breakdownRaces.filter(race =>
+            communityBreakdown.drivers.some(driver => driver.raceRatings[race.round] !== undefined)).length,
+        [breakdownRaces, communityBreakdown.drivers],
     );
-    const communityRankedAverages = buildCommunitySeasonAverages(
-        communityBreakdown.drivers,
-        votedCommunityRaces,
-        source === 'quick' ? community.ratings : [],
-        seasonDriverIdentities,
+    const rankedCommunityBreakdownDrivers = useMemo(
+        () => rankBreakdownDrivers(communityBreakdown.drivers, Math.ceil(votedCommunityRaces * 0.5)),
+        [communityBreakdown.drivers, votedCommunityRaces],
+    );
+    const communityRankedAverages = useMemo(
+        () => buildCommunitySeasonAverages(
+            communityBreakdown.drivers,
+            votedCommunityRaces,
+            source === 'quick' ? community.ratings : [],
+            seasonDriverIdentities,
+        ),
+        [communityBreakdown.drivers, votedCommunityRaces, source, community.ratings, seasonDriverIdentities],
     );
     const activeRankedAverages = activeMode === 'community' ? communityRankedAverages : rankedAverages;
-    const communityFormSeries = buildCommunityFormSeries(communityBreakdown.drivers, breakdownRaces);
+    const communityFormSeries = useMemo(
+        () => buildCommunityFormSeries(communityBreakdown.drivers, breakdownRaces),
+        [communityBreakdown.drivers, breakdownRaces],
+    );
     const activeRankedFormSeries = activeMode === 'community' ? communityFormSeries : rankedFormSeries;
 
     const breakdownDrivers: (DriverRow & { voteCounts?: Record<string, number> })[] = breakdownSource === 'community'
@@ -172,27 +223,34 @@ export function ResultsDashboard({ season, onReset, onSelectDriver }: ResultsDas
         && (community.status !== 'ready' || breakdownRaces.length === 0);
     const canDownloadBreakdown = breakdownSource === 'personal'
         || (community.status === 'ready' && breakdownRaces.length > 0);
-    const formSeriesKey = activeRankedFormSeries
-        .map(series => `${series.driverId}:${series.latestConstructorId}:${series.totalRatedRaces}`)
-        .join('|');
-    const personalAverageByDriverId = new Map(
-        rankedAverages.map(driver => [driver.driverId, driver.averageRating]),
+    const formSeriesKey = useMemo(
+        () => activeRankedFormSeries
+            .map(series => `${series.driverId}:${series.latestConstructorId}:${series.totalRatedRaces}`)
+            .join('|'),
+        [activeRankedFormSeries],
+    );
+    const personalAverageByDriverId = useMemo(
+        () => new Map(rankedAverages.map(driver => [driver.driverId, driver.averageRating])),
+        [rankedAverages],
     );
     const baseDriversForTable = activeMode === 'community' ? communityRankedAverages : rankedAverages;
-    const driverRatingRows = baseDriversForTable.map(driver => ({
-        driver,
-        comparison: compareCommunity(
-            { ...driver, averageRating: personalAverageByDriverId.get(driver.driverId) ?? 0 },
-            personalRaces,
-            community.ratings,
-            source,
-            'season',
-        ),
-    }));
+    const driverRatingRows = useMemo(
+        () => baseDriversForTable.map(driver => ({
+            driver,
+            comparison: compareCommunity(
+                { ...driver, averageRating: personalAverageByDriverId.get(driver.driverId) ?? 0 },
+                personalRaces,
+                community.ratings,
+                source,
+                'season',
+            ),
+        })),
+        [baseDriversForTable, personalAverageByDriverId, personalRaces, community.ratings, source],
+    );
     const activeMinimumRatedRaces = activeMode === 'community'
         ? (votedCommunityRaces > 0 ? Math.ceil(votedCommunityRaces * 0.5) : 0)
         : minimumRatedRaces;
-    const sortedDriverRatingRows = [...driverRatingRows].sort((a, b) => {
+    const sortedDriverRatingRows = useMemo(() => [...driverRatingRows].sort((a, b) => {
         if (!driverRatingsSort) return 0;
 
         if (driverRatingsSort === 'communityAverage' || driverRatingsSort === 'myAverage') {
@@ -219,7 +277,7 @@ export function ResultsDashboard({ season, onReset, onSelectDriver }: ResultsDas
 
         return b.comparison.myAverage - a.comparison.myAverage
             || a.driver.driverName.localeCompare(b.driver.driverName);
-    });
+    }), [driverRatingRows, driverRatingsSort, activeMinimumRatedRaces]);
 
     function handleModeChange(nextMode: BreakdownSource) {
         setUserSelectedMode(nextMode);
@@ -288,7 +346,7 @@ export function ResultsDashboard({ season, onReset, onSelectDriver }: ResultsDas
             setShowScrollTop(scrolledDistance > threshold);
         };
 
-        window.addEventListener('scroll', handleScroll);
+        window.addEventListener('scroll', handleScroll, { passive: true });
         return () => window.removeEventListener('scroll', handleScroll);
     }, []);
 
@@ -299,11 +357,10 @@ export function ResultsDashboard({ season, onReset, onSelectDriver }: ResultsDas
         ));
     }, [season, activeMode, activeRankedFormSeries, formSeriesKey]);
 
-    const visibleFormDrivers = activeRankedFormSeries.filter(series => selectedFormDriverIds.includes(series.driverId));
-
-    function getTeamColor(constructorId: string): string {
-        return TEAM_COLORS[constructorId] || '#888888';
-    }
+    const visibleFormDrivers = useMemo(
+        () => activeRankedFormSeries.filter(series => selectedFormDriverIds.includes(series.driverId)),
+        [activeRankedFormSeries, selectedFormDriverIds],
+    );
 
     async function handleGenerateCard() {
         if (!cardRef.current || activeRankedAverages.length === 0) return;
@@ -444,23 +501,23 @@ export function ResultsDashboard({ season, onReset, onSelectDriver }: ResultsDas
     }
 
     // Chart data
-    const chartData = activeRankedAverages.slice(0, 10).map(d => ({
+    const chartData = useMemo(() => activeRankedAverages.slice(0, 10).map(d => ({
         name: getDriverLabel(d.driverName),
         rating: d.averageRating,
         fullName: d.driverName.toUpperCase(),
         color: getTeamColor(d.constructorId),
         team: d.constructorName.toUpperCase(),
-    }));
+    })), [activeRankedAverages]);
 
     // Podium (top 3)
-    const podium = activeRankedAverages.slice(0, 3);
+    const podium = useMemo(() => activeRankedAverages.slice(0, 3), [activeRankedAverages]);
     const winnerNationality = seasonDriverIdentities.find(driver => driver.driverId === podium[0]?.driverId)?.nationality;
     const podiumOrder = [1, 0, 2]; // Silver, Gold, Bronze positions
-    const formChartData = buildFormChartData(activeRankedFormSeries);
-    const formLineDashes = buildDriverLineDashes(activeRankedFormSeries.map(driver => ({
+    const formChartData = useMemo(() => buildFormChartData(activeRankedFormSeries), [activeRankedFormSeries]);
+    const formLineDashes = useMemo(() => buildDriverLineDashes(activeRankedFormSeries.map(driver => ({
         driverId: driver.driverId,
         constructorId: driver.latestConstructorId,
-    })));
+    }))), [activeRankedFormSeries]);
     const showBreakdownSection = raceMatrix.races.length > 0
         || (activeMode === 'community' && breakdownRaces.length > 0);
 

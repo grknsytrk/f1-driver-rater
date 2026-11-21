@@ -1,6 +1,6 @@
 import { ChevronDown, User } from 'lucide-react';
 import { useState } from 'react';
-import { TEAM_COLORS } from '../types';
+import { getTeamColor } from '../types';
 import type { AverageRating } from '../types';
 import { useCommunityRatingDistribution } from '../hooks/useCommunityRatings';
 import type { CommunityComparison, CommunityStatus } from '../utils/communityRatings';
@@ -20,10 +20,6 @@ interface CommunityRatingRowsProps {
     communityStatus: CommunityStatus;
     communityVisible: boolean;
     onSelectDriver?: (driverId: string) => void;
-}
-
-function getTeamColor(constructorId: string): string {
-    return TEAM_COLORS[constructorId] || '#888888';
 }
 
 export function CommunityRatingRows({ rows, season, source, communityStatus, communityVisible, onSelectDriver }: CommunityRatingRowsProps) {
