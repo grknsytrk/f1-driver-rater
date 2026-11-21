@@ -65,6 +65,7 @@ export function useSitePolicyConsent() {
     }, []);
 
     return {
+        isOpen: acceptanceOpen || policyOpen,
         requestAcceptance,
         overlays: (
             <>

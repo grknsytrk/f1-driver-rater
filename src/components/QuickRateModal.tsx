@@ -1,5 +1,5 @@
-import { memo, useCallback, useEffect, useMemo, useState } from 'react';
-import { RotateCcw, Zap } from 'lucide-react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { RotateCcw, Undo2, Zap } from 'lucide-react';
 import { toast } from 'sonner';
 import { getTeamColor } from '../types';
 import { getDriverSeasonStats } from '../api/f1Api';
@@ -9,8 +9,10 @@ import { fetchWithMinDelay } from '../utils/delay';
 import { ModalShell } from './ModalShell';
 import { QuickRateModalContentFallback } from './RouteFallbacks';
 import { RatingSegments } from './RatingSegments';
+import { RatingShortcutBar } from './RatingShortcutBar';
 
 import { useCommunityRatings, useRatingStorage } from '../hooks/useCommunityRatings';
+import { useRatingKeyboard } from '../hooks/useRatingKeyboard';
 import { useSitePolicyConsent } from '../hooks/useSitePolicyConsent';
 import { hasCurrentSitePolicyAcceptance } from '../utils/sitePolicy';
 import { initializeGuestSync } from '../utils/guestSync';
@@ -41,7 +43,8 @@ interface QuickRateDriverRowProps {
     currentRating: number;
     communityRating?: CommunityRating;
     communityStatus: CommunityStatus;
-    onRate: (driver: DriverWithRating, rating: number) => void;
+    isKeyboardActive: boolean;
+    onRate: (driver: DriverWithRating, rating: number, options?: { fromScrub?: boolean }) => void;
 }
 
 const QuickRateDriverRow = memo(function QuickRateDriverRow({
@@ -49,22 +52,29 @@ const QuickRateDriverRow = memo(function QuickRateDriverRow({
     currentRating,
     communityRating,
     communityStatus,
+    isKeyboardActive,
     onRate,
 }: QuickRateDriverRowProps) {
     const [hoveredVal, setHoveredVal] = useState<number | null>(null);
     const teamColor = getTeamColor(driver.constructorId);
     const displayRating = hoveredVal ?? currentRating;
 
-    const handleSelect = useCallback((val: number) => {
-        if (currentRating === val) {
+    const handleSelect = useCallback((val: number, options?: { fromScrub?: boolean }) => {
+        if (!options?.fromScrub && currentRating === val) {
             setHoveredVal(null);
         }
-        onRate(driver, val);
+        onRate(driver, val, options);
     }, [currentRating, driver, onRate]);
 
     return (
         <div
-            className="group relative flex flex-col gap-1 bg-[var(--bg-panel)] p-2 transition-colors hover:bg-[var(--bg-panel-hover)] md:gap-3 md:p-3"
+            data-driver-id={driver.driverId}
+            data-keyboard-active={isKeyboardActive ? 'true' : undefined}
+            className={`group relative flex flex-col gap-1 p-2 transition-colors md:gap-3 md:p-3 ${
+                isKeyboardActive
+                    ? 'bg-[var(--bg-panel-hover)] ring-1 ring-inset ring-[var(--accent-yellow)]'
+                    : 'bg-[var(--bg-panel)] hover:bg-[var(--bg-panel-hover)]'
+            }`}
         >
             <div className="flex items-center gap-0">
                 <div className="h-10 w-10 flex-shrink-0 border border-[var(--border-color)] bg-[var(--bg-darker)] text-[var(--text-secondary)] md:h-12 md:w-14">
@@ -165,6 +175,7 @@ export function QuickRateModal({ season, onClose }: QuickRateModalProps) {
     );
     const [drivers, setDrivers] = useState<DriverWithRating[]>([]);
     const [loading, setLoading] = useState(true);
+    const listRef = useRef<HTMLDivElement>(null);
 
     const loadDrivers = useCallback(async () => {
         setLoading(true);
@@ -203,29 +214,57 @@ export function QuickRateModal({ season, onClose }: QuickRateModalProps) {
         void loadDrivers();
     }, [loadDrivers]);
 
-    const handleRatingChange = useCallback((driver: DriverWithRating, rating: number) => {
+    const getQuickDriverScore = useCallback(
+        (driverId: string) =>
+            getQuickRatings(season)?.find(r => r.driverId === driverId)?.rating ?? 0,
+        [season],
+    );
+
+    const applyQuickRating = useCallback((
+        driver: DriverWithRating,
+        rating: number,
+        onCommitted?: (previousRating: number) => void,
+    ) => {
         if (loading) return;
-        const { driverId } = driver;
-        if (getQuickRatings(season)?.some(saved => saved.driverId === driverId && saved.rating === rating)) {
-            removeQuickDriverRating(season, driverId);
-            return;
-        }
         requestAcceptance(() => {
+            const previousRating = getQuickDriverScore(driver.driverId);
             saveQuickDriverRating(season, {
-                driverId, driverName: driver.driverName,
-                constructorId: driver.constructorId, constructorName: driver.constructorName,
+                driverId: driver.driverId,
+                driverName: driver.driverName,
+                constructorId: driver.constructorId,
+                constructorName: driver.constructorName,
                 rating,
             });
+            onCommitted?.(previousRating);
         });
-    }, [loading, requestAcceptance, season]);
+    }, [getQuickDriverScore, loading, requestAcceptance, season]);
 
-    function handleClearAll() {
-        clearQuickRatings(season);
-        setDrivers((previousDrivers) => previousDrivers.map((driver) => ({ ...driver, rating: 0 })));
-        toast.success('Quick ratings cleared');
-    }
+    const removeQuickRating = useCallback((
+        driver: DriverWithRating,
+        onCommitted?: (previousRating: number) => void,
+    ) => {
+        if (loading) return;
+        const previousRating = getQuickDriverScore(driver.driverId);
+        removeQuickDriverRating(season, driver.driverId);
+        onCommitted?.(previousRating);
+    }, [getQuickDriverScore, loading, season]);
 
-    function handleClose() {
+    const restoreQuickRating = useCallback((driver: DriverWithRating, rating: number) => {
+        if (loading) return;
+        if (rating > 0) {
+            saveQuickDriverRating(season, {
+                driverId: driver.driverId,
+                driverName: driver.driverName,
+                constructorId: driver.constructorId,
+                constructorName: driver.constructorName,
+                rating,
+            });
+            return;
+        }
+        removeQuickDriverRating(season, driver.driverId);
+    }, [loading, season]);
+
+    const handleClose = useCallback(() => {
         // Opt existing scores into community only after accepting the policy.
         // Declining must leave previously saved scores and eligibility intact.
         void hasCurrentSitePolicyAcceptance()
@@ -235,6 +274,85 @@ export function QuickRateModal({ season, onClose }: QuickRateModalProps) {
             .catch(() => undefined);
         void initializeGuestSync();
         onClose();
+    }, [onClose, season]);
+
+    const {
+        activeDriverId,
+        canUndo,
+        lastUndoLabel,
+        pushUndo,
+        undo,
+        clearKeyboardFocus,
+    } = useRatingKeyboard<DriverWithRating>({
+        drivers,
+        enabled: !loading && !policyConsent.isOpen && drivers.length > 0,
+        listRef,
+        getCurrentRating: getQuickDriverScore,
+        onSetRating: applyQuickRating,
+        onRemoveRating: removeQuickRating,
+        onRestoreRating: restoreQuickRating,
+        onClose: handleClose,
+    });
+
+    const handleRatingChange = useCallback((
+        driver: DriverWithRating,
+        rating: number,
+        options?: { fromScrub?: boolean },
+    ) => {
+        if (loading) return;
+        clearKeyboardFocus();
+        const current = getQuickDriverScore(driver.driverId);
+
+        if (!options?.fromScrub && current === rating) {
+            removeQuickRating(driver, (previousRating) => {
+                if (previousRating > 0) {
+                    pushUndo({
+                        label: `Cleared ${driver.driverName}`,
+                        changes: [{ driver, previousRating }],
+                    });
+                }
+            });
+            return;
+        }
+
+        if (options?.fromScrub && current === rating) {
+            return;
+        }
+
+        applyQuickRating(driver, rating, (previousRating) => {
+            if (previousRating !== rating) {
+                pushUndo({
+                    label: `${driver.driverName} -> ${rating.toFixed(1)}`,
+                    changes: [{ driver, previousRating }],
+                });
+            }
+        });
+    }, [applyQuickRating, clearKeyboardFocus, getQuickDriverScore, loading, pushUndo, removeQuickRating]);
+
+    function handleClearAll() {
+        const previousEntries = getQuickRatings(season) ?? [];
+        if (previousEntries.length > 0) {
+            const byDriverId = new Map(drivers.map(d => [d.driverId, d]));
+            const changes = previousEntries.map(saved => ({
+                driver: byDriverId.get(saved.driverId) ?? {
+                    driverId: saved.driverId,
+                    driverName: saved.driverName,
+                    constructorId: saved.constructorId,
+                    constructorName: saved.constructorName,
+                    rating: saved.rating,
+                    position: '-',
+                    points: '0',
+                    wins: 0,
+                    poles: 0,
+                    podiums: 0,
+                },
+                previousRating: saved.rating,
+            }));
+            pushUndo({ label: 'Clear all ratings', changes });
+        }
+        clearQuickRatings(season);
+        setDrivers((previousDrivers) => previousDrivers.map((driver) => ({ ...driver, rating: 0 })));
+        toast.success('Quick ratings cleared');
     }
 
     return (
@@ -260,12 +378,25 @@ export function QuickRateModal({ season, onClose }: QuickRateModalProps) {
                         <span className="font-oxanium text-[10px] tracking-widest text-[var(--text-muted)] uppercase">
                             Auto-saved locally · cloud sync in background
                         </span>
-                        <button
-                            onClick={handleClose}
-                            className="border border-[var(--border-color)] px-6 py-3 font-oxanium text-xs font-bold tracking-widest text-[var(--text-secondary)] uppercase transition-colors hover:border-[var(--accent-yellow)] hover:text-white md:py-2"
-                        >
-                            CLOSE
-                        </button>
+                        <div className="flex items-center gap-2">
+                            <button
+                                type="button"
+                                onClick={undo}
+                                disabled={!canUndo}
+                                aria-label="Undo last rating change"
+                                title={lastUndoLabel ? `Undo: ${lastUndoLabel} (Ctrl+Z)` : 'Undo (Ctrl+Z)'}
+                                className="flex flex-1 items-center justify-center gap-1.5 border border-[var(--border-color)] px-4 py-3 font-oxanium text-xs font-bold tracking-widest text-[var(--text-secondary)] uppercase transition-colors hover:border-white hover:text-white disabled:cursor-not-allowed disabled:opacity-35 md:flex-initial md:py-2"
+                            >
+                                <Undo2 size={14} />
+                                UNDO
+                            </button>
+                            <button
+                                onClick={handleClose}
+                                className="flex-1 border border-[var(--border-color)] px-6 py-3 font-oxanium text-xs font-bold tracking-widest text-[var(--text-secondary)] uppercase transition-colors hover:border-[var(--accent-yellow)] hover:text-white md:flex-initial md:py-2"
+                            >
+                                CLOSE
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}
@@ -276,7 +407,8 @@ export function QuickRateModal({ season, onClose }: QuickRateModalProps) {
                 ) : (
                     <div className="flex-1 overflow-y-auto overflow-x-hidden p-2 md:p-6 custom-scrollbar">
                     <CommunityNotice status={community.status} legacy={savedRatings.some(rating => !rating.communityEligible)} />
-                    <div className="grid grid-cols-1 gap-px border border-[var(--border-color)] bg-[var(--border-color)]">
+                    <RatingShortcutBar />
+                    <div ref={listRef} className="grid grid-cols-1 gap-px border border-[var(--border-color)] bg-[var(--border-color)]">
                         {drivers.map((driver) => (
                             <QuickRateDriverRow
                                 key={driver.driverId}
@@ -284,6 +416,7 @@ export function QuickRateModal({ season, onClose }: QuickRateModalProps) {
                                 currentRating={savedRatingByDriverId.get(driver.driverId) ?? 0}
                                 communityRating={communityByDriverId.get(driver.driverId)}
                                 communityStatus={community.status}
+                                isKeyboardActive={activeDriverId === driver.driverId}
                                 onRate={handleRatingChange}
                             />
                         ))}

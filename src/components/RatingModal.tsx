@@ -1,5 +1,5 @@
-import { memo, useCallback, useEffect, useMemo, useState } from 'react';
-import { Timer } from 'lucide-react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Timer, Undo2 } from 'lucide-react';
 import { getTeamColor } from '../types';
 import { getRaceRatingContext, type RaceRecap } from '../api/f1Api';
 import { saveRaceDriverRating, removeRaceDriverRating, getRaceRatings, markRaceRatingsCommunityEligible } from '../utils/storage';
@@ -8,9 +8,11 @@ import { fetchWithMinDelay } from '../utils/delay';
 import { ModalShell } from './ModalShell';
 import { RatingModalContentFallback } from './RouteFallbacks';
 import { RatingSegments } from './RatingSegments';
+import { RatingShortcutBar } from './RatingShortcutBar';
 import type { RaceRouteSnapshot } from '../routes/modalRouteState';
 
 import { useCommunityRatings, useRatingStorage } from '../hooks/useCommunityRatings';
+import { useRatingKeyboard } from '../hooks/useRatingKeyboard';
 import { useSitePolicyConsent } from '../hooks/useSitePolicyConsent';
 import { hasCurrentSitePolicyAcceptance } from '../utils/sitePolicy';
 import { initializeGuestSync } from '../utils/guestSync';
@@ -65,7 +67,8 @@ interface RatingDriverRowProps {
     isFastestLapDriver: boolean;
     communityRating?: CommunityRating;
     communityStatus: CommunityStatus;
-    onRate: (driver: DriverWithRating, rating: number) => void;
+    isKeyboardActive: boolean;
+    onRate: (driver: DriverWithRating, rating: number, options?: { fromScrub?: boolean }) => void;
 }
 
 const RatingDriverRow = memo(function RatingDriverRow({
@@ -74,22 +77,29 @@ const RatingDriverRow = memo(function RatingDriverRow({
     isFastestLapDriver,
     communityRating,
     communityStatus,
+    isKeyboardActive,
     onRate,
 }: RatingDriverRowProps) {
     const [hoveredVal, setHoveredVal] = useState<number | null>(null);
     const teamColor = getTeamColor(driver.constructorId);
     const displayRating = hoveredVal ?? currentRating;
 
-    const handleSelect = useCallback((val: number) => {
-        if (currentRating === val) {
+    const handleSelect = useCallback((val: number, options?: { fromScrub?: boolean }) => {
+        if (!options?.fromScrub && currentRating === val) {
             setHoveredVal(null);
         }
-        onRate(driver, val);
+        onRate(driver, val, options);
     }, [currentRating, driver, onRate]);
 
     return (
         <div
-            className="group relative flex flex-col gap-2 overflow-hidden bg-[var(--bg-panel)] p-2 transition-colors hover:bg-[var(--bg-panel-hover)] md:gap-3 md:p-3"
+            data-driver-id={driver.driverId}
+            data-keyboard-active={isKeyboardActive ? 'true' : undefined}
+            className={`group relative flex flex-col gap-2 overflow-hidden p-2 transition-colors md:gap-3 md:p-3 ${
+                isKeyboardActive
+                    ? 'bg-[var(--bg-panel-hover)] ring-1 ring-inset ring-[var(--accent-yellow)]'
+                    : 'bg-[var(--bg-panel)] hover:bg-[var(--bg-panel-hover)]'
+            }`}
         >
             <div className="flex items-center gap-0">
                 <div className="h-10 w-10 flex-shrink-0 border border-[var(--border-color)] bg-[var(--bg-darker)] text-[var(--text-secondary)] md:h-12 md:w-14">
@@ -182,6 +192,7 @@ export function RatingModal({ race, season, metadataResolved = true, onClose }: 
     const [drivers, setDrivers] = useState<DriverWithRating[]>([]);
     const [recap, setRecap] = useState<RaceRecap>(EMPTY_RECAP);
     const [loading, setLoading] = useState(true);
+    const listRef = useRef<HTMLDivElement>(null);
 
     const loadDrivers = useCallback(async () => {
         setLoading(true);
@@ -224,23 +235,57 @@ export function RatingModal({ race, season, metadataResolved = true, onClose }: 
         void loadDrivers();
     }, [loadDrivers]);
 
-    const handleRatingChange = useCallback((driver: DriverWithRating, rating: number) => {
+    const getRaceDriverScore = useCallback(
+        (driverId: string) =>
+            getRaceRatings(season, race.round)?.ratings.find(r => r.driverId === driverId)?.rating ?? 0,
+        [race.round, season],
+    );
+
+    const applyRaceRating = useCallback((
+        driver: DriverWithRating,
+        rating: number,
+        onCommitted?: (previousRating: number) => void,
+    ) => {
         if (loading || !metadataResolved) return;
-        const { driverId } = driver;
-        if (getRaceRatings(season, race.round)?.ratings.some(saved => saved.driverId === driverId && saved.rating === rating)) {
-            removeRaceDriverRating(season, race.round, race.raceName, race.date, driverId);
-            return;
-        }
         requestAcceptance(() => {
+            const previousRating = getRaceDriverScore(driver.driverId);
             saveRaceDriverRating(season, race.round, race.raceName, race.date, {
-                driverId, driverName: driver.driverName,
-                constructorId: driver.constructorId, constructorName: driver.constructorName,
+                driverId: driver.driverId,
+                driverName: driver.driverName,
+                constructorId: driver.constructorId,
+                constructorName: driver.constructorName,
                 rating,
             });
+            onCommitted?.(previousRating);
         });
-    }, [loading, metadataResolved, race.date, race.raceName, race.round, requestAcceptance, season]);
+    }, [getRaceDriverScore, loading, metadataResolved, race.date, race.raceName, race.round, requestAcceptance, season]);
 
-    function handleClose() {
+    const removeRaceRating = useCallback((
+        driver: DriverWithRating,
+        onCommitted?: (previousRating: number) => void,
+    ) => {
+        if (loading || !metadataResolved) return;
+        const previousRating = getRaceDriverScore(driver.driverId);
+        removeRaceDriverRating(season, race.round, race.raceName, race.date, driver.driverId);
+        onCommitted?.(previousRating);
+    }, [getRaceDriverScore, loading, metadataResolved, race.date, race.raceName, race.round, season]);
+
+    const restoreRaceRating = useCallback((driver: DriverWithRating, rating: number) => {
+        if (loading || !metadataResolved) return;
+        if (rating > 0) {
+            saveRaceDriverRating(season, race.round, race.raceName, race.date, {
+                driverId: driver.driverId,
+                driverName: driver.driverName,
+                constructorId: driver.constructorId,
+                constructorName: driver.constructorName,
+                rating,
+            });
+            return;
+        }
+        removeRaceDriverRating(season, race.round, race.raceName, race.date, driver.driverId);
+    }, [loading, metadataResolved, race.date, race.raceName, race.round, season]);
+
+    const handleClose = useCallback(() => {
         // Existing personal scores are opted into community in one explicit
         // action when leaving this race, but only after accepting the policy.
         // Declining must leave previously saved scores and eligibility intact.
@@ -253,7 +298,60 @@ export function RatingModal({ race, season, metadataResolved = true, onClose }: 
             .catch(() => undefined);
         void initializeGuestSync();
         onClose();
-    }
+    }, [onClose, race.date, race.raceName, race.round, season]);
+
+    const {
+        activeDriverId,
+        canUndo,
+        lastUndoLabel,
+        pushUndo,
+        undo,
+        clearKeyboardFocus,
+    } = useRatingKeyboard<DriverWithRating>({
+        drivers,
+        enabled: !loading && metadataResolved && !policyConsent.isOpen && drivers.length > 0,
+        listRef,
+        getCurrentRating: getRaceDriverScore,
+        onSetRating: applyRaceRating,
+        onRemoveRating: removeRaceRating,
+        onRestoreRating: restoreRaceRating,
+        onClose: handleClose,
+    });
+
+    const handleRatingChange = useCallback((
+        driver: DriverWithRating,
+        rating: number,
+        options?: { fromScrub?: boolean },
+    ) => {
+        if (loading || !metadataResolved) return;
+        clearKeyboardFocus();
+        const current = getRaceDriverScore(driver.driverId);
+
+        if (!options?.fromScrub && current === rating) {
+            removeRaceRating(driver, (previousRating) => {
+                if (previousRating > 0) {
+                    pushUndo({
+                        label: `Cleared ${driver.driverName}`,
+                        changes: [{ driver, previousRating }],
+                    });
+                }
+            });
+            return;
+        }
+
+        if (options?.fromScrub && current === rating) {
+            return;
+        }
+
+        applyRaceRating(driver, rating, (previousRating) => {
+            if (previousRating !== rating) {
+                pushUndo({
+                    label: `${driver.driverName} -> ${rating.toFixed(1)}`,
+                    changes: [{ driver, previousRating }],
+                });
+            }
+        });
+    }, [applyRaceRating, clearKeyboardFocus, getRaceDriverScore, loading, metadataResolved, pushUndo, removeRaceRating]);
 
     const formattedDate = race.date
         ? new Date(race.date).toLocaleDateString('en-GB', {
@@ -275,12 +373,25 @@ export function RatingModal({ race, season, metadataResolved = true, onClose }: 
                     <span className="font-oxanium text-[10px] tracking-widest text-[var(--text-muted)] uppercase">
                         Auto-saved locally · cloud sync in background
                     </span>
-                    <button
-                        onClick={handleClose}
-                        className="border border-[var(--border-color)] px-6 py-3 font-oxanium text-xs font-bold tracking-widest text-[var(--text-secondary)] uppercase transition-colors hover:border-[var(--accent-red)] hover:text-white md:py-2"
-                    >
-                        CLOSE
-                    </button>
+                    <div className="flex items-center gap-2">
+                        <button
+                            type="button"
+                            onClick={undo}
+                            disabled={!canUndo}
+                            aria-label="Undo last rating change"
+                            title={lastUndoLabel ? `Undo: ${lastUndoLabel} (Ctrl+Z)` : 'Undo (Ctrl+Z)'}
+                            className="flex flex-1 items-center justify-center gap-1.5 border border-[var(--border-color)] px-4 py-3 font-oxanium text-xs font-bold tracking-widest text-[var(--text-secondary)] uppercase transition-colors hover:border-white hover:text-white disabled:cursor-not-allowed disabled:opacity-35 md:flex-initial md:py-2"
+                        >
+                            <Undo2 size={14} />
+                            UNDO
+                        </button>
+                        <button
+                            onClick={handleClose}
+                            className="flex-1 border border-[var(--border-color)] px-6 py-3 font-oxanium text-xs font-bold tracking-widest text-[var(--text-secondary)] uppercase transition-colors hover:border-[var(--accent-red)] hover:text-white md:flex-initial md:py-2"
+                        >
+                            CLOSE
+                        </button>
+                    </div>
                 </div>
             )}
         >
@@ -290,7 +401,8 @@ export function RatingModal({ race, season, metadataResolved = true, onClose }: 
                 ) : (
                     <div className="flex-1 overflow-y-auto overflow-x-hidden p-2 md:p-6 custom-scrollbar">
                     <CommunityNotice status={community.status} legacy={savedRatings.some(rating => !rating.communityEligible)} />
-                    <div className="grid grid-cols-1 gap-px border border-[var(--border-color)] bg-[var(--border-color)]">
+                    <RatingShortcutBar />
+                    <div ref={listRef} className="grid grid-cols-1 gap-px border border-[var(--border-color)] bg-[var(--border-color)]">
                         {drivers.map((driver) => (
                             <RatingDriverRow
                                 key={driver.driverId}
@@ -299,6 +411,7 @@ export function RatingModal({ race, season, metadataResolved = true, onClose }: 
                                 isFastestLapDriver={recap.fastestLap?.driverId === driver.driverId}
                                 communityRating={communityByDriverId.get(driver.driverId)}
                                 communityStatus={community.status}
+                                isKeyboardActive={activeDriverId === driver.driverId}
                                 onRate={handleRatingChange}
                             />
                         ))}
