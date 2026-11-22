@@ -1,8 +1,8 @@
-import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { Resvg } from '@resvg/resvg-js';
 import { getTeamColor, resolveShareSnapshot } from './_shareResolver.js';
 
-const FONT_BUFFER = readFileSync(new URL('./_fonts/Geist-Regular.ttf', import.meta.url));
+const FONT_PATH = fileURLToPath(new URL('./_fonts/Geist-Regular.ttf', import.meta.url));
 const CACHE_CONTROL_HEADER = 'public, s-maxage=3600, stale-while-revalidate=86400';
 const HEX_COLOR_RE = /^#[0-9a-fA-F]{3,8}$/;
 
@@ -72,7 +72,7 @@ function buildRankedCardSvg(snapshot) {
         .join('');
 
     return `
-        <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+        <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" font-family="Geist, sans-serif">
             <defs>
                 <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
                     <stop offset="0%" stop-color="#0A0A0B" />
@@ -97,7 +97,7 @@ function buildRankedCardSvg(snapshot) {
 
 function buildFallbackCardSvg() {
     return `
-        <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+        <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" font-family="Geist, sans-serif">
             <defs>
                 <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
                     <stop offset="0%" stop-color="#0A0A0B" />
@@ -122,9 +122,10 @@ function renderSvgToPng(svg) {
     const resvg = new Resvg(svg, {
         fitTo: { mode: 'width', value: 1200 },
         font: {
-            fontBuffers: [FONT_BUFFER],
+            fontFiles: [FONT_PATH],
             loadSystemFonts: false,
             defaultFontFamily: 'Geist',
+            sansSerifFamily: 'Geist',
         },
     });
     return resvg.render().asPng();

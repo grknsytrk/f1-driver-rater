@@ -1,5 +1,10 @@
 {
   "buildCommand": "npm run build:prerender",
+  "functions": {
+    "api/og.js": {
+      "includeFiles": "api/_fonts/**"
+    }
+  },
   "headers": [
     {
       "source": "/assets/(.*)",

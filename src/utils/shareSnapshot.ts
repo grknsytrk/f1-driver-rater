@@ -1,6 +1,10 @@
 import { getSupabaseClient, isSupabaseConfigured } from '../lib/supabaseClient';
 
 export const SHARE_TOKEN_PREFIX = 'v1.';
+export const SHARE_SNAPSHOT_TTL_DAYS = 30;
+export const SHARE_SNAPSHOT_TTL_MS = SHARE_SNAPSHOT_TTL_DAYS * 24 * 60 * 60 * 1000;
+const SHARE_SNAPSHOT_CACHE_KEY = 'f1_share_snapshot_cache_v1';
+const MAX_CACHED_SNAPSHOTS = 20;
 const SHORT_ID_ALPHABET = 'abcdefghjkmnpqrstuvwxyz23456789';
 const SHORT_ID_RE = /^[A-Za-z0-9_-]{6,16}$/;
 const SEASON_RE = /^\d{4}$/;
@@ -220,8 +224,170 @@ export function decodeShareToken(token: string): ShareSnapshot | null {
     }
 }
 
+interface CachedShareEntry {
+    id: string;
+    storage: 'supabase' | 'token';
+    expiresAt: number;
+}
+
+const memorySnapshotCache = new Map<string, CachedShareEntry>();
+
+function getCacheStorage(): Storage | null {
+    try {
+        if (typeof window !== 'undefined' && window.localStorage) {
+            return window.localStorage;
+        }
+        if (typeof globalThis !== 'undefined' && 'localStorage' in globalThis && globalThis.localStorage) {
+            return globalThis.localStorage;
+        }
+    } catch {
+        return null;
+    }
+    return null;
+}
+
+function readPersistedSnapshotCache(): Record<string, CachedShareEntry> {
+    const storage = getCacheStorage();
+    if (!storage) return {};
+    try {
+        const raw = storage.getItem(SHARE_SNAPSHOT_CACHE_KEY);
+        if (!raw) return {};
+        const parsed = JSON.parse(raw) as Record<string, Partial<CachedShareEntry>>;
+        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+        const now = Date.now();
+        const valid: Record<string, CachedShareEntry> = {};
+        for (const [key, entry] of Object.entries(parsed)) {
+            if (
+                entry
+                && typeof entry.id === 'string'
+                && entry.id.trim().length > 0
+                && (entry.storage === 'supabase' || entry.storage === 'token')
+                && typeof entry.expiresAt === 'number'
+                && Number.isFinite(entry.expiresAt)
+                && entry.expiresAt > now
+            ) {
+                valid[key] = {
+                    id: entry.id,
+                    storage: entry.storage,
+                    expiresAt: entry.expiresAt,
+                };
+            }
+        }
+        return valid;
+    } catch {
+        return {};
+    }
+}
+
+function writePersistedSnapshotCache(entries: Record<string, CachedShareEntry>): void {
+    const storage = getCacheStorage();
+    if (!storage) return;
+    try {
+        storage.setItem(SHARE_SNAPSHOT_CACHE_KEY, JSON.stringify(entries));
+    } catch {
+        // Ignore storage quota or private browsing errors
+    }
+}
+
+function getCachedShareSnapshot(
+    fingerprint: string,
+    expectedStorage: 'supabase' | 'token',
+): CachedShareEntry | null {
+    const now = Date.now();
+    const memEntry = memorySnapshotCache.get(fingerprint);
+    if (memEntry) {
+        if (memEntry.expiresAt > now && memEntry.storage === expectedStorage) {
+            return memEntry;
+        }
+        if (memEntry.expiresAt <= now) {
+            memorySnapshotCache.delete(fingerprint);
+        }
+    }
+
+    const persisted = readPersistedSnapshotCache();
+    const diskEntry = persisted[fingerprint];
+    if (diskEntry && diskEntry.expiresAt > now && diskEntry.storage === expectedStorage) {
+        memorySnapshotCache.set(fingerprint, diskEntry);
+        return diskEntry;
+    }
+    return null;
+}
+
+function saveCachedShareSnapshot(
+    fingerprint: string,
+    id: string,
+    storageType: 'supabase' | 'token',
+): void {
+    const entry: CachedShareEntry = {
+        id,
+        storage: storageType,
+        expiresAt: Date.now() + SHARE_SNAPSHOT_TTL_MS,
+    };
+
+    if (memorySnapshotCache.has(fingerprint)) {
+        memorySnapshotCache.delete(fingerprint);
+    }
+    memorySnapshotCache.set(fingerprint, entry);
+    while (memorySnapshotCache.size > MAX_CACHED_SNAPSHOTS) {
+        const oldestKey = memorySnapshotCache.keys().next().value;
+        if (oldestKey === undefined) break;
+        memorySnapshotCache.delete(oldestKey);
+    }
+
+    const merged = readPersistedSnapshotCache();
+    delete merged[fingerprint];
+    const bounded: Record<string, CachedShareEntry> = { ...merged, [fingerprint]: entry };
+    const keys = Object.keys(bounded);
+    if (keys.length > MAX_CACHED_SNAPSHOTS) {
+        for (const keyToDrop of keys.slice(0, keys.length - MAX_CACHED_SNAPSHOTS)) {
+            delete bounded[keyToDrop];
+        }
+    }
+    writePersistedSnapshotCache(bounded);
+}
+
+/**
+ * Builds a deterministic fingerprint for a snapshot payload (excluding `createdAt`) to deduplicate repeats.
+ */
+export function buildShareFingerprint(
+    snapshot: Pick<ShareSnapshot, 'season' | 'mode' | 'source' | 'ratedRaces' | 'title' | 'drivers'>,
+): string {
+    const normalizedDrivers = normalizeDrivers(snapshot.drivers);
+    return JSON.stringify({
+        v: 1,
+        s: snapshot.season,
+        m: snapshot.mode,
+        src: snapshot.source,
+        r: Math.max(0, Math.round(snapshot.ratedRaces || 0)),
+        t: snapshot.title?.trim().slice(0, 60) || '',
+        d: normalizedDrivers.map((d) => [
+            d.driverId,
+            d.driverName,
+            d.constructorId,
+            d.constructorName,
+            d.averageRating,
+            d.totalRaces,
+        ]),
+    });
+}
+
+/**
+ * Clears the local deduplication cache for share snapshots.
+ */
+export function clearShareSnapshotCache(): void {
+    memorySnapshotCache.clear();
+    const storage = getCacheStorage();
+    if (!storage) return;
+    try {
+        storage.removeItem(SHARE_SNAPSHOT_CACHE_KEY);
+    } catch {
+        // Ignore storage restriction errors
+    }
+}
+
 /**
  * Persists a shareable season ranking snapshot (short Supabase ID when available, stateless URL token fallback).
+ * Reuses an existing unexpired snapshot link when ratings and metadata are unchanged.
  */
 export async function createShareSnapshot(
     input: CreateShareInput,
@@ -239,6 +405,20 @@ export async function createShareSnapshot(
         drivers: normalizedDrivers,
     };
 
+    const fingerprint = buildShareFingerprint(snapshot);
+    const expectedStorage: 'supabase' | 'token' = isSupabaseConfigured ? 'supabase' : 'token';
+    if (normalizedDrivers.length > 0) {
+        const cached = getCachedShareSnapshot(fingerprint, expectedStorage);
+        if (cached) {
+            return {
+                id: cached.id,
+                url: buildShareUrl(cached.id, origin),
+                storage: cached.storage,
+                snapshot,
+            };
+        }
+    }
+
     if (isSupabaseConfigured && normalizedDrivers.length > 0) {
         try {
             const client = await getSupabaseClient();
@@ -254,6 +434,7 @@ export async function createShareSnapshot(
                     payload: snapshot.drivers,
                 });
                 if (!error) {
+                    saveCachedShareSnapshot(fingerprint, shortId, 'supabase');
                     return {
                         id: shortId,
                         url: buildShareUrl(shortId, origin),
@@ -268,6 +449,9 @@ export async function createShareSnapshot(
     }
 
     const token = encodeShareToken(snapshot);
+    if (normalizedDrivers.length > 0) {
+        saveCachedShareSnapshot(fingerprint, token, 'token');
+    }
     return {
         id: token,
         url: buildShareUrl(token, origin),

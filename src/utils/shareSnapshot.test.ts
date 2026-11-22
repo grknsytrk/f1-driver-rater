@@ -1,6 +1,8 @@
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+    buildShareFingerprint,
     buildShareUrl,
+    clearShareSnapshotCache,
     createShareSnapshot,
     decodeShareToken,
     encodeShareToken,
@@ -8,6 +10,8 @@ import {
     isShortShareId,
     isStatelessShareToken,
     loadShareSnapshot,
+    SHARE_SNAPSHOT_TTL_DAYS,
+    SHARE_SNAPSHOT_TTL_MS,
     type ShareSnapshot,
 } from './shareSnapshot';
 
@@ -47,6 +51,11 @@ const SAMPLE_SNAPSHOT: ShareSnapshot = {
 };
 
 describe('shareSnapshot utilities', () => {
+    beforeEach(() => {
+        clearShareSnapshotCache();
+        vi.useRealTimers();
+    });
+
     it('encodes and decodes UTF-8 driver names and scores losslessly in stateless tokens', () => {
         const token = encodeShareToken(SAMPLE_SNAPSHOT);
         expect(isStatelessShareToken(token)).toBe(true);
@@ -105,5 +114,49 @@ describe('shareSnapshot utilities', () => {
         expect(loaded?.drivers.map(d => d.driverId)).toEqual(['max_verstappen', 'hulkenberg', 'perez']);
 
         await expect(loadShareSnapshot('nonexistent123')).resolves.toBeNull();
+    });
+
+    it('deduplicates unchanged snapshots and creates a new link when ratings change or TTL expires', async () => {
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date('2026-11-22T12:00:00Z'));
+
+        const firstInput = {
+            season: '2026',
+            mode: 'personal' as const,
+            source: 'race' as const,
+            ratedRaces: 18,
+            drivers: SAMPLE_SNAPSHOT.drivers,
+        };
+
+        const first = await createShareSnapshot(firstInput, 'https://f1-driver-rater.vercel.app');
+
+        // Advance clock by 1 day (even if createdAt changes, payload is unchanged -> cache hit)
+        vi.setSystemTime(new Date('2026-11-23T12:00:00Z'));
+        const repeat = await createShareSnapshot(firstInput, 'https://f1-driver-rater.vercel.app');
+
+        expect(repeat.id).toBe(first.id);
+        expect(repeat.url).toBe(first.url);
+        expect(buildShareFingerprint(firstInput)).toBe(buildShareFingerprint(repeat.snapshot));
+
+        // Modify a driver's rating -> new snapshot ID and URL
+        const updated = await createShareSnapshot(
+            {
+                ...firstInput,
+                drivers: [
+                    { ...SAMPLE_SNAPSHOT.drivers[0], averageRating: 9.25 },
+                    ...SAMPLE_SNAPSHOT.drivers.slice(1),
+                ],
+            },
+            'https://f1-driver-rater.vercel.app',
+        );
+
+        expect(updated.id).not.toBe(first.id);
+        expect(updated.url).not.toBe(first.url);
+
+        // Expire TTL -> new snapshot with updated createdAt
+        expect(SHARE_SNAPSHOT_TTL_DAYS).toBe(30);
+        vi.setSystemTime(new Date(Date.now() + SHARE_SNAPSHOT_TTL_MS + 1000));
+        const afterExpiry = await createShareSnapshot(firstInput, 'https://f1-driver-rater.vercel.app');
+        expect(afterExpiry.id).not.toBe(first.id);
     });
 });
