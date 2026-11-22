@@ -71,7 +71,7 @@ afterEach(async () => {
 });
 
 describe('OverperformanceScatter', () => {
-    it('renders scatter points, clickable standout links, and X-axis mode toggle', async () => {
+    it('renders scatter points, clickable standout links, zoom filters, and scale toggles', async () => {
         await act(async () => {
             root.render(
                 <MemoryRouter>
@@ -90,6 +90,7 @@ describe('OverperformanceScatter', () => {
 
         expect(container.textContent).toContain('PERFORMANCE VS CAR');
         expect(container.textContent).toContain('OVERPERFORMING');
+        expect(container.textContent).toContain('UNDERPERFORMING');
         expect(container.textContent).toContain('CONSTRUCTOR POINTS (WCC)');
 
         const chart = container.querySelector('[data-testid="overperformance-scatter-chart"]')!;
@@ -97,24 +98,57 @@ describe('OverperformanceScatter', () => {
         expect(chart.textContent).toContain('HAM');
         expect(chart.textContent).toContain('BEA');
 
-        expect(container.textContent).toContain('TOP OVERPERFORMERS');
-        expect(container.textContent).toContain('BELOW EXPECTATION');
-
         const bearmanLink = container.querySelector<HTMLAnchorElement>('a[href="/2025/driver/bearman"]');
         const hamiltonLink = container.querySelector<HTMLAnchorElement>('a[href="/2025/driver/hamilton"]');
         expect(bearmanLink).not.toBeNull();
         expect(hamiltonLink).not.toBeNull();
 
-        const driverTab = Array.from(container.querySelectorAll<HTMLButtonElement>('[role="tab"]'))
-            .find(tab => tab.textContent?.includes('DRIVER POINTS (WDC)'));
-        expect(driverTab).toBeDefined();
-
+        // Filter to Midfield only -> NOR & HAM filtered out, BEA remains
+        const midfieldBtn = Array.from(container.querySelectorAll<HTMLButtonElement>('button'))
+            .find(btn => btn.textContent?.trim() === 'MIDFIELD')!;
         await act(async () => {
-            driverTab!.click();
+            midfieldBtn.click();
+        });
+        expect(chart.textContent).toContain('BEA');
+        expect(chart.textContent).not.toContain('NOR');
+
+        // Toggle Linear scale
+        const linearBtn = Array.from(container.querySelectorAll<HTMLButtonElement>('button'))
+            .find(btn => btn.textContent?.trim() === 'LINEAR')!;
+        await act(async () => {
+            linearBtn.click();
+        });
+        expect(linearBtn.getAttribute('aria-pressed')).toBe('true');
+
+        // Switch X-axis to Driver Points
+        const driverTab = Array.from(container.querySelectorAll<HTMLButtonElement>('[role="tab"]'))
+            .find(tab => tab.textContent?.includes('DRIVER POINTS (WDC)'))!;
+        await act(async () => {
+            driverTab.click();
         });
 
-        expect(driverTab!.getAttribute('aria-selected')).toBe('true');
+        expect(driverTab.getAttribute('aria-selected')).toBe('true');
         expect(container.textContent).toContain('CHAMPIONSHIP POINTS (WDC)');
+
+        // Open and close the ? guide panel
+        const helpBtn = container.querySelector<HTMLButtonElement>('button[aria-label="How to read Performance vs Car chart"]')!;
+        expect(helpBtn).not.toBeNull();
+        expect(container.querySelector('#overperformance-guide')).toBeNull();
+
+        await act(async () => {
+            helpBtn.click();
+        });
+        const guideEl = container.querySelector('#overperformance-guide');
+        expect(guideEl).not.toBeNull();
+        expect(guideEl?.textContent).toContain('HOW TO READ THIS CHART');
+        expect(guideEl?.textContent).toContain('Expected Rating');
+        expect(guideEl?.textContent).toContain('your personal ratings');
+
+        const closeGuideBtn = container.querySelector<HTMLButtonElement>('button[aria-label="Close chart guide"]')!;
+        await act(async () => {
+            closeGuideBtn.click();
+        });
+        expect(container.querySelector('#overperformance-guide')).toBeNull();
     });
 
     it('renders telemetry unavailable state when fewer than 3 drivers are rated', async () => {

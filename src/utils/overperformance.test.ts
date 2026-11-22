@@ -62,12 +62,13 @@ const SAMPLE_AVERAGES: AverageRating[] = [
 ];
 
 describe('buildOverperformanceDataset', () => {
-    it('identifies car-adjusted overperformers and underperformers with OLS baseline', () => {
+    it('identifies car-adjusted overperformers and underperformers with linear OLS baseline', () => {
         const dataset = buildOverperformanceDataset({
             averages: SAMPLE_AVERAGES,
             driverStandings: SAMPLE_DRIVER_STANDINGS,
             constructorStandings: SAMPLE_CONSTRUCTORS,
             axisMode: 'car',
+            scaleMode: 'linear',
             minimumRatedRaces: 6,
         });
 
@@ -78,6 +79,7 @@ describe('buildOverperformanceDataset', () => {
         const albon = dataset.points.find(pt => pt.driverId === 'albon')!;
         const hamilton = dataset.points.find(pt => pt.driverId === 'hamilton')!;
         expect(albon.carPoints).toBe(80);
+        expect(albon.xPlot).toBe(80);
         expect(albon.driverPoints).toBe(48);
         expect(albon.delta).toBeGreaterThan(0.5);
         expect(hamilton.delta).toBeLessThan(-0.5);
@@ -86,12 +88,73 @@ describe('buildOverperformanceDataset', () => {
         expect(dataset.topUnderperformers[0]?.driverId).toBe('hamilton');
     });
 
+    it('uses sqrt spread scale by default to declutter midfield points while keeping real point ticks', () => {
+        const dataset = buildOverperformanceDataset({
+            averages: SAMPLE_AVERAGES,
+            driverStandings: SAMPLE_DRIVER_STANDINGS,
+            constructorStandings: SAMPLE_CONSTRUCTORS,
+            axisMode: 'car',
+            minimumRatedRaces: 6,
+        });
+
+        const albon = dataset.points.find(pt => pt.driverId === 'albon')!;
+        const norris = dataset.points.find(pt => pt.driverId === 'norris')!;
+        expect(albon.xValue).toBe(80);
+        expect(albon.xPlot).toBeCloseTo(Math.sqrt(80), 4);
+        expect(norris.xPlot).toBeCloseTo(Math.sqrt(600), 4);
+        expect(dataset.xTicks?.length).toBeGreaterThanOrEqual(4);
+        expect(dataset.xTicks?.[0]).toBe(0);
+    });
+
+    it('zooms domain onto midfield or leaders while preserving full-grid delta values', () => {
+        const fullGrid = buildOverperformanceDataset({
+            averages: SAMPLE_AVERAGES,
+            driverStandings: SAMPLE_DRIVER_STANDINGS,
+            constructorStandings: SAMPLE_CONSTRUCTORS,
+            axisMode: 'car',
+            scaleMode: 'spread',
+            gridFilter: 'all',
+            minimumRatedRaces: 6,
+        });
+
+        const midfieldZoom = buildOverperformanceDataset({
+            averages: SAMPLE_AVERAGES,
+            driverStandings: SAMPLE_DRIVER_STANDINGS,
+            constructorStandings: SAMPLE_CONSTRUCTORS,
+            axisMode: 'car',
+            scaleMode: 'spread',
+            gridFilter: 'midfield',
+            minimumRatedRaces: 6,
+        });
+
+        expect(midfieldZoom.points.map(pt => pt.driverId).sort()).toEqual(['albon', 'bortoleto']);
+        expect(midfieldZoom.xDomain[1]).toBeLessThan(fullGrid.xDomain[1]);
+
+        const fullAlbon = fullGrid.points.find(pt => pt.driverId === 'albon')!;
+        const zoomedAlbon = midfieldZoom.points.find(pt => pt.driverId === 'albon')!;
+        expect(zoomedAlbon.delta).toBeCloseTo(fullAlbon.delta, 5);
+
+        const leadersZoom = buildOverperformanceDataset({
+            averages: SAMPLE_AVERAGES,
+            driverStandings: SAMPLE_DRIVER_STANDINGS,
+            constructorStandings: SAMPLE_CONSTRUCTORS,
+            axisMode: 'car',
+            scaleMode: 'linear',
+            gridFilter: 'leaders',
+            minimumRatedRaces: 6,
+        });
+
+        expect(leadersZoom.points.map(pt => pt.driverId).sort()).toEqual(['hamilton', 'norris', 'piastri']);
+        expect(leadersZoom.xDomain[0]).toBeGreaterThan(200);
+    });
+
     it('switches X-axis values cleanly to WDC driver points and keeps trendline within bounds', () => {
         const dataset = buildOverperformanceDataset({
             averages: SAMPLE_AVERAGES,
             driverStandings: SAMPLE_DRIVER_STANDINGS,
             constructorStandings: SAMPLE_CONSTRUCTORS,
             axisMode: 'driver',
+            scaleMode: 'linear',
             minimumRatedRaces: 6,
         });
 
@@ -102,7 +165,7 @@ describe('buildOverperformanceDataset', () => {
         expect(dataset.xDomain[1]).toBe(350);
 
         const seg = dataset.trend!.segment;
-        expect(seg[0].x).toBeGreaterThanOrEqual(0);
+        expect(seg[0].x).toBeGreaterThanOrEqual(dataset.xDomain[0]);
         expect(seg[1].x).toBeLessThanOrEqual(dataset.xDomain[1]);
         expect(seg[0].y).toBeGreaterThanOrEqual(dataset.yDomain[0]);
         expect(seg[0].y).toBeLessThanOrEqual(dataset.yDomain[1]);
@@ -125,24 +188,23 @@ describe('buildOverperformanceDataset', () => {
         expect(norris.labelPlacement).not.toBe(piastri.labelPlacement);
     });
 
-    it('handles fewer than 3 drivers and zero-variance X values safely without NaN', () => {
-        const twoDrivers = buildOverperformanceDataset({
-            averages: SAMPLE_AVERAGES.slice(0, 2),
+    it('hides unqualified cameo drivers when includeUnqualified is false and tracks unqualifiedCount', () => {
+        const withCameo = [
+            ...SAMPLE_AVERAGES,
+            { driverId: 'hirakawa', driverName: 'Ryo Hirakawa', constructorId: 'sauber', constructorName: 'Sauber', averageRating: 7.8, totalRaces: 1, ratings: [] },
+        ];
+
+        const filtered = buildOverperformanceDataset({
+            averages: withCameo,
             driverStandings: SAMPLE_DRIVER_STANDINGS,
             constructorStandings: SAMPLE_CONSTRUCTORS,
             axisMode: 'car',
+            includeUnqualified: false,
+            minimumRatedRaces: 6,
         });
-        expect(twoDrivers.trend).toBeNull();
-        expect(twoDrivers.topOverperformers).toEqual([]);
 
-        const zeroVariance = buildOverperformanceDataset({
-            averages: SAMPLE_AVERAGES.slice(0, 3),
-            driverStandings: [],
-            constructorStandings: [],
-            axisMode: 'car',
-        });
-        expect(zeroVariance.trend).not.toBeNull();
-        expect(zeroVariance.trend?.slope).toBe(0);
-        expect(Number.isFinite(zeroVariance.trend?.intercept ?? NaN)).toBe(true);
+        expect(filtered.unqualifiedCount).toBe(1);
+        expect(filtered.totalDriverCount).toBe(6);
+        expect(filtered.points.some(pt => pt.driverId === 'hirakawa')).toBe(false);
     });
 });

@@ -2,6 +2,8 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Timer, Undo2 } from 'lucide-react';
 import { getTeamColor } from '../types';
 import { getRaceRatingContext, type RaceRecap } from '../api/f1Api';
+import { getRaceTyreStints, type TyreStint } from '../api/openf1';
+import { TyreStints } from './TyreStints';
 import { saveRaceDriverRating, removeRaceDriverRating, getRaceRatings, markRaceRatingsCommunityEligible } from '../utils/storage';
 import type { CommunityRating, CommunityStatus } from '../utils/communityRatings';
 import { fetchWithMinDelay } from '../utils/delay';
@@ -33,6 +35,7 @@ interface DriverWithRating {
     driverName: string;
     constructorId: string;
     constructorName: string;
+    carNumber?: string;
     position: string;
     rating: number;
     gap?: string;
@@ -65,6 +68,7 @@ function getFinishNameClass(position: string): string {
 interface RatingDriverRowProps {
     season: string;
     driver: DriverWithRating;
+    stints?: TyreStint[];
     currentRating: number;
     isFastestLapDriver: boolean;
     communityRating?: CommunityRating;
@@ -76,6 +80,7 @@ interface RatingDriverRowProps {
 const RatingDriverRow = memo(function RatingDriverRow({
     season,
     driver,
+    stints,
     currentRating,
     isFastestLapDriver,
     communityRating,
@@ -141,6 +146,12 @@ const RatingDriverRow = memo(function RatingDriverRow({
                     </div>
                 </div>
 
+                {stints && stints.length > 0 && (
+                    <div className="ml-2 shrink-0 md:mr-3">
+                        <TyreStints stints={stints} />
+                    </div>
+                )}
+
                 <div className="ml-auto hidden h-12 w-32 flex-shrink-0 flex-col items-end justify-center md:flex">
                     <span className="mb-1 w-full text-right font-oxanium text-[10px] leading-none tracking-wide text-[var(--text-muted)]">
                         {parseInt(driver.position, 10) === 1 ? 'TIME' : 'GAP'}
@@ -202,6 +213,10 @@ export function RatingModal({ race, season, metadataResolved = true, onClose }: 
     const [drivers, setDrivers] = useState<DriverWithRating[]>([]);
     const [recap, setRecap] = useState<RaceRecap>(EMPTY_RECAP);
     const [loading, setLoading] = useState(true);
+    const [stintsState, setStintsState] = useState<{
+        key: string;
+        map: Map<number, TyreStint[]>;
+    } | null>(null);
     const listRef = useRef<HTMLDivElement>(null);
 
     const loadDrivers = useCallback(async () => {
@@ -223,6 +238,7 @@ export function RatingModal({ race, season, metadataResolved = true, onClose }: 
                     driverName: `${driver.driver.givenName} ${driver.driver.familyName}`,
                     constructorId: driver.constructor.constructorId,
                     constructorName: driver.constructor.name,
+                    carNumber: driver.carNumber || driver.driver.permanentNumber,
                     position: driver.position,
                     rating: existing?.rating || 0,
                     gap: driver.gap,
@@ -244,6 +260,26 @@ export function RatingModal({ race, season, metadataResolved = true, onClose }: 
     useEffect(() => {
         void loadDrivers();
     }, [loadDrivers]);
+
+    const raceKey = `${season}:${race.round}`;
+    useEffect(() => {
+        if (!race.date && !metadataResolved) return;
+
+        let cancelled = false;
+        void getRaceTyreStints(season, race.date, race.raceName).then((map) => {
+            if (cancelled) return;
+            setStintsState({ key: raceKey, map });
+        });
+
+        return () => {
+            cancelled = true;
+        };
+    }, [metadataResolved, race.date, race.raceName, raceKey, season]);
+
+    const stintsByCarNumber = useMemo(
+        () => (stintsState?.key === raceKey ? stintsState.map : null),
+        [raceKey, stintsState],
+    );
 
     const getRaceDriverScore = useCallback(
         (driverId: string) =>
@@ -413,19 +449,27 @@ export function RatingModal({ race, season, metadataResolved = true, onClose }: 
                     <CommunityNotice status={community.status} legacy={savedRatings.some(rating => !rating.communityEligible)} />
                     <RatingShortcutBar />
                     <div ref={listRef} className="grid grid-cols-1 gap-px border border-[var(--border-color)] bg-[var(--border-color)]">
-                        {drivers.map((driver) => (
-                            <RatingDriverRow
-                                key={driver.driverId}
-                                season={season}
-                                driver={driver}
-                                currentRating={savedRatingByDriverId.get(driver.driverId) ?? 0}
-                                isFastestLapDriver={recap.fastestLap?.driverId === driver.driverId}
-                                communityRating={communityByDriverId.get(driver.driverId)}
-                                communityStatus={community.status}
-                                isKeyboardActive={activeDriverId === driver.driverId}
-                                onRate={handleRatingChange}
-                            />
-                        ))}
+                        {drivers.map((driver) => {
+                            const parsedCarNum = driver.carNumber ? Number.parseInt(driver.carNumber, 10) : Number.NaN;
+                            const stints = stintsByCarNumber && Number.isFinite(parsedCarNum)
+                                ? stintsByCarNumber.get(parsedCarNum)
+                                : undefined;
+
+                            return (
+                                <RatingDriverRow
+                                    key={driver.driverId}
+                                    season={season}
+                                    driver={driver}
+                                    stints={stints}
+                                    currentRating={savedRatingByDriverId.get(driver.driverId) ?? 0}
+                                    isFastestLapDriver={recap.fastestLap?.driverId === driver.driverId}
+                                    communityRating={communityByDriverId.get(driver.driverId)}
+                                    communityStatus={community.status}
+                                    isKeyboardActive={activeDriverId === driver.driverId}
+                                    onRate={handleRatingChange}
+                                />
+                            );
+                        })}
                     </div>
                     </div>
                 )}

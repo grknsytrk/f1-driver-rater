@@ -108,6 +108,7 @@ interface StandingsResponse {
 export interface RaceDriverCard {
     driver: Driver;
     constructor: Constructor;
+    carNumber?: string;
     position: string;
     time?: string;
     gap?: string;
@@ -270,6 +271,7 @@ function mapRaceResultToDriverCard(result: RaceResult, index: number): RaceDrive
     return {
         driver: result.Driver,
         constructor: result.Constructor,
+        carNumber: result.number || result.Driver.permanentNumber,
         position: result.position,
         time: result.Time?.time,
         gap,
