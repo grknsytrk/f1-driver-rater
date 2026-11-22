@@ -14,7 +14,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { getTeamColor } from '../types';
 import { calculateAverages, clearSeasonRatings, getDriverFormSeries, getRatedRacesCount, getRaceByRaceMatrix, getCountryCode, downloadRatingsAsJson, importRatings, type DriverRow, type RaceColumn } from '../utils/storage';
-import { getRaces, getSeasonDrivers, isRaceCompleted } from '../api/f1Api';
+import { getRaces, getSeasonDrivers, getDriverStandings, getConstructorStandings, isRaceCompleted, type DriverStanding, type ConstructorStanding } from '../api/f1Api';
 import { useCommunityRatings, useRatingStorage } from '../hooks/useCommunityRatings';
 import { useSitePolicyConsent } from '../hooks/useSitePolicyConsent';
 import { CommunityNotice } from './CommunityRating';
@@ -38,6 +38,7 @@ import { PodiumFlagBackdrop } from './PodiumFlagBackdrop';
 import { DriverProfileLink } from './DriverProfileLink';
 import { ResultsBreakdownTable } from './results/ResultsBreakdownTable';
 import { ResultsShareCard } from './results/ResultsShareCard';
+import { OverperformanceScatter } from './results/OverperformanceScatter';
 
 interface ResultsDashboardProps {
     season: string;
@@ -53,6 +54,11 @@ interface BreakdownCalendar {
 interface SeasonDriverMetadata {
     season: string;
     drivers: Array<BreakdownDriverIdentity & { nationality?: string }>;
+}
+interface SeasonStandingsState {
+    season: string;
+    driverStandings: DriverStanding[];
+    constructorStandings: ConstructorStanding[];
 }
 
 function formatRaceDisplayName(raceName: string | null): string {
@@ -156,6 +162,7 @@ export function ResultsDashboard({ season, onReset, onSelectDriver }: ResultsDas
     const [userSelectedBreakdownSource, setUserSelectedBreakdownSource] = useState<BreakdownSource | null>(null);
     const [breakdownCalendar, setBreakdownCalendar] = useState<BreakdownCalendar | null>(null);
     const [seasonDriverMetadata, setSeasonDriverMetadata] = useState<SeasonDriverMetadata | null>(null);
+    const [standingsState, setStandingsState] = useState<SeasonStandingsState | null>(null);
     const [showConfirmModal, setShowConfirmModal] = useState(false);
     const [selectedFormDriverIds, setSelectedFormDriverIds] = useState<string[]>(() =>
         rankedFormSeries[0] ? [rankedFormSeries[0].driverId] : [],
@@ -323,6 +330,35 @@ export function ResultsDashboard({ season, onReset, onSelectDriver }: ResultsDas
         });
         return () => { active = false; };
     }, [seasonDriverMetadata?.season, season]);
+
+    useEffect(() => {
+        if (standingsState?.season === season) return;
+
+        let active = true;
+        void Promise.allSettled([
+            getDriverStandings(season),
+            getConstructorStandings(season),
+        ]).then(([wdcRes, wccRes]) => {
+            if (!active) return;
+            setStandingsState({
+                season,
+                driverStandings: wdcRes.status === 'fulfilled' ? wdcRes.value : [],
+                constructorStandings: wccRes.status === 'fulfilled' ? wccRes.value : [],
+            });
+        });
+
+        return () => { active = false; };
+    }, [standingsState?.season, season]);
+
+    const seasonDriverStandings = useMemo(
+        () => (standingsState?.season === season ? standingsState.driverStandings : []),
+        [standingsState, season],
+    );
+    const seasonConstructorStandings = useMemo(
+        () => (standingsState?.season === season ? standingsState.constructorStandings : []),
+        [standingsState, season],
+    );
+    const standingsLoading = standingsState?.season !== season;
 
     // Track scroll position to show/hide "Top" button
     useEffect(() => {
@@ -1149,6 +1185,18 @@ export function ResultsDashboard({ season, onReset, onSelectDriver }: ResultsDas
                                 </div>
                             )}
                         </m.div>
+
+                        {/* 4B. SECTION: OVERPERFORMANCE SCATTER PLOT */}
+                        <OverperformanceScatter
+                            season={season}
+                            averages={activeRankedAverages}
+                            driverStandings={seasonDriverStandings}
+                            constructorStandings={seasonConstructorStandings}
+                            activeMode={activeMode}
+                            minimumRatedRaces={activeMinimumRatedRaces}
+                            standingsLoading={standingsLoading}
+                            onSelectDriver={onSelectDriver}
+                        />
                     </>
                 )}
 

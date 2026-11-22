@@ -127,25 +127,14 @@ function SeasonPage() {
       <HomeJsonLd />
 
       {/* Hero Section */}
-      <div className="text-center mb-16 relative">
+      <div className="text-center mb-10 relative">
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-2xl h-32 bg-[var(--accent-red)]/5 blur-3xl -z-10" />
-
-        <m.div
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-          className="inline-flex items-center gap-3 px-4 py-1 border-x border-[var(--accent-red)] mb-6"
-        >
-          <span className="font-oxanium text-xs font-bold text-[var(--accent-red)] tracking-[0.25em] uppercase">
-            F1 Driver Rater
-          </span>
-        </m.div>
 
         <m.h1
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          transition={{ delay: 0.2 }}
-          className="font-display text-5xl md:text-6xl text-white mb-6 uppercase tracking-tight leading-none"
+          transition={{ delay: 0.1 }}
+          className="font-display text-5xl md:text-6xl text-white mb-4 uppercase tracking-tight leading-none"
         >
           F1 Driver <span className="text-transparent bg-clip-text bg-gradient-to-b from-white to-[#666]">Rating</span>
         </m.h1>
@@ -153,7 +142,7 @@ function SeasonPage() {
         <m.p
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          transition={{ delay: 0.3 }}
+          transition={{ delay: 0.2 }}
           className="font-ui text-[var(--text-secondary)] text-lg max-w-xl mx-auto tracking-wide"
         >
           Rate every F1 driver race-by-race with your own F1 driver rater and rating tracker. Build season rankings, compare teammates head-to-head, and see who really is the best on the grid.
@@ -244,10 +233,6 @@ function App() {
   const [, setStorageRevision] = useState(0);
   const [sitePolicyOpen, setSitePolicyOpen] = useState(false);
   const [isCommandOpen, setIsCommandOpen] = useState(false);
-
-  const isMacPlatform = typeof navigator !== 'undefined'
-    && /mac|iphone|ipad|ipod/i.test(navigator.platform || navigator.userAgent);
-  const searchShortcutLabel = isMacPlatform ? '⌘K' : 'CTRL K';
 
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -361,7 +346,7 @@ function App() {
       {/* Header - Frosted Glass */}
       <header className="sticky top-0 z-40 border-b border-white/5 bg-gradient-to-b from-[var(--bg-main)]/80 to-[var(--bg-main)]/60 backdrop-blur-xl backdrop-saturate-150 shadow-[0_4px_30px_rgba(0,0,0,0.3)]">
         <div
-          className={`max-w-7xl mx-auto px-3 md:px-6 ${
+          className={`max-w-6xl mx-auto px-4 ${
             showSeasonActions
               ? 'py-3 md:h-16 flex flex-col gap-3 md:flex-row md:items-center md:justify-between md:gap-0'
               : 'h-16 flex items-center justify-between'
@@ -384,18 +369,16 @@ function App() {
                 className="flex items-center gap-3 md:gap-4 select-none cursor-pointer min-w-0"
                 onClick={() => navigate('/')}
               >
-                <div className="w-8 h-8 bg-[var(--accent-red)] flex items-center justify-center flex-shrink-0">
-                  <Zap size={16} className="text-white" />
-                </div>
-                <div className="flex min-w-0 flex-col justify-center py-0.5">
+                <img
+                  src="/favicon.png"
+                  alt="F1 Rating"
+                  className="w-8 h-8 object-cover flex-shrink-0"
+                />
+                {!showSeasonActions && (
                   <h1 className="font-display text-2xl leading-[0.9] text-white tracking-tight truncate">
                     F1 RATING
                   </h1>
-                  <div className="flex items-center gap-2">
-                    <div className="w-1.5 h-1.5 rounded-full bg-[var(--accent-red)] animate-pulse flex-shrink-0" />
-                    <span className="font-oxanium text-[10px] text-[var(--accent-red)] tracking-widest uppercase truncate">Live</span>
-                  </div>
-                </div>
+                )}
               </div>
 
               {/* Breadcrumb / Context */}
@@ -449,21 +432,30 @@ function App() {
               )}
             </div>
 
-            <button
-              type="button"
-              onClick={() => setIsCommandOpen(true)}
-              aria-label={`Open quick search (${searchShortcutLabel})`}
-              title={`Quick Search (${searchShortcutLabel})`}
-              className={`group flex shrink-0 items-center gap-2 border border-[var(--border-color)] bg-[var(--bg-panel)]/90 px-2.5 py-1.5 text-[var(--text-secondary)] transition-colors hover:border-[var(--accent-red)] hover:text-white ${
-                showSeasonActions ? 'md:mr-3' : ''
-              }`}
-            >
-              <Search size={14} className="text-[var(--accent-red)]" aria-hidden="true" />
-              <span className="hidden font-oxanium text-[10px] tracking-[0.16em] uppercase sm:inline">Search</span>
-              <span className="hidden border-l border-white/10 pl-2 font-oxanium text-[9px] tracking-widest text-[var(--text-muted)] uppercase group-hover:text-[var(--text-secondary)] lg:inline">
-                {searchShortcutLabel}
-              </span>
-            </button>
+            {isHomePage ? (
+              <button
+                type="button"
+                onClick={() => setIsCommandOpen(true)}
+                aria-label="Open search"
+                title="Search"
+                className="group flex shrink-0 items-center gap-2 border border-[var(--border-color)] bg-[var(--bg-panel)]/90 px-2.5 py-1.5 text-[var(--text-secondary)] transition-colors hover:border-[var(--accent-red)] hover:text-white"
+              >
+                <Search size={14} className="text-[var(--accent-red)]" aria-hidden="true" />
+                <span className="hidden font-oxanium text-[10px] tracking-[0.16em] uppercase sm:inline">Search</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setIsCommandOpen(true)}
+                aria-label="Open search"
+                title="Search"
+                className={`h-8 w-8 shrink-0 items-center justify-center border border-[var(--border-color)] bg-[var(--bg-panel)] text-[var(--accent-red)] transition-colors hover:border-[var(--accent-red)] ${
+                  showSeasonActions ? 'flex md:hidden' : 'flex'
+                }`}
+              >
+                <Search size={16} aria-hidden="true" />
+              </button>
+            )}
           </div>
 
           {/* Actions - only show on races list page */}
@@ -525,6 +517,16 @@ function App() {
                   <span className="hidden md:inline font-ui font-bold text-xs text-white uppercase tracking-wider">View Results</span>
                 </m.button>
               )}
+
+              <button
+                type="button"
+                onClick={() => setIsCommandOpen(true)}
+                aria-label="Open search"
+                title="Search"
+                className="hidden md:flex h-8 w-8 shrink-0 items-center justify-center border border-[var(--border-color)] bg-[var(--bg-panel)] text-[var(--accent-red)] transition-colors hover:border-[var(--accent-red)]"
+              >
+                <Search size={16} aria-hidden="true" />
+              </button>
             </div>
           )}
         </div>
@@ -619,9 +621,11 @@ function App() {
             {/* Brand column */}
             <div className="flex flex-col gap-3">
               <div className="flex items-center gap-3">
-                <div className="w-7 h-7 bg-[var(--accent-red)] flex items-center justify-center">
-                  <Zap size={14} className="text-white" />
-                </div>
+                <img
+                  src="/favicon.png"
+                  alt="F1 Rating"
+                  className="w-7 h-7 object-cover flex-shrink-0"
+                />
                 <span className="font-display text-lg text-white tracking-tight">F1 RATING</span>
               </div>
               <p className="font-ui text-xs text-[var(--text-muted)] leading-relaxed max-w-[240px]">

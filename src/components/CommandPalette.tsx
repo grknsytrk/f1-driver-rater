@@ -9,23 +9,13 @@ import {
 } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
-import {
-    Calendar,
-    CornerDownLeft,
-    Flag,
-    Layers,
-    Search,
-    Shield,
-    User,
-    X,
-} from 'lucide-react';
+import { Search, X } from 'lucide-react';
 import {
     buildBundleCommandItems,
     buildInstantCommandItems,
     loadAllStaticSearchBundles,
     searchCommandItems,
     type CommandCategory,
-    type CommandItemKind,
     type CommandSearchItem,
 } from '../utils/commandSearch';
 
@@ -44,21 +34,11 @@ const CATEGORY_TABS: ReadonlyArray<{ id: CommandCategory; label: string }> = [
     { id: 'seasons', label: 'SEASONS' },
 ];
 
-const KIND_LABELS: Record<CommandItemKind, string> = {
-    drivers: 'DRIVER',
-    teams: 'TEAM',
-    races: 'GRAND PRIX',
-    pages: 'VIEW',
-    seasons: 'SEASON',
-};
-
-function renderKindIcon(kind: CommandItemKind) {
-    const className = 'shrink-0 text-[var(--text-muted)] group-hover:text-white transition-colors';
-    if (kind === 'drivers') return <User size={14} className={className} aria-hidden="true" />;
-    if (kind === 'teams') return <Shield size={14} className={className} aria-hidden="true" />;
-    if (kind === 'races') return <Flag size={14} className={className} aria-hidden="true" />;
-    if (kind === 'seasons') return <Calendar size={14} className={className} aria-hidden="true" />;
-    return <Layers size={14} className={className} aria-hidden="true" />;
+function getPlainRightMeta(item: CommandSearchItem): string | null {
+    if (!item.badge) return null;
+    if (item.kind === 'drivers' || item.kind === 'races') return item.badge;
+    if (item.kind === 'seasons' && item.badge === 'LIVE') return 'LIVE';
+    return null;
 }
 
 function CommandPaletteDialog({ onClose, currentSeason }: Omit<CommandPaletteProps, 'isOpen'>) {
@@ -66,6 +46,7 @@ function CommandPaletteDialog({ onClose, currentSeason }: Omit<CommandPalettePro
     const inputRef = useRef<HTMLInputElement>(null);
     const listRef = useRef<HTMLDivElement>(null);
     const previousFocusRef = useRef<HTMLElement | null>(null);
+    const keyboardNavRef = useRef(false);
 
     const [query, setQuery] = useState('');
     const [category, setCategory] = useState<CommandCategory>('all');
@@ -139,7 +120,11 @@ function CommandPaletteDialog({ onClose, currentSeason }: Omit<CommandPalettePro
 
     const activeItem = results[clampedActiveIndex] ?? null;
 
+    // Only scroll active option into view when navigating via keyboard
     useEffect(() => {
+        if (!keyboardNavRef.current) return;
+        keyboardNavRef.current = false;
+
         if (results.length === 0) return;
         const container = listRef.current;
         if (!container) return;
@@ -171,12 +156,14 @@ function CommandPaletteDialog({ onClose, currentSeason }: Omit<CommandPalettePro
             if (event.key === 'ArrowDown') {
                 if (results.length === 0) return;
                 event.preventDefault();
+                keyboardNavRef.current = true;
                 setActiveIndex(prev => (prev + 1) % results.length);
                 return;
             }
             if (event.key === 'ArrowUp') {
                 if (results.length === 0) return;
                 event.preventDefault();
+                keyboardNavRef.current = true;
                 setActiveIndex(prev => (prev - 1 + results.length) % results.length);
                 return;
             }
@@ -196,19 +183,19 @@ function CommandPaletteDialog({ onClose, currentSeason }: Omit<CommandPalettePro
                     onClose();
                 }
             }}
-            className="fixed inset-0 z-50 flex items-start justify-center bg-black/80 px-3 pt-[7vh] backdrop-blur-sm sm:px-4 sm:pt-[11vh]"
+            className="fixed inset-0 z-50 flex items-start justify-center bg-black/75 px-3 pt-[7vh] sm:px-4 sm:pt-[11vh]"
         >
             <div
                 role="dialog"
                 aria-modal="true"
                 aria-label="Global F1 quick search"
                 onKeyDown={handleKeyDown}
-                className="flex max-h-[80vh] w-full max-w-2xl flex-col overflow-hidden border border-[var(--border-color)] bg-[var(--bg-darker)] shadow-[0_24px_80px_rgba(0,0,0,0.85)]"
+                className="flex h-[min(520px,76vh)] w-full max-w-2xl flex-col overflow-hidden border border-[var(--border-color)] bg-[var(--bg-darker)] shadow-[0_24px_80px_rgba(0,0,0,0.85)]"
             >
-                <div className="h-0.5 w-full bg-[var(--accent-red)]" />
+                <div className="h-0.5 w-full shrink-0 bg-[var(--accent-red)]" />
 
                 {/* Search Input Row */}
-                <div className="flex items-center gap-3 px-4 py-3.5">
+                <div className="flex shrink-0 items-center gap-3 px-4 py-3.5">
                     <Search size={16} className="shrink-0 text-[var(--accent-red)]" aria-hidden="true" />
                     <input
                         ref={inputRef}
@@ -217,8 +204,9 @@ function CommandPaletteDialog({ onClose, currentSeason }: Omit<CommandPalettePro
                         onChange={(event) => {
                             setQuery(event.target.value);
                             setActiveIndex(0);
+                            listRef.current?.scrollTo?.({ top: 0 });
                         }}
-                        placeholder="Search drivers, VER, teams, circuits, or 2019 hamilton..."
+                        placeholder="Search drivers, teams, tracks, seasons..."
                         aria-label="Quick search input"
                         aria-controls="command-palette-results"
                         aria-activedescendant={activeItem ? `cmd-option-${clampedActiveIndex}` : undefined}
@@ -232,21 +220,22 @@ function CommandPaletteDialog({ onClose, currentSeason }: Omit<CommandPalettePro
                             onClick={() => {
                                 setQuery('');
                                 setActiveIndex(0);
+                                listRef.current?.scrollTo?.({ top: 0 });
                                 inputRef.current?.focus();
                             }}
                             aria-label="Clear search"
-                            className="flex h-6 w-6 shrink-0 items-center justify-center text-[var(--text-muted)] transition-colors hover:text-white"
+                            className="shrink-0 px-1.5 font-oxanium text-[10px] tracking-wider text-[var(--text-muted)] uppercase hover:text-white"
                         >
-                            <X size={14} />
+                            Clear
                         </button>
                     )}
                     <button
                         type="button"
                         onClick={onClose}
                         aria-label="Close search"
-                        className="shrink-0 border border-[var(--border-color)] px-2 py-0.5 font-oxanium text-[10px] tracking-widest text-[var(--text-muted)] uppercase transition-colors hover:border-[var(--accent-red)] hover:text-white"
+                        className="flex h-7 w-7 shrink-0 items-center justify-center text-[var(--text-muted)] hover:text-white"
                     >
-                        ESC
+                        <X size={16} aria-hidden="true" />
                     </button>
                 </div>
 
@@ -254,55 +243,64 @@ function CommandPaletteDialog({ onClose, currentSeason }: Omit<CommandPalettePro
                 <div
                     role="tablist"
                     aria-label="Filter search results"
-                    className="flex items-center gap-1 overflow-x-auto border-y border-[var(--border-color)] bg-[var(--bg-panel)]/45 px-3"
+                    className="flex shrink-0 items-center justify-between gap-2 border-y border-[var(--border-color)] bg-[var(--bg-panel)]/45 px-3"
                 >
-                    {CATEGORY_TABS.map((tab) => {
-                        const isSelected = category === tab.id;
-                        return (
-                            <button
-                                key={tab.id}
-                                type="button"
-                                role="tab"
-                                aria-selected={isSelected}
-                                onClick={() => {
-                                    setCategory(tab.id);
-                                    setActiveIndex(0);
-                                    inputRef.current?.focus();
-                                }}
-                                className={`shrink-0 border-b-2 px-2.5 py-2 font-oxanium text-[10px] tracking-[0.16em] uppercase transition-colors ${
-                                    isSelected
-                                        ? 'border-[var(--accent-red)] text-white'
-                                        : 'border-transparent text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
-                                }`}
-                            >
-                                {tab.label}
-                            </button>
-                        );
-                    })}
+                    <div className="flex items-center gap-1 overflow-x-auto">
+                        {CATEGORY_TABS.map((tab) => {
+                            const isSelected = category === tab.id;
+                            return (
+                                <button
+                                    key={tab.id}
+                                    type="button"
+                                    role="tab"
+                                    aria-selected={isSelected}
+                                    onClick={() => {
+                                        setCategory(tab.id);
+                                        setActiveIndex(0);
+                                        listRef.current?.scrollTo?.({ top: 0 });
+                                        inputRef.current?.focus();
+                                    }}
+                                    className={`shrink-0 border-b-2 px-2.5 py-2 font-oxanium text-[10px] tracking-[0.16em] uppercase ${
+                                        isSelected
+                                            ? 'border-[var(--accent-red)] text-white'
+                                            : 'border-transparent text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
+                                    }`}
+                                >
+                                    {tab.label}
+                                </button>
+                            );
+                        })}
+                    </div>
+                    {isIndexing && (
+                        <span className="hidden shrink-0 font-oxanium text-[9px] tracking-[0.14em] text-[var(--text-muted)] uppercase sm:inline">
+                            INDEXING...
+                        </span>
+                    )}
                 </div>
 
-                {/* Search Results List */}
+                {/* Fixed-height Scrollable Results List (zero mouse-hover state churn) */}
                 <div
                     ref={listRef}
                     id="command-palette-results"
                     role="listbox"
                     aria-label="Search results"
-                    className="min-h-0 flex-1 overflow-y-auto divide-y divide-white/[0.04]"
+                    className="min-h-0 flex-1 overflow-y-auto overscroll-contain divide-y divide-white/[0.04]"
                 >
                     {results.length === 0 ? (
-                        <div className="px-5 py-10 text-center">
+                        <div className="flex h-full flex-col items-center justify-center px-5 text-center">
                             <p className="font-oxanium text-xs tracking-[0.16em] text-white uppercase">
                                 {query.trim()
-                                    ? `NO TELEMETRY MATCHES FOR "${query.trim().toUpperCase()}"`
-                                    : 'NO ENTRIES IN THIS FILTER'}
+                                    ? `NO MATCHES FOR "${query.trim().toUpperCase()}"`
+                                    : 'NO ENTRIES FOUND'}
                             </p>
                             <p className="mt-2 font-ui text-xs text-[var(--text-muted)]">
-                                Try a driver name, FIA code like VER, track like Monza, or year + query like 2019 hamilton.
+                                Try a driver name, team, circuit, or year + query like 2019 hamilton.
                             </p>
                         </div>
                     ) : (
                         results.map((item, index) => {
                             const isActive = index === clampedActiveIndex;
+                            const rightMeta = getPlainRightMeta(item);
                             return (
                                 <a
                                     key={item.id}
@@ -311,80 +309,47 @@ function CommandPaletteDialog({ onClose, currentSeason }: Omit<CommandPalettePro
                                     role="option"
                                     aria-selected={isActive}
                                     href={item.to}
-                                    onMouseEnter={() => setActiveIndex(index)}
                                     onClick={(event) => handleLinkClick(event, item)}
-                                    className={`group relative flex items-center justify-between gap-3 px-4 py-2.5 transition-colors ${
+                                    className={`relative flex items-center justify-between gap-3 px-4 py-2.5 ${
                                         isActive
                                             ? 'bg-white/[0.07]'
-                                            : 'hover:bg-white/[0.04]'
+                                            : 'hover:bg-white/[0.05]'
                                     }`}
                                 >
-                                    {/* Left 2px vertical telemetry accent */}
                                     <span
                                         aria-hidden="true"
-                                        className="absolute inset-y-1.5 left-0 w-0.5 transition-opacity"
+                                        className="absolute inset-y-1.5 left-0 w-0.5"
                                         style={{
                                             backgroundColor: item.accentColor || 'var(--accent-red)',
-                                            opacity: isActive ? 1 : 0.35,
+                                            opacity: isActive ? 1 : 0.45,
                                         }}
                                     />
 
-                                    <div className="flex min-w-0 items-center gap-3 pl-1">
-                                        {renderKindIcon(item.kind)}
-
-                                        {item.badge && (
-                                            <span
-                                                className="w-11 shrink-0 border border-white/10 bg-black/30 py-0.5 text-center font-oxanium text-[10px] font-bold tracking-wider uppercase"
-                                                style={{
-                                                    color: item.accentColor || 'var(--text-secondary)',
-                                                }}
-                                            >
-                                                {item.badge}
-                                            </span>
-                                        )}
-
-                                        <div className="min-w-0">
-                                            <div className="truncate font-display text-sm tracking-wide text-white uppercase sm:text-[15px]">
-                                                {item.title}
-                                            </div>
-                                            <div className="truncate font-oxanium text-[10px] tracking-wider text-[var(--text-muted)] uppercase">
-                                                {item.subtitle}
-                                            </div>
+                                    <div className="min-w-0 pl-1.5">
+                                        <div className="truncate font-display text-sm tracking-wide text-white uppercase sm:text-[15px]">
+                                            {item.title}
+                                        </div>
+                                        <div className="truncate font-oxanium text-[10px] tracking-wider text-[var(--text-muted)] uppercase">
+                                            {item.subtitle}
                                         </div>
                                     </div>
 
-                                    <div className="flex shrink-0 items-center gap-2">
-                                        <span className="hidden font-oxanium text-[9px] tracking-[0.18em] text-[var(--text-muted)] uppercase sm:inline">
-                                            {KIND_LABELS[item.kind]}
+                                    {rightMeta && (
+                                        <span
+                                            className="shrink-0 font-oxanium text-[11px] font-bold tracking-wider uppercase"
+                                            style={{
+                                                color: rightMeta === 'LIVE'
+                                                    ? 'var(--accent-red)'
+                                                    : 'var(--text-muted)',
+                                            }}
+                                        >
+                                            {rightMeta}
                                         </span>
-                                        <CornerDownLeft
-                                            size={13}
-                                            aria-hidden="true"
-                                            className={`transition-opacity ${
-                                                isActive
-                                                    ? 'text-[var(--accent-red)] opacity-100'
-                                                    : 'text-[var(--text-muted)] opacity-0 group-hover:opacity-60'
-                                            }`}
-                                        />
-                                    </div>
+                                    )}
                                 </a>
                             );
                         })
                     )}
-                </div>
-
-                {/* Telemetry Footer Bar */}
-                <div className="flex items-center justify-between gap-2 border-t border-[var(--border-color)] bg-[var(--bg-panel)]/70 px-4 py-2 font-oxanium text-[10px] tracking-[0.14em] text-[var(--text-muted)] uppercase">
-                    <div className="flex items-center gap-3">
-                        <span>↑↓ MOVE</span>
-                        <span>↵ OPEN</span>
-                        <span>ESC CLOSE</span>
-                    </div>
-                    <span className="truncate text-right">
-                        {isIndexing
-                            ? 'INDEXING 2018–2026...'
-                            : `${results.length} RESULTS · 2018–2026`}
-                    </span>
                 </div>
             </div>
         </div>,
@@ -393,7 +358,7 @@ function CommandPaletteDialog({ onClose, currentSeason }: Omit<CommandPalettePro
 }
 
 /**
- * Global F1 quick-search command palette triggered by `Ctrl+K` / `⌘K` or `/`.
+ * Global F1 quick-search command palette triggered from the header Search button, `Ctrl+K` / `⌘K`, or `/`.
  */
 export function CommandPalette({ isOpen, onClose, currentSeason }: CommandPaletteProps) {
     if (!isOpen) return null;

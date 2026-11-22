@@ -36,6 +36,8 @@ vi.mock('../api/f1Api', async importOriginal => ({
     getSeasonDrivers: vi.fn(async () => [
         { driverId: 'nor', givenName: 'Lando', familyName: 'Norris', constructorId: 'mclaren', constructorName: 'McLaren' },
     ]),
+    getDriverStandings: vi.fn(async () => []),
+    getConstructorStandings: vi.fn(async () => []),
 }));
 
 vi.mock('./CommunityRatingRows', () => ({ CommunityRatingRows: () => null }));
