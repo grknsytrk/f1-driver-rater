@@ -1,4 +1,12 @@
-import { act, cloneElement, type ReactElement } from 'react';
+import {
+    Children,
+    act,
+    cloneElement,
+    isValidElement,
+    useEffect,
+    type ReactElement,
+    type ReactNode,
+} from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -6,10 +14,38 @@ import type { ConstructorStanding, DriverStanding } from '../../api/f1Api';
 import type { AverageRating } from '../../types';
 import { OverperformanceScatter } from './OverperformanceScatter';
 
+const chartInspect = vi.hoisted(() => ({
+    tooltipContent: null as ((props: { active?: boolean; payload?: Array<{ payload?: unknown }> }) => ReactNode) | null,
+    scatterData: [] as Array<{ driverId: string }>,
+}));
+
+function collectChartProps(node: ReactNode): void {
+    Children.forEach(node, child => {
+        if (!isValidElement<{ children?: ReactNode; content?: unknown; data?: unknown }>(child)) return;
+        if (typeof child.props.content === 'function') {
+            chartInspect.tooltipContent = child.props.content as typeof chartInspect.tooltipContent;
+        }
+        if (Array.isArray(child.props.data)) {
+            chartInspect.scatterData = child.props.data as Array<{ driverId: string }>;
+        }
+        if (child.props.children) {
+            collectChartProps(child.props.children);
+        }
+    });
+}
+
 vi.mock('recharts', async importOriginal => ({
     ...await importOriginal<typeof import('recharts')>(),
-    ResponsiveContainer: ({ children }: { children: ReactElement<{ width: number; height: number }> }) =>
-        cloneElement(children, { width: 760, height: 360 }),
+    ResponsiveContainer: function MockResponsiveContainer({
+        children,
+    }: {
+        children: ReactElement<{ width: number; height: number }>;
+    }) {
+        useEffect(() => {
+            collectChartProps(children);
+        });
+        return cloneElement(children, { width: 760, height: 360 });
+    },
 }));
 
 const CONSTRUCTOR_STANDINGS: ConstructorStanding[] = [
@@ -170,5 +206,75 @@ describe('OverperformanceScatter', () => {
 
         expect(container.textContent).toContain('NOT ENOUGH TELEMETRY YET');
         expect(container.querySelector('[data-testid="overperformance-scatter-chart"]')).toBeNull();
+    });
+
+    it('shows all co-located drivers in the tooltip when teammates share identical coordinates', async () => {
+        const tiedAverages: AverageRating[] = [
+            ...AVERAGES,
+            { driverId: 'leclerc', driverName: 'Charles Leclerc', constructorId: 'ferrari', constructorName: 'Ferrari', averageRating: 6.1, totalRaces: 10, ratings: [] },
+        ];
+        const tiedStandings: DriverStanding[] = [
+            ...DRIVER_STANDINGS,
+            {
+                position: '6',
+                positionText: '6',
+                points: '165',
+                wins: '1',
+                Driver: { driverId: 'leclerc', code: 'LEC', givenName: 'Charles', familyName: 'Leclerc', url: '' },
+                Constructors: [{ constructorId: 'ferrari', name: 'Ferrari', url: '' }],
+            },
+        ];
+
+        await act(async () => {
+            root.render(
+                <MemoryRouter>
+                    <OverperformanceScatter
+                        season="2025"
+                        averages={tiedAverages}
+                        driverStandings={tiedStandings}
+                        constructorStandings={CONSTRUCTOR_STANDINGS}
+                        activeMode="personal"
+                        minimumRatedRaces={5}
+                        standingsLoading={false}
+                    />
+                </MemoryRouter>,
+            );
+        });
+
+        const leclercPoint = chartInspect.scatterData.find(pt => pt.driverId === 'leclerc');
+        const norrisPoint = chartInspect.scatterData.find(pt => pt.driverId === 'norris');
+        expect(leclercPoint).toBeDefined();
+        expect(norrisPoint).toBeDefined();
+        expect(chartInspect.tooltipContent).not.toBeNull();
+
+        const tooltipHost = document.createElement('div');
+        const tooltipRoot = createRoot(tooltipHost);
+
+        // Hovering the tied point renders both Ferrari teammates + TIED (2 DRIVERS) badge
+        await act(async () => {
+            tooltipRoot.render(chartInspect.tooltipContent!({
+                active: true,
+                payload: [{ payload: leclercPoint }],
+            }));
+        });
+        expect(tooltipHost.textContent).toContain('TIED (2 DRIVERS)');
+        expect(tooltipHost.textContent).toContain('Charles Leclerc');
+        expect(tooltipHost.textContent).toContain('Lewis Hamilton');
+        expect(tooltipHost.textContent).not.toContain('Lando Norris');
+
+        // Hovering a distinct point stays single-driver without the tied badge
+        await act(async () => {
+            tooltipRoot.render(chartInspect.tooltipContent!({
+                active: true,
+                payload: [{ payload: norrisPoint }],
+            }));
+        });
+        expect(tooltipHost.textContent).not.toContain('TIED (');
+        expect(tooltipHost.textContent).toContain('Lando Norris');
+        expect(tooltipHost.textContent).not.toContain('Lewis Hamilton');
+
+        await act(async () => {
+            tooltipRoot.unmount();
+        });
     });
 });

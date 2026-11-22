@@ -118,6 +118,25 @@ function formatSignedDelta(delta: number): string {
     return `${sign}${delta.toFixed(2)}`;
 }
 
+function findCoLocatedPoints(
+    activePoint: OverperformancePoint,
+    points: OverperformancePoint[],
+): OverperformancePoint[] {
+    const matched = points.filter(
+        (pt) => Math.abs(pt.xPlot - activePoint.xPlot) < 1e-4 && Math.abs(pt.rating - activePoint.rating) < 1e-4,
+    );
+    if (matched.length === 0) return [activePoint];
+
+    const seen = new Set<string>();
+    const unique: OverperformancePoint[] = [];
+    for (const pt of [activePoint, ...matched]) {
+        if (seen.has(pt.driverId)) continue;
+        seen.add(pt.driverId);
+        unique.push(pt);
+    }
+    return unique;
+}
+
 interface StandoutListColumnProps {
     title: string;
     emptyText: string;
@@ -517,19 +536,33 @@ export function OverperformanceScatter({
                                             const pt = payload[0]?.payload as OverperformancePoint | undefined;
                                             if (!pt) return null;
 
+                                            const coLocated = findCoLocatedPoints(pt, dataset.points);
+                                            const isTied = coLocated.length > 1;
                                             const isPositive = pt.delta >= 0;
                                             return (
                                                 <div className="min-w-[210px] border border-[var(--border-color)] bg-[#050608] p-3.5 shadow-2xl">
-                                                    <div className="flex items-center gap-2">
-                                                        <span className="h-3.5 w-1 shrink-0" style={{ backgroundColor: pt.color }} />
-                                                        <div className="min-w-0">
-                                                            <div className="truncate font-display text-base uppercase leading-none text-white">
-                                                                {pt.driverName}
-                                                            </div>
-                                                            <div className="mt-1 font-oxanium text-[9px] uppercase tracking-wider text-[var(--text-muted)]">
-                                                                {pt.constructorName}
-                                                            </div>
+                                                    {isTied && (
+                                                        <div className="mb-2.5 flex items-center justify-between gap-2 border-b border-white/10 pb-2">
+                                                            <span className="font-oxanium text-[9px] font-bold uppercase tracking-[0.18em] text-[var(--accent-yellow)]">
+                                                                TIED ({coLocated.length} DRIVERS)
+                                                            </span>
                                                         </div>
+                                                    )}
+
+                                                    <div className={isTied ? 'space-y-2' : undefined}>
+                                                        {coLocated.map((driverPt) => (
+                                                            <div key={driverPt.driverId} className="flex items-center gap-2">
+                                                                <span className="h-3.5 w-1 shrink-0" style={{ backgroundColor: driverPt.color }} />
+                                                                <div className="min-w-0">
+                                                                    <div className="truncate font-display text-base uppercase leading-none text-white">
+                                                                        {driverPt.driverName}
+                                                                    </div>
+                                                                    <div className="mt-1 font-oxanium text-[9px] uppercase tracking-wider text-[var(--text-muted)]">
+                                                                        {driverPt.constructorName}
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        ))}
                                                     </div>
 
                                                     <div className="mt-3 space-y-1.5 border-t border-white/10 pt-2.5 font-oxanium text-xs">
