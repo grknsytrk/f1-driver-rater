@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-11-22T00:59:23.955Z",
+  "generatedAt": "2026-11-22T12:58:31.182Z",
   "seasons": {
     "2018": {
       "season": "2018",
@@ -69,10 +69,10 @@
     "2026": {
       "season": "2026",
       "isArchived": false,
-      "lastCompletedRound": 20,
+      "lastCompletedRound": 21,
       "totalRounds": 23,
-      "generatedAt": "2026-11-22T00:59:23.938Z",
-      "bundleUrl": "/data/seasons/2026.json?v=2026-11-22T00%3A59%3A23.938Z"
+      "generatedAt": "2026-11-22T12:58:31.167Z",
+      "bundleUrl": "/data/seasons/2026.json?v=2026-11-22T12%3A58%3A31.167Z"
     }
   }
 }
