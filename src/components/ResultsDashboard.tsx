@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { m, AnimatePresence } from 'framer-motion';
-import { Trophy, BarChart3, RotateCcw, ImageDown, AlertTriangle, Upload, FileJson, ChevronsUp } from 'lucide-react';
+import { Trophy, BarChart3, RotateCcw, ImageDown, AlertTriangle, Upload, FileJson, ChevronsUp, Link2 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, LineChart, CartesianGrid, ReferenceLine } from 'recharts';
 import { toast } from 'sonner';
 import { Tooltip as ShadcnTooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -39,6 +39,7 @@ import { DriverProfileLink } from './DriverProfileLink';
 import { ResultsBreakdownTable } from './results/ResultsBreakdownTable';
 import { ResultsShareCard } from './results/ResultsShareCard';
 import { OverperformanceScatter } from './results/OverperformanceScatter';
+import { createShareSnapshot } from '../utils/shareSnapshot';
 
 interface ResultsDashboardProps {
     season: string;
@@ -158,6 +159,8 @@ export function ResultsDashboard({ season, onReset, onSelectDriver }: ResultsDas
     const [cardImage, setCardImage] = useState<string | null>(null);
     const [generating, setGenerating] = useState(false);
     const [generatingTable, setGeneratingTable] = useState(false);
+    const [shareLinkUrl, setShareLinkUrl] = useState<string | null>(null);
+    const [creatingShareLink, setCreatingShareLink] = useState(false);
     const [userSelectedMode, setUserSelectedMode] = useState<BreakdownSource | null>(null);
     const [userSelectedBreakdownSource, setUserSelectedBreakdownSource] = useState<BreakdownSource | null>(null);
     const [breakdownCalendar, setBreakdownCalendar] = useState<BreakdownCalendar | null>(null);
@@ -287,6 +290,7 @@ export function ResultsDashboard({ season, onReset, onSelectDriver }: ResultsDas
         setUserSelectedMode(nextMode);
         setUserSelectedBreakdownSource(nextMode);
         setCardImage(null);
+        setShareLinkUrl(null);
     }
 
     useEffect(() => {
@@ -500,6 +504,52 @@ export function ResultsDashboard({ season, onReset, onSelectDriver }: ResultsDas
         });
     }
 
+    async function handleCreateShareLink() {
+        if (activeRankedAverages.length === 0 || creatingShareLink) return;
+        setCreatingShareLink(true);
+        try {
+            const result = await createShareSnapshot({
+                season,
+                mode: activeMode,
+                source,
+                ratedRaces: activeMode === 'community' ? votedCommunityRaces : ratedCount,
+                drivers: activeRankedAverages.map((driver) => ({
+                    driverId: driver.driverId,
+                    driverName: driver.driverName,
+                    constructorId: driver.constructorId,
+                    constructorName: driver.constructorName,
+                    averageRating: driver.averageRating,
+                    totalRaces: driver.totalRaces,
+                })),
+            });
+            setShareLinkUrl(result.url);
+
+            let copiedToClipboard = false;
+            if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+                try {
+                    await navigator.clipboard.writeText(result.url);
+                    copiedToClipboard = true;
+                } catch {
+                    copiedToClipboard = false;
+                }
+            }
+
+            if (copiedToClipboard) {
+                toast.success('Share link copied to clipboard', {
+                    description: `Anyone can view your ${season} ${activeMode} rankings at this link.`,
+                });
+            } else {
+                toast.success('Share link ready', {
+                    description: result.url,
+                });
+            }
+        } catch {
+            toast.error('Failed to create share link');
+        } finally {
+            setCreatingShareLink(false);
+        }
+    }
+
     function handleImportClick() {
         fileInputRef.current?.click();
     }
@@ -664,6 +714,29 @@ export function ResultsDashboard({ season, onReset, onSelectDriver }: ResultsDas
                                 onChange={handleFileChange}
                                 className="hidden"
                             />
+
+                            <ShadcnTooltip>
+                                <TooltipTrigger asChild>
+                                    <button
+                                        aria-label="Create a shareable interactive link for your season rankings"
+                                        onClick={() => void handleCreateShareLink()}
+                                        disabled={activeRankedAverages.length === 0 || creatingShareLink}
+                                        className="group flex items-center justify-center gap-2 px-3 md:px-4 py-2 bg-[var(--bg-panel)] border border-[var(--border-color)] hover:border-[#00FF88] transition-all hover:bg-[var(--bg-panel-hover)] disabled:opacity-50"
+                                    >
+                                        <Link2 size={14} className="text-[var(--text-muted)] group-hover:text-[#00FF88]" />
+                                        <span className="font-ui font-bold text-[10px] md:text-xs text-white uppercase tracking-wider hidden md:inline">
+                                            {creatingShareLink ? 'LINKING...' : 'SHARE LINK'}
+                                        </span>
+                                    </button>
+                                </TooltipTrigger>
+                                <TooltipContent
+                                    side="bottom"
+                                    sideOffset={8}
+                                    className="bg-[var(--bg-darker)] text-white border border-[var(--border-color)]"
+                                >
+                                    Copy an interactive read-only link with live social preview image
+                                </TooltipContent>
+                            </ShadcnTooltip>
 
                             <ShadcnTooltip>
                                 <TooltipTrigger asChild>
@@ -1234,6 +1307,9 @@ export function ResultsDashboard({ season, onReset, onSelectDriver }: ResultsDas
                 cardImage={cardImage}
                 onDownloadCard={handleDownloadCard}
                 onGenerateCard={handleGenerateCard}
+                shareLinkUrl={shareLinkUrl}
+                creatingShareLink={creatingShareLink}
+                onCreateShareLink={() => void handleCreateShareLink()}
             />
 
             {/* F1 Style Scroll to Top Button */}

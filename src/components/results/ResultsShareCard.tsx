@@ -1,6 +1,6 @@
 import type { RefObject } from 'react';
 import { m } from 'framer-motion';
-import { Share2, Download, ImageDown } from 'lucide-react';
+import { Share2, Download, ImageDown, Link2, ExternalLink } from 'lucide-react';
 import { getTeamColor } from '../../types';
 import type { BreakdownSource } from '../../utils/raceBreakdown';
 
@@ -26,6 +26,9 @@ export interface ResultsShareCardProps {
     cardImage: string | null;
     onDownloadCard: () => void;
     onGenerateCard: () => void;
+    shareLinkUrl?: string | null;
+    creatingShareLink?: boolean;
+    onCreateShareLink?: () => void;
 }
 
 /** Off-screen shareable Top-10 ratings card and interactive preview/download panel. */
@@ -43,6 +46,9 @@ export function ResultsShareCard({
     cardImage,
     onDownloadCard,
     onGenerateCard,
+    shareLinkUrl,
+    creatingShareLink = false,
+    onCreateShareLink,
 }: ResultsShareCardProps) {
     return (
         <>
@@ -194,6 +200,40 @@ export function ResultsShareCard({
                                     REGENERATE CARD
                                 </button>
                             </div>
+
+                            {onCreateShareLink && (
+                                <div className="bg-[var(--bg-panel)] border border-[var(--border-color)] p-6">
+                                    <h4 className="font-display text-xl text-white uppercase tracking-wider mb-4">INTERACTIVE SHARE LINK</h4>
+                                    <p className="font-oxanium text-sm text-[var(--text-secondary)] mb-4">
+                                        Copy a read-only link with live social preview image for Twitter/WhatsApp.
+                                    </p>
+                                    {shareLinkUrl && (
+                                        <div className="mb-4 flex items-center justify-between gap-2 border border-[var(--border-color)] bg-[var(--bg-darker)] px-3 py-2">
+                                            <span className="truncate font-oxanium text-xs text-[var(--text-secondary)]">
+                                                {shareLinkUrl}
+                                            </span>
+                                            <a
+                                                href={shareLinkUrl}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="inline-flex shrink-0 items-center gap-1 font-oxanium text-[10px] font-bold tracking-wider text-[var(--accent-yellow)] uppercase hover:text-white"
+                                            >
+                                                OPEN
+                                                <ExternalLink size={12} aria-hidden="true" />
+                                            </a>
+                                        </div>
+                                    )}
+                                    <button
+                                        type="button"
+                                        onClick={onCreateShareLink}
+                                        disabled={creatingShareLink}
+                                        className="w-full flex items-center justify-center gap-3 py-3.5 bg-[var(--bg-darker)] border border-[var(--border-color)] hover:border-[#00FF88] text-white font-display text-lg uppercase tracking-widest transition-colors disabled:opacity-50"
+                                    >
+                                        <Link2 size={18} className="text-[#00FF88]" />
+                                        {creatingShareLink ? 'CREATING LINK...' : shareLinkUrl ? 'COPY SHARE LINK' : 'CREATE SHARE LINK'}
+                                    </button>
+                                </div>
+                            )}
                         </div>
                     </div>
                 </m.div>

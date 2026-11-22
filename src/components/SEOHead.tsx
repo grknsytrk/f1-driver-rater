@@ -14,6 +14,8 @@ interface SEOHeadProps {
   path?: string;
   noindex?: boolean;
   keywords?: string;
+  ogImage?: string;
+  ogImageAlt?: string;
 }
 
 export function SEOHead({
@@ -22,6 +24,8 @@ export function SEOHead({
   path = '/',
   noindex = false,
   keywords,
+  ogImage = DEFAULT_OG_IMAGE,
+  ogImageAlt = DEFAULT_OG_IMAGE_ALT,
 }: SEOHeadProps) {
   const canonicalUrl = `${SITE_URL}${path === '/' ? '' : path}`;
   const fullTitle = path === '/' ? title : `${title} | ${SITE_NAME}`;
@@ -51,9 +55,9 @@ export function SEOHead({
       <meta property="og:url" content={canonicalUrl} />
       <meta
         property="og:image"
-        content={DEFAULT_OG_IMAGE}
+        content={ogImage}
       />
-      <meta property="og:image:alt" content={DEFAULT_OG_IMAGE_ALT} />
+      <meta property="og:image:alt" content={ogImageAlt} />
 
       {/* Twitter */}
       <meta name="twitter:card" content="summary_large_image" />
@@ -62,9 +66,9 @@ export function SEOHead({
       <meta name="twitter:url" content={canonicalUrl} />
       <meta
         name="twitter:image"
-        content={DEFAULT_OG_IMAGE}
+        content={ogImage}
       />
-      <meta name="twitter:image:alt" content={DEFAULT_OG_IMAGE_ALT} />
+      <meta name="twitter:image:alt" content={ogImageAlt} />
     </Helmet>
   );
 }

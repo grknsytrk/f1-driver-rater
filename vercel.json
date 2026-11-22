@@ -101,6 +101,17 @@
     }
   ],
   "rewrites": [
-    { "source": "/((?!.*\\.).*)", "destination": "/" }
+    {
+      "source": "/share/:id",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": ".*(bot|crawl|spider|slurp|facebookexternalhit|Facebot|Twitterbot|WhatsApp|TelegramBot|Discordbot|LinkedInBot|Slackbot|Embedly|Applebot).*"
+        }
+      ],
+      "destination": "/api/share-meta?id=:id"
+    },
+    { "source": "/((?!api/|.*\\.).*)", "destination": "/" }
   ]
 }

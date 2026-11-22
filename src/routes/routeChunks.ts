@@ -32,6 +32,7 @@ const awardsRoute = createLazyRoute(() => import('./SeasonAwardsRoute'));
 const driverProfileRoute = createLazyRoute(() => import('./DriverProfileRoute'));
 const quickRateRoute = createLazyRoute(() => import('./QuickRateRoute'));
 const raceRatingRoute = createLazyRoute(() => import('./RaceRatingRoute'));
+const shareSnapshotRoute = createLazyRoute(() => import('./ShareSnapshotRoute'));
 
 export const ResultsRoute = resultsRoute.Route;
 export const TeammateWarsRoute = teammateWarsRoute.Route;
@@ -40,6 +41,7 @@ export const AwardsRoute = awardsRoute.Route;
 export const DriverProfileRoute = driverProfileRoute.Route;
 export const QuickRateRoute = quickRateRoute.Route;
 export const RaceRatingRoute = raceRatingRoute.Route;
+export const ShareSnapshotRoute = shareSnapshotRoute.Route;
 
 import { getRaceRatingContext, getDriverSeasonStats } from '../api/f1Api';
 import { loadStaticSeasonData } from '../api/staticSeasonData';

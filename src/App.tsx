@@ -26,6 +26,7 @@ import {
   QuickRateRoute,
   RaceRatingRoute,
   ResultsRoute,
+  ShareSnapshotRoute,
   StandingsRoute,
   TeammateWarsRoute,
   preloadAwardsRoute,
@@ -301,6 +302,7 @@ function App() {
   const isStandingsPage = pathParts[1] === 'standings';
   const isAwardsPage = pathParts[1] === 'awards';
   const isDriverProfilePage = pathParts[1] === 'driver';
+  const isSharePage = pathParts[0] === 'share';
   const isHomePage = pathname === '/' || pathname === '';
 
   const showResultsButton = Boolean(currentSeason);
@@ -428,6 +430,11 @@ function App() {
                       <span className="font-oxanium text-xs text-[var(--accent-yellow)] uppercase">Driver Profile</span>
                     </>
                   )}
+                </div>
+              )}
+              {isSharePage && (
+                <div className="hidden md:flex items-center gap-2 pl-6 border-l border-[var(--border-color)]">
+                  <span className="font-oxanium text-xs text-[var(--accent-yellow)] uppercase tracking-wider">Shared Rankings</span>
                 </div>
               )}
             </div>
@@ -592,6 +599,14 @@ function App() {
                 element={(
                   <Suspense fallback={<ResultsRouteFallback />}>
                     <DriverProfileRoute />
+                  </Suspense>
+                )}
+              />
+              <Route
+                path="/share/:id"
+                element={(
+                  <Suspense fallback={<ResultsRouteFallback />}>
+                    <ShareSnapshotRoute />
                   </Suspense>
                 )}
               />
