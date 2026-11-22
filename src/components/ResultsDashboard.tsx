@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useMemo } from 'react';
+import { useState, useRef, useEffect, useMemo, startTransition } from 'react';
 import { m, AnimatePresence } from 'framer-motion';
 import { Trophy, BarChart3, RotateCcw, ImageDown, AlertTriangle, Upload, FileJson, ChevronsUp, Link2 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, LineChart, CartesianGrid, ReferenceLine } from 'recharts';
@@ -65,6 +65,51 @@ interface SeasonStandingsState {
 function formatRaceDisplayName(raceName: string | null): string {
     if (!raceName) return 'N/A';
     return raceName.replace(' Grand Prix', '').replace(' GP', '');
+}
+
+interface ShareLinkToolbarButtonProps {
+    disabled: boolean;
+    onCreateShareLink: () => Promise<void>;
+}
+
+/** Isolated Share Link toolbar button so loading state transitions never re-render dashboard charts. */
+function ShareLinkToolbarButton({ disabled, onCreateShareLink }: ShareLinkToolbarButtonProps) {
+    const [isLinking, setIsLinking] = useState(false);
+
+    async function handleClick() {
+        if (disabled || isLinking) return;
+        setIsLinking(true);
+        try {
+            await onCreateShareLink();
+        } finally {
+            setIsLinking(false);
+        }
+    }
+
+    return (
+        <ShadcnTooltip>
+            <TooltipTrigger asChild>
+                <button
+                    aria-label="Create a shareable interactive link for your season rankings"
+                    onClick={() => void handleClick()}
+                    disabled={disabled || isLinking}
+                    className="group flex items-center justify-center gap-1.5 whitespace-nowrap shrink-0 px-2.5 py-1.5 bg-[var(--bg-panel)] border border-[var(--border-color)] hover:border-[#00FF88] transition-all hover:bg-[var(--bg-panel-hover)] disabled:opacity-50"
+                >
+                    <Link2 size={14} className="shrink-0 text-[var(--text-muted)] group-hover:text-[#00FF88]" />
+                    <span className="font-ui font-bold text-[10px] xl:text-[11px] text-white uppercase tracking-wider hidden md:inline">
+                        {isLinking ? 'LINKING...' : 'SHARE LINK'}
+                    </span>
+                </button>
+            </TooltipTrigger>
+            <TooltipContent
+                side="bottom"
+                sideOffset={8}
+                className="bg-[var(--bg-darker)] text-white border border-[var(--border-color)]"
+            >
+                Copy an interactive read-only link with live social preview image
+            </TooltipContent>
+        </ShadcnTooltip>
+    );
 }
 
 function rankBreakdownDrivers<T extends DriverRow>(drivers: T[], minimumRatedRaces: number): T[] {
@@ -160,7 +205,6 @@ export function ResultsDashboard({ season, onReset, onSelectDriver }: ResultsDas
     const [generating, setGenerating] = useState(false);
     const [generatingTable, setGeneratingTable] = useState(false);
     const [shareLinkUrl, setShareLinkUrl] = useState<string | null>(null);
-    const [creatingShareLink, setCreatingShareLink] = useState(false);
     const [userSelectedMode, setUserSelectedMode] = useState<BreakdownSource | null>(null);
     const [userSelectedBreakdownSource, setUserSelectedBreakdownSource] = useState<BreakdownSource | null>(null);
     const [breakdownCalendar, setBreakdownCalendar] = useState<BreakdownCalendar | null>(null);
@@ -176,6 +220,7 @@ export function ResultsDashboard({ season, onReset, onSelectDriver }: ResultsDas
     const tableRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const isScrollingToTop = useRef(false);
+    const creatingShareLinkRef = useRef(false);
 
     const activeMode: BreakdownSource = userSelectedMode ?? (averages.length > 0 ? 'personal' : 'community');
     const breakdownSource: BreakdownSource = userSelectedBreakdownSource ?? activeMode;
@@ -505,8 +550,8 @@ export function ResultsDashboard({ season, onReset, onSelectDriver }: ResultsDas
     }
 
     async function handleCreateShareLink() {
-        if (activeRankedAverages.length === 0 || creatingShareLink) return;
-        setCreatingShareLink(true);
+        if (activeRankedAverages.length === 0 || creatingShareLinkRef.current) return;
+        creatingShareLinkRef.current = true;
         try {
             const result = await createShareSnapshot({
                 season,
@@ -522,7 +567,9 @@ export function ResultsDashboard({ season, onReset, onSelectDriver }: ResultsDas
                     totalRaces: driver.totalRaces,
                 })),
             });
-            setShareLinkUrl(result.url);
+            startTransition(() => {
+                setShareLinkUrl((prev) => (prev === result.url ? prev : result.url));
+            });
 
             let copiedToClipboard = false;
             if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
@@ -546,7 +593,7 @@ export function ResultsDashboard({ season, onReset, onSelectDriver }: ResultsDas
         } catch {
             toast.error('Failed to create share link');
         } finally {
-            setCreatingShareLink(false);
+            creatingShareLinkRef.current = false;
         }
     }
 
@@ -652,7 +699,7 @@ export function ResultsDashboard({ season, onReset, onSelectDriver }: ResultsDas
                         </div>
                     </div>
 
-                    <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-3 border-b border-[var(--border-color)] pb-4">
+                    <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 border-b border-[var(--border-color)] pb-4">
                         <p className="font-oxanium text-[var(--accent-red)] tracking-widest text-xs md:text-sm uppercase shrink-0 whitespace-nowrap">
                             {activeMode === 'community' ? (
                                 <>
@@ -667,16 +714,16 @@ export function ResultsDashboard({ season, onReset, onSelectDriver }: ResultsDas
                             )}
                         </p>
 
-                        <div className="grid grid-cols-2 sm:grid-cols-3 md:flex md:flex-wrap md:items-center gap-2 w-full xl:w-auto">
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:flex md:items-center gap-1.5 w-full lg:w-auto">
                             <ShadcnTooltip>
                                 <TooltipTrigger asChild>
                                     <button
                                         aria-label="Export your season ratings as a JSON backup file"
                                         onClick={handleExportJson}
-                                        className="group flex items-center justify-center gap-2 whitespace-nowrap shrink-0 px-3 py-2 bg-[var(--bg-panel)] border border-[var(--border-color)] hover:border-[#00FF88] transition-all hover:bg-[var(--bg-panel-hover)]"
+                                        className="group flex items-center justify-center gap-1.5 whitespace-nowrap shrink-0 px-2.5 py-1.5 bg-[var(--bg-panel)] border border-[var(--border-color)] hover:border-[#00FF88] transition-all hover:bg-[var(--bg-panel-hover)]"
                                     >
                                         <FileJson size={14} className="shrink-0 text-[var(--text-muted)] group-hover:text-[#00FF88]" />
-                                        <span className="font-ui font-bold text-[10px] md:text-xs text-white uppercase tracking-wider hidden md:inline">EXPORT JSON</span>
+                                        <span className="font-ui font-bold text-[10px] xl:text-[11px] text-white uppercase tracking-wider hidden md:inline">EXPORT JSON</span>
                                     </button>
                                 </TooltipTrigger>
                                 <TooltipContent
@@ -693,10 +740,10 @@ export function ResultsDashboard({ season, onReset, onSelectDriver }: ResultsDas
                                     <button
                                         aria-label="Import a JSON backup to restore your season ratings"
                                         onClick={handleImportClick}
-                                        className="group flex items-center justify-center gap-2 whitespace-nowrap shrink-0 px-3 py-2 bg-[var(--bg-panel)] border border-[var(--border-color)] hover:border-[var(--accent-yellow)] transition-all hover:bg-[var(--bg-panel-hover)]"
+                                        className="group flex items-center justify-center gap-1.5 whitespace-nowrap shrink-0 px-2.5 py-1.5 bg-[var(--bg-panel)] border border-[var(--border-color)] hover:border-[var(--accent-yellow)] transition-all hover:bg-[var(--bg-panel-hover)]"
                                     >
                                         <Upload size={14} className="shrink-0 text-[var(--text-muted)] group-hover:text-[var(--accent-yellow)]" />
-                                        <span className="font-ui font-bold text-[10px] md:text-xs text-white uppercase tracking-wider hidden md:inline">IMPORT JSON</span>
+                                        <span className="font-ui font-bold text-[10px] xl:text-[11px] text-white uppercase tracking-wider hidden md:inline">IMPORT JSON</span>
                                     </button>
                                 </TooltipTrigger>
                                 <TooltipContent
@@ -715,28 +762,10 @@ export function ResultsDashboard({ season, onReset, onSelectDriver }: ResultsDas
                                 className="hidden"
                             />
 
-                            <ShadcnTooltip>
-                                <TooltipTrigger asChild>
-                                    <button
-                                        aria-label="Create a shareable interactive link for your season rankings"
-                                        onClick={() => void handleCreateShareLink()}
-                                        disabled={activeRankedAverages.length === 0 || creatingShareLink}
-                                        className="group flex items-center justify-center gap-2 whitespace-nowrap shrink-0 px-3 py-2 bg-[var(--bg-panel)] border border-[var(--border-color)] hover:border-[#00FF88] transition-all hover:bg-[var(--bg-panel-hover)] disabled:opacity-50"
-                                    >
-                                        <Link2 size={14} className="shrink-0 text-[var(--text-muted)] group-hover:text-[#00FF88]" />
-                                        <span className="font-ui font-bold text-[10px] md:text-xs text-white uppercase tracking-wider hidden md:inline">
-                                            {creatingShareLink ? 'LINKING...' : 'SHARE LINK'}
-                                        </span>
-                                    </button>
-                                </TooltipTrigger>
-                                <TooltipContent
-                                    side="bottom"
-                                    sideOffset={8}
-                                    className="bg-[var(--bg-darker)] text-white border border-[var(--border-color)]"
-                                >
-                                    Copy an interactive read-only link with live social preview image
-                                </TooltipContent>
-                            </ShadcnTooltip>
+                            <ShareLinkToolbarButton
+                                disabled={activeRankedAverages.length === 0}
+                                onCreateShareLink={handleCreateShareLink}
+                            />
 
                             <ShadcnTooltip>
                                 <TooltipTrigger asChild>
@@ -744,10 +773,10 @@ export function ResultsDashboard({ season, onReset, onSelectDriver }: ResultsDas
                                         aria-label="Generate a shareable PNG card from your season ratings"
                                         onClick={handleGenerateCard}
                                         disabled={activeRankedAverages.length === 0}
-                                        className="group flex items-center justify-center gap-2 whitespace-nowrap shrink-0 px-3 py-2 bg-[var(--bg-panel)] border border-[var(--border-color)] hover:border-white transition-all hover:bg-[var(--bg-panel-hover)] disabled:opacity-50"
+                                        className="group flex items-center justify-center gap-1.5 whitespace-nowrap shrink-0 px-2.5 py-1.5 bg-[var(--bg-panel)] border border-[var(--border-color)] hover:border-white transition-all hover:bg-[var(--bg-panel-hover)] disabled:opacity-50"
                                     >
                                         <ImageDown size={14} className="shrink-0 text-[var(--text-muted)] group-hover:text-white" />
-                                        <span className="font-ui font-bold text-[10px] md:text-xs text-white uppercase tracking-wider hidden md:inline">GENERATE CARD</span>
+                                        <span className="font-ui font-bold text-[10px] xl:text-[11px] text-white uppercase tracking-wider hidden md:inline">GENERATE CARD</span>
                                     </button>
                                 </TooltipTrigger>
                                 <TooltipContent
@@ -764,10 +793,10 @@ export function ResultsDashboard({ season, onReset, onSelectDriver }: ResultsDas
                                     <button
                                         aria-label="Clear all season ratings"
                                         onClick={handleReset}
-                                        className="group flex items-center justify-center gap-2 whitespace-nowrap shrink-0 px-3 py-2 bg-[var(--bg-panel)] border border-[var(--border-color)] hover:border-[var(--accent-red)] transition-all hover:bg-[var(--bg-panel-hover)]"
+                                        className="group flex items-center justify-center gap-1.5 whitespace-nowrap shrink-0 px-2.5 py-1.5 bg-[var(--bg-panel)] border border-[var(--border-color)] hover:border-[var(--accent-red)] transition-all hover:bg-[var(--bg-panel-hover)]"
                                     >
                                         <RotateCcw size={14} className="shrink-0 text-[var(--text-muted)] group-hover:text-[var(--accent-red)]" />
-                                        <span className="font-ui font-bold text-[10px] md:text-xs text-white uppercase tracking-wider hidden md:inline">CLEAR ALL</span>
+                                        <span className="font-ui font-bold text-[10px] xl:text-[11px] text-white uppercase tracking-wider hidden md:inline">CLEAR ALL</span>
                                     </button>
                                 </TooltipTrigger>
                                 <TooltipContent
@@ -1308,7 +1337,6 @@ export function ResultsDashboard({ season, onReset, onSelectDriver }: ResultsDas
                 onDownloadCard={handleDownloadCard}
                 onGenerateCard={handleGenerateCard}
                 shareLinkUrl={shareLinkUrl}
-                creatingShareLink={creatingShareLink}
                 onCreateShareLink={() => void handleCreateShareLink()}
             />
 
