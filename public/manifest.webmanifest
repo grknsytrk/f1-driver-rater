@@ -1,0 +1,49 @@
+{
+  "name": "F1 Driver Rating",
+  "short_name": "F1 Rating",
+  "description": "Rate Formula 1 drivers race-by-race, explore championship standings, compare teammates, and view community ratings across 2018-2026 seasons.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0a0a0b",
+  "theme_color": "#e10600",
+  "categories": ["sports", "entertainment"],
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "2026 Season Races",
+      "short_name": "2026 Races",
+      "url": "/2026"
+    },
+    {
+      "name": "Championship Standings",
+      "short_name": "Standings",
+      "url": "/2026/standings"
+    },
+    {
+      "name": "Teammate Wars",
+      "short_name": "VS Mode",
+      "url": "/2026/teammate-wars"
+    }
+  ]
+}

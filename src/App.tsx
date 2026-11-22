@@ -1,11 +1,12 @@
 import { Suspense, useEffect, useState } from 'react';
 import { Link, Routes, Route, useNavigate, useParams, useLocation } from 'react-router-dom';
 import { LazyMotion, domAnimation, m, AnimatePresence } from 'framer-motion';
-import { ChevronLeft, Trophy, Zap, Swords, Medal, Award } from 'lucide-react';
+import { ChevronLeft, Trophy, Zap, Swords, Medal, Award, Search } from 'lucide-react';
 import { SeasonSelector } from './components/SeasonSelector';
 import { RaceList } from './components/RaceList';
 import { SitePolicyModal } from './components/SitePolicy';
 import { DeveloperCredit } from './components/DeveloperCredit';
+import { CommandPalette } from './components/CommandPalette';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { NotFoundPage } from './components/NotFoundPage';
 import { SEOHead } from './components/SEOHead';
@@ -39,6 +40,7 @@ import { fetchWithMinDelay } from './utils/delay';
 import { useCommunityRatings } from './hooks/useCommunityRatings';
 import { initializeGuestSync } from './utils/guestSync';
 import { LOCAL_RATINGS_EVENT } from './utils/ratingData';
+import { isEditableEventTarget } from './utils/ratingInput';
 import type { Season, Race } from './types';
 
 // Minimum loading time in ms for better UX
@@ -241,10 +243,39 @@ function App() {
   const location = useLocation();
   const [, setStorageRevision] = useState(0);
   const [sitePolicyOpen, setSitePolicyOpen] = useState(false);
+  const [isCommandOpen, setIsCommandOpen] = useState(false);
+
+  const isMacPlatform = typeof navigator !== 'undefined'
+    && /mac|iphone|ipad|ipod/i.test(navigator.platform || navigator.userAgent);
+  const searchShortcutLabel = isMacPlatform ? '⌘K' : 'CTRL K';
 
   useEffect(() => {
     window.scrollTo(0, 0);
   }, [location.pathname]);
+
+  useEffect(() => {
+    function handleCommandShortcut(event: KeyboardEvent) {
+      if ((event.metaKey || event.ctrlKey) && !event.altKey && event.key.toLowerCase() === 'k') {
+        event.preventDefault();
+        setIsCommandOpen(prev => !prev);
+        return;
+      }
+
+      if (
+        event.key === '/'
+        && !event.metaKey
+        && !event.ctrlKey
+        && !event.altKey
+        && !isEditableEventTarget(event.target)
+      ) {
+        event.preventDefault();
+        setIsCommandOpen(true);
+      }
+    }
+
+    window.addEventListener('keydown', handleCommandShortcut);
+    return () => window.removeEventListener('keydown', handleCommandShortcut);
+  }, []);
 
   useEffect(() => {
     let cancelIdle: (() => void) | undefined;
@@ -417,6 +448,22 @@ function App() {
                 </div>
               )}
             </div>
+
+            <button
+              type="button"
+              onClick={() => setIsCommandOpen(true)}
+              aria-label={`Open quick search (${searchShortcutLabel})`}
+              title={`Quick Search (${searchShortcutLabel})`}
+              className={`group flex shrink-0 items-center gap-2 border border-[var(--border-color)] bg-[var(--bg-panel)]/90 px-2.5 py-1.5 text-[var(--text-secondary)] transition-colors hover:border-[var(--accent-red)] hover:text-white ${
+                showSeasonActions ? 'md:mr-3' : ''
+              }`}
+            >
+              <Search size={14} className="text-[var(--accent-red)]" aria-hidden="true" />
+              <span className="hidden font-oxanium text-[10px] tracking-[0.16em] uppercase sm:inline">Search</span>
+              <span className="hidden border-l border-white/10 pl-2 font-oxanium text-[9px] tracking-widest text-[var(--text-muted)] uppercase group-hover:text-[var(--text-secondary)] lg:inline">
+                {searchShortcutLabel}
+              </span>
+            </button>
           </div>
 
           {/* Actions - only show on races list page */}
@@ -654,6 +701,11 @@ function App() {
           </div>
         </div>
       </footer>
+      <CommandPalette
+        isOpen={isCommandOpen}
+        onClose={() => setIsCommandOpen(false)}
+        currentSeason={currentSeason}
+      />
       <SitePolicyModal open={sitePolicyOpen} onClose={() => setSitePolicyOpen(false)} />
       <DeveloperCredit />
     </div>

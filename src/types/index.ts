@@ -5,6 +5,11 @@ export interface Season {
     url: string;
 }
 
+export interface RaceSessionTime {
+    date: string;
+    time?: string;
+}
+
 export interface Race {
     season: string;
     round: string;
@@ -12,6 +17,12 @@ export interface Race {
     Circuit: Circuit;
     date: string;
     time?: string;
+    FirstPractice?: RaceSessionTime;
+    SecondPractice?: RaceSessionTime;
+    ThirdPractice?: RaceSessionTime;
+    SprintQualifying?: RaceSessionTime;
+    Sprint?: RaceSessionTime;
+    Qualifying?: RaceSessionTime;
     Results?: RaceResult[];
 }
 

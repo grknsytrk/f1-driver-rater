@@ -5,6 +5,7 @@ import type { Race } from '../types';
 import { CountryFlag } from '../utils/countryFlags';
 import { isRaceRated } from '../utils/storage';
 import { isRaceCompleted } from '../api/f1Api';
+import { NextRaceCountdown } from './NextRaceCountdown';
 import { RaceListSkeleton } from './Skeleton';
 
 interface RaceCardProps {
@@ -300,7 +301,9 @@ export function RaceList({ races, season, onSelectRace, onRacePrefetch, loading 
     }
 
     return (
-        <div className="border border-[var(--border-color)] bg-[var(--bg-main)]">
+        <>
+            <NextRaceCountdown races={races} season={season} />
+            <div className="border border-[var(--border-color)] bg-[var(--bg-main)]">
             {/* Header */}
             <div className="p-3 bg-[var(--bg-panel)] border-b border-[var(--border-color)] flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -360,6 +363,7 @@ export function RaceList({ races, season, onSelectRace, onRacePrefetch, loading 
                     </m.button>
                 )}
             </AnimatePresence>
-        </div>
+            </div>
+        </>
     );
 }

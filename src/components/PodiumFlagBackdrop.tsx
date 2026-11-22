@@ -1,6 +1,6 @@
 import { useId, useRef, type CSSProperties } from 'react';
 import { useInView } from 'framer-motion';
-import { FLAG_COMPONENTS, NATIONALITY_CODES } from '../utils/countryCodes';
+import { COUNTRY_CODES, COUNTRY_CODE_ALIASES, FLAG_COMPONENTS, NATIONALITY_CODES } from '../utils/countryCodes';
 
 const STRIP_COUNT = 48;
 const FLAG_WIDTH = 600;
@@ -8,14 +8,19 @@ const FLAG_HEIGHT = 400;
 const strips = Array.from({ length: STRIP_COUNT }, (_, index) => index);
 
 interface PodiumFlagBackdropProps {
-    nationality: string;
+    nationality?: string;
+    country?: string;
 }
 
-export function PodiumFlagBackdrop({ nationality }: PodiumFlagBackdropProps) {
+export function PodiumFlagBackdrop({ nationality, country }: PodiumFlagBackdropProps) {
     const flagId = `podium-flag-${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`;
     const backdropRef = useRef<HTMLDivElement>(null);
     const isInView = useInView(backdropRef);
-    const countryCode = NATIONALITY_CODES[nationality.trim()];
+    const trimmedCountry = country?.trim();
+    const trimmedNationality = nationality?.trim();
+    const countryCode =
+        (trimmedCountry ? COUNTRY_CODES[trimmedCountry] ?? COUNTRY_CODE_ALIASES[trimmedCountry] : undefined)
+        ?? (trimmedNationality ? NATIONALITY_CODES[trimmedNationality] ?? COUNTRY_CODES[trimmedNationality] : undefined);
     const Flag = countryCode ? FLAG_COMPONENTS[countryCode] : undefined;
 
     if (!Flag) return null;
