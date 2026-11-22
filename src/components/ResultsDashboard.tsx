@@ -652,8 +652,8 @@ export function ResultsDashboard({ season, onReset, onSelectDriver }: ResultsDas
                         </div>
                     </div>
 
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-[var(--border-color)] pb-4">
-                        <p className="font-oxanium text-[var(--accent-red)] tracking-widest text-xs md:text-sm uppercase">
+                    <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-3 border-b border-[var(--border-color)] pb-4">
+                        <p className="font-oxanium text-[var(--accent-red)] tracking-widest text-xs md:text-sm uppercase shrink-0 whitespace-nowrap">
                             {activeMode === 'community' ? (
                                 <>
                                     SEASON {season} • COMMUNITY RACES:{' '}
@@ -667,15 +667,15 @@ export function ResultsDashboard({ season, onReset, onSelectDriver }: ResultsDas
                             )}
                         </p>
 
-                        <div className="grid grid-cols-2 md:flex gap-2 w-full md:w-auto">
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:flex md:flex-wrap md:items-center gap-2 w-full xl:w-auto">
                             <ShadcnTooltip>
                                 <TooltipTrigger asChild>
                                     <button
                                         aria-label="Export your season ratings as a JSON backup file"
                                         onClick={handleExportJson}
-                                        className="group flex items-center justify-center gap-2 px-3 md:px-4 py-2 bg-[var(--bg-panel)] border border-[var(--border-color)] hover:border-[#00FF88] transition-all hover:bg-[var(--bg-panel-hover)]"
+                                        className="group flex items-center justify-center gap-2 whitespace-nowrap shrink-0 px-3 py-2 bg-[var(--bg-panel)] border border-[var(--border-color)] hover:border-[#00FF88] transition-all hover:bg-[var(--bg-panel-hover)]"
                                     >
-                                        <FileJson size={14} className="text-[var(--text-muted)] group-hover:text-[#00FF88]" />
+                                        <FileJson size={14} className="shrink-0 text-[var(--text-muted)] group-hover:text-[#00FF88]" />
                                         <span className="font-ui font-bold text-[10px] md:text-xs text-white uppercase tracking-wider hidden md:inline">EXPORT JSON</span>
                                     </button>
                                 </TooltipTrigger>
@@ -693,9 +693,9 @@ export function ResultsDashboard({ season, onReset, onSelectDriver }: ResultsDas
                                     <button
                                         aria-label="Import a JSON backup to restore your season ratings"
                                         onClick={handleImportClick}
-                                        className="group flex items-center justify-center gap-2 px-3 md:px-4 py-2 bg-[var(--bg-panel)] border border-[var(--border-color)] hover:border-[var(--accent-yellow)] transition-all hover:bg-[var(--bg-panel-hover)]"
+                                        className="group flex items-center justify-center gap-2 whitespace-nowrap shrink-0 px-3 py-2 bg-[var(--bg-panel)] border border-[var(--border-color)] hover:border-[var(--accent-yellow)] transition-all hover:bg-[var(--bg-panel-hover)]"
                                     >
-                                        <Upload size={14} className="text-[var(--text-muted)] group-hover:text-[var(--accent-yellow)]" />
+                                        <Upload size={14} className="shrink-0 text-[var(--text-muted)] group-hover:text-[var(--accent-yellow)]" />
                                         <span className="font-ui font-bold text-[10px] md:text-xs text-white uppercase tracking-wider hidden md:inline">IMPORT JSON</span>
                                     </button>
                                 </TooltipTrigger>
@@ -721,9 +721,9 @@ export function ResultsDashboard({ season, onReset, onSelectDriver }: ResultsDas
                                         aria-label="Create a shareable interactive link for your season rankings"
                                         onClick={() => void handleCreateShareLink()}
                                         disabled={activeRankedAverages.length === 0 || creatingShareLink}
-                                        className="group flex items-center justify-center gap-2 px-3 md:px-4 py-2 bg-[var(--bg-panel)] border border-[var(--border-color)] hover:border-[#00FF88] transition-all hover:bg-[var(--bg-panel-hover)] disabled:opacity-50"
+                                        className="group flex items-center justify-center gap-2 whitespace-nowrap shrink-0 px-3 py-2 bg-[var(--bg-panel)] border border-[var(--border-color)] hover:border-[#00FF88] transition-all hover:bg-[var(--bg-panel-hover)] disabled:opacity-50"
                                     >
-                                        <Link2 size={14} className="text-[var(--text-muted)] group-hover:text-[#00FF88]" />
+                                        <Link2 size={14} className="shrink-0 text-[var(--text-muted)] group-hover:text-[#00FF88]" />
                                         <span className="font-ui font-bold text-[10px] md:text-xs text-white uppercase tracking-wider hidden md:inline">
                                             {creatingShareLink ? 'LINKING...' : 'SHARE LINK'}
                                         </span>
@@ -744,9 +744,9 @@ export function ResultsDashboard({ season, onReset, onSelectDriver }: ResultsDas
                                         aria-label="Generate a shareable PNG card from your season ratings"
                                         onClick={handleGenerateCard}
                                         disabled={activeRankedAverages.length === 0}
-                                        className="group flex items-center justify-center gap-2 px-3 md:px-4 py-2 bg-[var(--bg-panel)] border border-[var(--border-color)] hover:border-white transition-all hover:bg-[var(--bg-panel-hover)] disabled:opacity-50"
+                                        className="group flex items-center justify-center gap-2 whitespace-nowrap shrink-0 px-3 py-2 bg-[var(--bg-panel)] border border-[var(--border-color)] hover:border-white transition-all hover:bg-[var(--bg-panel-hover)] disabled:opacity-50"
                                     >
-                                        <ImageDown size={14} className="text-[var(--text-muted)] group-hover:text-white" />
+                                        <ImageDown size={14} className="shrink-0 text-[var(--text-muted)] group-hover:text-white" />
                                         <span className="font-ui font-bold text-[10px] md:text-xs text-white uppercase tracking-wider hidden md:inline">GENERATE CARD</span>
                                     </button>
                                 </TooltipTrigger>
@@ -764,9 +764,9 @@ export function ResultsDashboard({ season, onReset, onSelectDriver }: ResultsDas
                                     <button
                                         aria-label="Clear all season ratings"
                                         onClick={handleReset}
-                                        className="group flex items-center justify-center gap-2 px-3 md:px-4 py-2 bg-[var(--bg-panel)] border border-[var(--border-color)] hover:border-[var(--accent-red)] transition-all hover:bg-[var(--bg-panel-hover)]"
+                                        className="group flex items-center justify-center gap-2 whitespace-nowrap shrink-0 px-3 py-2 bg-[var(--bg-panel)] border border-[var(--border-color)] hover:border-[var(--accent-red)] transition-all hover:bg-[var(--bg-panel-hover)]"
                                     >
-                                        <RotateCcw size={14} className="text-[var(--text-muted)] group-hover:text-[var(--accent-red)]" />
+                                        <RotateCcw size={14} className="shrink-0 text-[var(--text-muted)] group-hover:text-[var(--accent-red)]" />
                                         <span className="font-ui font-bold text-[10px] md:text-xs text-white uppercase tracking-wider hidden md:inline">CLEAR ALL</span>
                                     </button>
                                 </TooltipTrigger>

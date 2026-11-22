@@ -101,6 +101,7 @@
     }
   ],
   "rewrites": [
+    { "source": "/api/(.*)", "destination": "/api/$1" },
     {
       "source": "/share/:id",
       "has": [
@@ -112,6 +113,6 @@
       ],
       "destination": "/api/share-meta?id=:id"
     },
-    { "source": "/((?!api/|.*\\.).*)", "destination": "/" }
+    { "source": "/((?!.*\\.).*)", "destination": "/" }
   ]
 }

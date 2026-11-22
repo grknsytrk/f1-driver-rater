@@ -1,10 +1,6 @@
 import { escapeHtml, resolveShareSnapshot, SITE_URL } from './_shareResolver.js';
 
-export const config = {
-    runtime: 'edge',
-};
-
-export default async function handler(request) {
+export async function GET(request) {
     const url = new URL(request.url);
     const id = url.searchParams.get('id') || '';
     const snapshot = await resolveShareSnapshot(id);
