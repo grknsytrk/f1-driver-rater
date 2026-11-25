@@ -715,6 +715,31 @@ h6 {
   mask-image: linear-gradient(to bottom, #000 76%, transparent 100%);
 }
 
+.h2h-battle__portrait[data-format="full"][data-align="top"] {
+  top: 4px;
+  bottom: 0;
+  right: 16px;
+  width: clamp(136px, 24%, 205px);
+}
+
+.h2h-battle__portrait[data-format="full"][data-align="top"] img {
+  object-fit: cover;
+  object-position: center top;
+  mask-image: linear-gradient(to bottom, #000 76%, transparent 100%);
+}
+
+.h2h-battle__portrait[data-format="headshot"][data-align="top"] {
+  top: 0;
+  bottom: 0;
+  right: 16px;
+  width: clamp(128px, 22%, 192px);
+}
+
+.h2h-battle__portrait[data-format="headshot"][data-align="top"] img {
+  object-position: center bottom;
+  mask-image: linear-gradient(to bottom, #000 84%, transparent 100%);
+}
+
 .h2h-battle__driver {
   z-index: 1;
 }

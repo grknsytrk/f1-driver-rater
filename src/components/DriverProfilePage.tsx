@@ -12,8 +12,6 @@ import {
     Loader2,
     ArrowUpRight,
     History,
-    TrendingUp,
-    TrendingDown,
 } from 'lucide-react';
 import {
     getDriverProfileSeasonQualifying,
@@ -51,7 +49,6 @@ import {
     formatShortRaceName,
     nextRaceLogSortState,
     sortDriverRaceLog,
-    summarizeDriverBestWorstRaces,
     type CareerSeasonTeammateH2H,
     type RaceLogSortState,
 } from '../utils/driverProfile';
@@ -564,11 +561,6 @@ export function DriverProfilePage({
         [raceLog, raceLogSort],
     );
 
-    const bestWorst = useMemo(
-        () => summarizeDriverBestWorstRaces(raceLog, activeMode),
-        [raceLog, activeMode],
-    );
-
     const careerSeasons = useMemo(
         () => buildDriverCareerRatedSeasons(driverId),
         [driverId],
@@ -679,117 +671,109 @@ export function DriverProfilePage({
                 animate={{ opacity: 1, y: 0 }}
                 className="relative isolate overflow-hidden border border-[var(--border-color)] bg-[var(--bg-panel)]"
             >
-                <div className="h-1.5 w-full" style={{ backgroundColor: teamColor }} />
+                <div className="relative z-20 h-1.5 w-full" style={{ backgroundColor: teamColor }} />
                 {driverIdentity.nationality && (
                     <PodiumFlagBackdrop key={driverIdentity.nationality} nationality={driverIdentity.nationality} />
                 )}
-                {portrait && <DriverBattlePortrait key={portrait} src={portrait} side="right" />}
 
-                <div className="relative z-10 p-5 md:p-8 space-y-6">
-                    <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
-                        <div className="border-l-4 pl-4 md:pl-6" style={{ borderLeftColor: teamColor }}>
-                            <div className="flex flex-wrap items-center gap-2 mb-2">
-                                <span
-                                    className="px-2 py-0.5 font-oxanium text-[10px] font-bold uppercase tracking-widest text-white"
-                                    style={{ backgroundColor: teamColor }}
-                                >
-                                    {driverIdentity.constructorName}
+                {/* Upper Hero Stage: Driver Identity + Unobstructed Portrait */}
+                <div className="relative overflow-hidden px-5 py-6 md:px-8 md:py-7 min-h-[148px] md:min-h-[180px] flex items-center">
+                    {portrait && <DriverBattlePortrait key={portrait} src={portrait} side="right" align="top" />}
+
+                    <div className="relative z-10 border-l-4 pl-4 md:pl-6 pr-28 sm:pr-40 md:pr-52" style={{ borderLeftColor: teamColor }}>
+                        <div className="flex flex-wrap items-center gap-2 mb-2">
+                            <span
+                                className="px-2 py-0.5 font-oxanium text-[10px] font-bold uppercase tracking-widest text-white"
+                                style={{ backgroundColor: teamColor }}
+                            >
+                                {driverIdentity.constructorName}
+                            </span>
+                            <span className="font-oxanium text-xs uppercase tracking-widest text-[var(--text-muted)]">
+                                {season} SEASON PROFILE
+                            </span>
+                            {driverIdentity.nationality && (
+                                <span className="font-oxanium text-xs uppercase tracking-widest text-[var(--text-secondary)]">
+                                    • {driverIdentity.nationality}
                                 </span>
-                                <span className="font-oxanium text-xs uppercase tracking-widest text-[var(--text-muted)]">
-                                    {season} SEASON PROFILE
-                                </span>
-                                {driverIdentity.nationality && (
-                                    <span className="font-oxanium text-xs uppercase tracking-widest text-[var(--text-secondary)]">
-                                        • {driverIdentity.nationality}
-                                    </span>
-                                )}
-                            </div>
-                            <h2 className="font-display text-3xl md:text-6xl text-white uppercase tracking-tight leading-none">
-                                {driverIdentity.driverName}
-                            </h2>
+                            )}
                         </div>
+                        <h2 className="font-display text-3xl md:text-5xl lg:text-6xl text-white uppercase tracking-tight leading-none">
+                            {driverIdentity.driverName}
+                        </h2>
+                    </div>
+                </div>
 
-                        {/* Official Championship Stats Pill Bar */}
-                        <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 bg-[var(--bg-darker)]/90 border border-[var(--border-color)] p-3 backdrop-blur-sm">
-                            <div className="px-2 text-center">
-                                <div className="font-oxanium text-[9px] uppercase tracking-wider text-[var(--text-muted)]">WDC</div>
-                                <div className="font-display text-lg md:text-2xl text-[var(--accent-yellow)]">
-                                    {driverIdentity.stats?.position ? `P${driverIdentity.stats.position}` : '—'}
-                                </div>
-                            </div>
-                            <div className="px-2 text-center border-l border-[var(--border-color)]">
-                                <div className="font-oxanium text-[9px] uppercase tracking-wider text-[var(--text-muted)]">PTS</div>
-                                <div className="font-display text-lg md:text-2xl text-white">
-                                    {driverIdentity.stats?.points ?? '0'}
-                                </div>
-                            </div>
-                            <div className="px-2 text-center border-l border-[var(--border-color)]">
-                                <div className="font-oxanium text-[9px] uppercase tracking-wider text-[var(--text-muted)]">WINS</div>
-                                <div className="font-display text-lg md:text-2xl text-[#00FF88]">
-                                    {driverIdentity.stats?.wins ?? 0}
-                                </div>
-                            </div>
-                            <div className="px-2 text-center border-l border-[var(--border-color)]">
-                                <div className="font-oxanium text-[9px] uppercase tracking-wider text-[var(--text-muted)]">POLES</div>
-                                <div className="font-display text-lg md:text-2xl text-[#FF00FF]">
-                                    {driverIdentity.stats?.poles ?? 0}
-                                </div>
-                            </div>
-                            <div className="px-2 text-center border-l border-[var(--border-color)]">
-                                <div className="font-oxanium text-[9px] uppercase tracking-wider text-[var(--text-muted)]">PODIUMS</div>
-                                <div className="font-display text-lg md:text-2xl text-[var(--accent-orange)]">
-                                    {driverIdentity.stats?.podiums ?? 0}
-                                </div>
-                            </div>
-                            <div className="px-2 text-center border-l border-[var(--border-color)]">
-                                <div className="font-oxanium text-[9px] uppercase tracking-wider text-[var(--text-muted)]">DNFs</div>
-                                <div className="font-display text-lg md:text-2xl text-[var(--accent-red)]">
-                                    {dnfCount}
-                                </div>
-                            </div>
+                {/* Single Clean Inline Telemetry Strip (Championship + Ratings Side-by-Side) */}
+                <div className="relative z-10 mx-5 md:mx-8 border-t border-white/10 py-3.5 flex flex-wrap items-center justify-between gap-x-6 gap-y-2">
+                    {/* Championship Stats */}
+                    <div className="flex flex-wrap items-center gap-x-4 sm:gap-x-5 gap-y-1.5">
+                        <div className="flex items-baseline gap-1.5">
+                            <span className="font-oxanium text-[10px] uppercase tracking-wider text-[var(--text-muted)]">WDC</span>
+                            <span className="font-display text-sm md:text-base text-[var(--accent-yellow)] tabular-nums">
+                                {driverIdentity.stats?.position ? `P${driverIdentity.stats.position}` : '—'}
+                            </span>
+                        </div>
+                        <div className="flex items-baseline gap-1.5">
+                            <span className="font-oxanium text-[10px] uppercase tracking-wider text-[var(--text-muted)]">PTS</span>
+                            <span className="font-display text-sm md:text-base text-white tabular-nums">
+                                {driverIdentity.stats?.points ?? '0'}
+                            </span>
+                        </div>
+                        <div className="flex items-baseline gap-1.5">
+                            <span className="font-oxanium text-[10px] uppercase tracking-wider text-[var(--text-muted)]">WINS</span>
+                            <span className="font-display text-sm md:text-base text-[#00FF88] tabular-nums">
+                                {driverIdentity.stats?.wins ?? 0}
+                            </span>
+                        </div>
+                        <div className="flex items-baseline gap-1.5">
+                            <span className="font-oxanium text-[10px] uppercase tracking-wider text-[var(--text-muted)]">POLES</span>
+                            <span className="font-display text-sm md:text-base text-[#FF00FF] tabular-nums">
+                                {driverIdentity.stats?.poles ?? 0}
+                            </span>
+                        </div>
+                        <div className="flex items-baseline gap-1.5">
+                            <span className="font-oxanium text-[10px] uppercase tracking-wider text-[var(--text-muted)]">PODIUMS</span>
+                            <span className="font-display text-sm md:text-base text-[var(--accent-orange)] tabular-nums">
+                                {driverIdentity.stats?.podiums ?? 0}
+                            </span>
+                        </div>
+                        <div className="flex items-baseline gap-1.5">
+                            <span className="font-oxanium text-[10px] uppercase tracking-wider text-[var(--text-muted)]">DNFs</span>
+                            <span className="font-display text-sm md:text-base text-[var(--accent-red)] tabular-nums">
+                                {dnfCount}
+                            </span>
                         </div>
                     </div>
 
-                    {/* Rating Telemetry Summary Cards */}
-                    <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-                        <div className="border border-[var(--border-color)] bg-[var(--bg-darker)]/90 p-3.5">
-                            <div className="font-oxanium text-[9px] uppercase tracking-widest text-[var(--text-muted)]">
-                                MY SEASON AVG
-                            </div>
-                            <div
-                                className="mt-1 font-oxanium text-2xl md:text-3xl font-bold tabular-nums"
+                    {/* Ratings & Community Summary */}
+                    <div className="flex flex-wrap items-center gap-x-4 sm:gap-x-5 gap-y-1.5">
+                        <div className="flex items-baseline gap-1.5">
+                            <span className="font-oxanium text-[10px] uppercase tracking-wider text-[var(--text-muted)]">MY</span>
+                            <span
+                                className="font-oxanium text-sm md:text-base font-bold tabular-nums"
                                 style={{ color: myAvg !== null ? getRatingColor(myAvg) : 'var(--text-muted)' }}
                             >
                                 {myAvg !== null ? myAvg.toFixed(2) : '—'}
-                            </div>
-                            <div className="mt-1 font-oxanium text-[9px] uppercase text-[var(--text-muted)]">
-                                {personalDriverAvg ? `${personalDriverAvg.totalRaces} RACES RATED` : 'NOT RATED YET'}
-                            </div>
+                            </span>
                         </div>
-
-                        <div className="border border-[var(--border-color)] bg-[var(--bg-darker)]/90 p-3.5">
-                            <div className="font-oxanium text-[9px] uppercase tracking-widest text-[var(--text-muted)]">
-                                COMMUNITY AVG
-                            </div>
-                            <div
-                                className="mt-1 font-oxanium text-2xl md:text-3xl font-bold tabular-nums"
+                        <div className="flex items-baseline gap-1.5">
+                            <span className="font-oxanium text-[10px] uppercase tracking-wider text-[var(--text-muted)]">COMM</span>
+                            <span
+                                className="font-oxanium text-sm md:text-base font-bold tabular-nums"
                                 style={{ color: commAvg !== null ? getRatingColor(commAvg) : 'var(--text-muted)' }}
                             >
                                 {commAvg !== null ? commAvg.toFixed(2) : '—'}
-                            </div>
-                            <div className="mt-1 font-oxanium text-[9px] uppercase text-[var(--text-muted)]">
-                                {communityComparison.voteCount > 0
-                                    ? `${communityComparison.voteCount} VOTES • ${communityComparison.raceCount} RACES`
-                                    : 'NO COMMUNITY VOTES'}
-                            </div>
+                            </span>
+                            {communityComparison.voteCount > 0 && (
+                                <span className="font-oxanium text-[10px] text-[var(--text-muted)] tabular-nums">
+                                    ({communityComparison.voteCount})
+                                </span>
+                            )}
                         </div>
-
-                        <div className="border border-[var(--border-color)] bg-[var(--bg-darker)]/90 p-3.5">
-                            <div className="font-oxanium text-[9px] uppercase tracking-widest text-[var(--text-muted)]">
-                                MY VS COMMUNITY
-                            </div>
-                            <div
-                                className={`mt-1 font-oxanium text-2xl md:text-3xl font-bold tabular-nums ${
+                        <div className="flex items-baseline gap-1.5">
+                            <span className="font-oxanium text-[10px] uppercase tracking-wider text-[var(--text-muted)]">DIFF</span>
+                            <span
+                                className={`font-oxanium text-sm md:text-base font-bold tabular-nums ${
                                     myVsCommDelta === null
                                         ? 'text-[var(--text-muted)]'
                                         : myVsCommDelta > 0
@@ -802,54 +786,7 @@ export function DriverProfilePage({
                                 {myVsCommDelta === null
                                     ? '—'
                                     : `${myVsCommDelta > 0 ? '+' : ''}${myVsCommDelta.toFixed(2)}`}
-                            </div>
-                            <div className="mt-1 font-oxanium text-[9px] uppercase text-[var(--text-muted)]">
-                                {myVsCommDelta === null
-                                    ? 'RATE TO COMPARE'
-                                    : myVsCommDelta > 0
-                                        ? 'HIGHER THAN CROWD'
-                                        : myVsCommDelta < 0
-                                            ? 'LOWER THAN CROWD'
-                                            : 'MATCHES CROWD'}
-                            </div>
-                        </div>
-
-                        <div className="border border-[var(--border-color)] bg-[var(--bg-darker)]/90 p-3.5">
-                            <div className="flex items-center justify-between">
-                                <span className="font-oxanium text-[9px] uppercase tracking-widest text-[var(--text-muted)]">
-                                    BEST RACE ({activeMode === 'community' ? 'COMM' : 'MY'})
-                                </span>
-                                <TrendingUp size={12} className="text-[#00FF88]" />
-                            </div>
-                            <div className="mt-1 font-oxanium text-2xl md:text-3xl font-bold text-[#00FF88] tabular-nums">
-                                {bestWorst.best
-                                    ? bestWorst.best.rating.toFixed(activeMode === 'community' ? 2 : 1)
-                                    : '—'}
-                            </div>
-                            <div className="mt-1 truncate font-oxanium text-[9px] uppercase text-[var(--text-muted)]">
-                                {bestWorst.best
-                                    ? `R${bestWorst.best.round} • ${formatShortRaceName(bestWorst.best.raceName)}`
-                                    : 'NO RACE DATA'}
-                            </div>
-                        </div>
-
-                        <div className="col-span-2 lg:col-span-1 border border-[var(--border-color)] bg-[var(--bg-darker)]/90 p-3.5">
-                            <div className="flex items-center justify-between">
-                                <span className="font-oxanium text-[9px] uppercase tracking-widest text-[var(--text-muted)]">
-                                    WORST RACE ({activeMode === 'community' ? 'COMM' : 'MY'})
-                                </span>
-                                <TrendingDown size={12} className="text-[var(--accent-red)]" />
-                            </div>
-                            <div className="mt-1 font-oxanium text-2xl md:text-3xl font-bold text-[var(--accent-red)] tabular-nums">
-                                {bestWorst.worst
-                                    ? bestWorst.worst.rating.toFixed(activeMode === 'community' ? 2 : 1)
-                                    : '—'}
-                            </div>
-                            <div className="mt-1 truncate font-oxanium text-[9px] uppercase text-[var(--text-muted)]">
-                                {bestWorst.worst
-                                    ? `R${bestWorst.worst.round} • ${formatShortRaceName(bestWorst.worst.raceName)}`
-                                    : 'NO RACE DATA'}
-                            </div>
+                            </span>
                         </div>
                     </div>
                 </div>
