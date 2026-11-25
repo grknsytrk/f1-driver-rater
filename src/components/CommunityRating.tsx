@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Clock, Info, ShieldAlert, ShieldCheck, ShieldOff, WifiOff } from 'lucide-react';
 import type { CommunityRating, CommunityStatus } from '../utils/communityRatings';
 import {
     COMMUNITY_CHANGE_EVENT,
@@ -18,6 +19,18 @@ function normalizeActiveMonitoringUntil(value: string | null): string | null {
 
 function getInitialActiveMonitoringUntil(): string | null {
     return normalizeActiveMonitoringUntil(getCommunityRatingMonitoringUntil());
+}
+
+function formatRemainingMonitoring(untilIso: string): string | null {
+    const remainingMs = Date.parse(untilIso) - Date.now();
+    if (!Number.isFinite(remainingMs) || remainingMs <= 0) return null;
+    const totalMinutes = Math.ceil(remainingMs / 60_000);
+    if (totalMinutes < 60) {
+        return `${totalMinutes}M LEFT`;
+    }
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
+    return minutes > 0 && hours < 12 ? `${hours}H ${minutes}M LEFT` : `${hours}H LEFT`;
 }
 
 export function CommunityNotice({ status, legacy = false }: { status: CommunityStatus; legacy?: boolean }) {
@@ -54,77 +67,141 @@ export function CommunityNotice({ status, legacy = false }: { status: CommunityS
     const communitySuspended = issue === 'community-suspended';
     const underNewAccountMonitoring = monitoringUntil !== null;
     const showRateLimitCard = rateLimited;
+    const remainingMonitoringLabel = monitoringUntil ? formatRemainingMonitoring(monitoringUntil) : null;
+
+    const hasVisibleNotice = showRateLimitCard
+        || (underNewAccountMonitoring && !communitySuspended)
+        || communitySuspended
+        || (status === 'unavailable' && !showRateLimitCard)
+        || (status !== 'disabled' && legacy);
+
+    if (!hasVisibleNotice) return null;
 
     return (
-        <div className="space-y-1 font-oxanium text-[10px] leading-relaxed text-[var(--text-muted)]">
+        <div className="mb-3 space-y-2.5 font-oxanium text-xs leading-relaxed text-[var(--text-muted)]">
             {showRateLimitCard && (
                 <section
                     role="status"
                     aria-live="polite"
-                    className="mb-3 border border-[var(--accent-yellow)]/30 border-l-2 border-l-[var(--accent-yellow)] bg-[var(--accent-yellow)]/[0.04] p-3 md:p-4"
+                    className="relative overflow-hidden border border-[var(--accent-yellow)]/30 border-l-2 border-l-[var(--accent-yellow)] bg-gradient-to-r from-[var(--accent-yellow)]/[0.08] via-[var(--bg-panel)] to-[var(--bg-panel)] p-3.5 md:p-4"
                 >
                     <div className="flex items-start gap-3">
-                        <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center border border-[var(--accent-yellow)]/30 bg-[var(--bg-darker)] text-[var(--accent-yellow)]">
-                            <span aria-hidden="true" className="font-display text-xl font-bold leading-none">!</span>
+                        <span
+                            aria-hidden="true"
+                            className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center border border-[var(--accent-yellow)]/35 bg-[var(--bg-darker)] text-[var(--accent-yellow)]"
+                        >
+                            <ShieldAlert size={18} />
                         </span>
                         <div className="min-w-0 flex-1">
-                            <h3 className="font-display text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--accent-yellow)] md:text-xs">
-                                KEEPING COMMUNITY RATINGS FAIR
-                            </h3>
-                            <p className="mt-1 font-oxanium text-[10px] leading-relaxed text-[var(--text-secondary)] md:text-xs">
+                            <div className="flex flex-wrap items-center gap-2">
+                                <h3 className="font-display-condensed text-sm font-bold uppercase tracking-wider text-[var(--accent-yellow)] md:text-base">
+                                    KEEPING COMMUNITY RATINGS FAIR
+                                </h3>
+                                <span className="border border-[var(--accent-yellow)]/35 bg-[var(--accent-yellow)]/10 px-2 py-0.5 font-oxanium text-[9px] font-bold uppercase tracking-[0.16em] text-[var(--accent-yellow)]">
+                                    COOLDOWN ACTIVE
+                                </span>
+                            </div>
+                            <p className="mt-1.5 font-oxanium text-[11px] leading-relaxed text-[var(--text-secondary)] md:text-xs">
                                 We’ve detected high account activity from this internet connection recently. To prevent multi-account manipulation and keep scores fair, ratings from this connection are{' '}
-                                <strong>temporarily excluded from community averages</strong>. Shared networks can trigger this limit too, and it will reset automatically after a short cooldown. Your ratings remain saved on this device. Please try again later.
+                                <strong className="font-semibold text-white">temporarily excluded from community averages</strong>. Shared networks can trigger this limit too, and it resets automatically after a short cooldown.
                             </p>
+                            <div className="mt-2.5 flex flex-wrap items-center gap-2 border-t border-[var(--accent-yellow)]/15 pt-2 text-[10px] uppercase tracking-wider text-[var(--text-muted)]">
+                                <span className="inline-flex items-center gap-1.5 text-[var(--accent-yellow)]/90">
+                                    <ShieldCheck size={12} aria-hidden="true" />
+                                    YOUR RATINGS REMAIN SAVED ON THIS DEVICE
+                                </span>
+                            </div>
                         </div>
                     </div>
                 </section>
             )}
+
             {underNewAccountMonitoring && !communitySuspended && (
                 <section
                     role="status"
                     aria-live="polite"
-                    className="mb-3 border border-sky-400/30 border-l-2 border-l-sky-400 bg-sky-500/[0.04] p-3 md:p-4"
+                    className="relative overflow-hidden border border-sky-400/30 border-l-2 border-l-sky-400 bg-gradient-to-r from-sky-500/[0.08] via-[var(--bg-panel)] to-[var(--bg-panel)] p-3.5 md:p-4"
                 >
                     <div className="flex items-start gap-3">
-                        <span aria-hidden="true" className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center border border-sky-400/30 bg-[var(--bg-darker)] font-display text-xl font-bold leading-none text-sky-300">i</span>
+                        <span
+                            aria-hidden="true"
+                            className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center border border-sky-400/35 bg-[var(--bg-darker)] text-sky-300"
+                        >
+                            <Clock size={18} />
+                        </span>
                         <div className="min-w-0 flex-1">
-                            <h3 className="font-display text-[10px] font-bold uppercase tracking-[0.12em] text-sky-300 md:text-xs">
-                                NEW ACCOUNT NOTICE
-                            </h3>
-                            <p className="mt-1 font-display text-[8px] font-bold uppercase tracking-[0.12em] text-sky-300/80 md:text-[9px]">
-                                24-HOUR MONITORING
+                            <div className="flex flex-wrap items-center gap-2">
+                                <h3 className="font-display-condensed text-sm font-bold uppercase tracking-wider text-sky-300 md:text-base">
+                                    NEW ACCOUNT NOTICE
+                                </h3>
+                                <span className="border border-sky-400/35 bg-sky-500/10 px-2 py-0.5 font-oxanium text-[9px] font-bold uppercase tracking-[0.16em] text-sky-200">
+                                    24-HOUR MONITORING{remainingMonitoringLabel ? ` · ${remainingMonitoringLabel}` : ''}
+                                </span>
+                            </div>
+                            <p className="mt-1.5 font-oxanium text-[11px] leading-relaxed text-[var(--text-secondary)] md:text-xs">
+                                To protect community ratings from manipulation, ratings from new accounts are held out of community averages during their first 24 hours. Your ratings are saved to your account immediately and will be included automatically after the review period if no suspicious activity is identified.
                             </p>
-                            <p className="mt-2 font-oxanium text-[10px] leading-relaxed text-[var(--text-secondary)] md:text-xs">
-                                To protect community ratings from manipulation, ratings from new accounts are excluded from community averages during their first 24 hours. Your ratings are saved to your account during this period. If no suspicious activity is identified, eligible ratings will be added automatically after the 24-hour period.
-                            </p>
-                            <p className="mt-2 font-oxanium text-[10px] leading-relaxed text-[var(--text-secondary)] md:text-xs">
-                                Review bombing, creating multiple accounts to manipulate results, and deliberately submitting unfair ratings are strictly prohibited. Accounts found engaging in this behavior will be permanently suspended from community rating, and their ratings will be excluded from community averages.
-                            </p>
+                            <div className="mt-2.5 flex items-start gap-2 border-t border-sky-400/15 pt-2 font-oxanium text-[10px] leading-relaxed text-[var(--text-muted)] md:text-[11px]">
+                                <ShieldCheck size={13} aria-hidden="true" className="mt-0.5 shrink-0 text-sky-300/80" />
+                                <span>
+                                    Review bombing, creating multiple accounts to manipulate results, and deliberately submitting unfair ratings are strictly prohibited and result in permanent suspension from community averages.
+                                </span>
+                            </div>
                         </div>
                     </div>
                 </section>
             )}
+
             {communitySuspended && (
                 <section
                     role="status"
                     aria-live="polite"
-                    className="mb-3 border border-[var(--accent-red)]/30 border-l-2 border-l-[var(--accent-red)] bg-[var(--accent-red)]/[0.04] p-3 md:p-4"
+                    className="relative overflow-hidden border border-[var(--accent-red)]/35 border-l-2 border-l-[var(--accent-red)] bg-gradient-to-r from-[var(--accent-red)]/[0.09] via-[var(--bg-panel)] to-[var(--bg-panel)] p-3.5 md:p-4"
                 >
                     <div className="flex items-start gap-3">
-                        <span aria-hidden="true" className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center border border-[var(--accent-red)]/30 bg-[var(--bg-darker)] font-display text-xl font-bold leading-none text-[var(--accent-red)]">!</span>
+                        <span
+                            aria-hidden="true"
+                            className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center border border-[var(--accent-red)]/40 bg-[var(--bg-darker)] text-[var(--accent-red)]"
+                        >
+                            <ShieldOff size={18} />
+                        </span>
                         <div className="min-w-0 flex-1">
-                            <h3 className="font-display text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--accent-red)] md:text-xs">
-                                COMMUNITY RATING ACCESS SUSPENDED
-                            </h3>
-                            <p className="mt-1 font-oxanium text-[10px] leading-relaxed text-[var(--text-secondary)] md:text-xs">
+                            <div className="flex flex-wrap items-center gap-2">
+                                <h3 className="font-display-condensed text-sm font-bold uppercase tracking-wider text-[var(--accent-red)] md:text-base">
+                                    COMMUNITY RATING ACCESS SUSPENDED
+                                </h3>
+                                <span className="border border-[var(--accent-red)]/40 bg-[var(--accent-red)]/10 px-2 py-0.5 font-oxanium text-[9px] font-bold uppercase tracking-[0.16em] text-[var(--accent-red)]">
+                                    RESTRICTED
+                                </span>
+                            </div>
+                            <p className="mt-1.5 font-oxanium text-[11px] leading-relaxed text-[var(--text-secondary)] md:text-xs">
                                 A pattern of rating manipulation has been detected on this account. This behavior violates our fair play policy and undermines the integrity of community scores. Your access to community rating has been suspended indefinitely, and your scores have been excluded from community averages. Attempts to bypass this restriction may result in further action.
                             </p>
                         </div>
                     </div>
                 </section>
             )}
-            {status === 'unavailable' && !showRateLimitCard && <p role="status" className="mb-2">COMMUNITY UNAVAILABLE · Your ratings are saved locally.</p>}
-            {status !== 'disabled' && legacy && <p className="mb-2">Previous ratings are preserved. Reopen the rating screen and close it once to include saved scores in the community average.</p>}
+
+            {status === 'unavailable' && !showRateLimitCard && (
+                <div
+                    role="status"
+                    className="flex items-center gap-2 border border-[var(--border-color)] bg-[var(--bg-darker)]/80 px-3 py-2 text-[11px] text-[var(--text-secondary)]"
+                >
+                    <WifiOff size={13} aria-hidden="true" className="shrink-0 text-[var(--text-muted)]" />
+                    <span>
+                        <strong className="font-semibold uppercase tracking-wider text-white">COMMUNITY UNAVAILABLE</strong> · Your ratings are saved locally.
+                    </span>
+                </div>
+            )}
+
+            {status !== 'disabled' && legacy && (
+                <div className="flex items-start gap-2 border border-[var(--border-color)] bg-[var(--bg-darker)]/80 px-3 py-2 text-[11px] text-[var(--text-secondary)]">
+                    <Info size={13} aria-hidden="true" className="mt-0.5 shrink-0 text-[var(--accent-yellow)]" />
+                    <span>
+                        Previous ratings are preserved. Reopen the rating screen and close it once to include saved scores in the community average.
+                    </span>
+                </div>
+            )}
         </div>
     );
 }
