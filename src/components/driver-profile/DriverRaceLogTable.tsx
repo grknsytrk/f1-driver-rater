@@ -55,7 +55,7 @@ export function DriverRaceLogTable({
                 </div>
             ) : (
                 <div className="border border-[var(--border-color)] bg-[var(--bg-panel)] overflow-hidden">
-                    <div className="overflow-x-auto">
+                    <div className="overflow-x-auto h-scroll-table">
                         <table aria-label="Driver season race log" className="w-full min-w-max">
                             <thead>
                                 <tr className="border-b border-[var(--border-color)] bg-[var(--bg-darker)] font-oxanium text-[10px] uppercase text-[var(--text-muted)]">

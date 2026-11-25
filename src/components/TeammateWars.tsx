@@ -673,7 +673,7 @@ export function TeammateWars({ season, onSelectDriver }: TeammateWarsProps) {
                             transition={{ duration: 0.3 }}
                             onClick={() => setExpandedTeamId(expandedTeamId === teamId ? null : teamId)}
                             style={{ '--card-entry-delay': `${index * 65}ms` } as CSSProperties}
-                            className="teammate-wars-card-enter bg-[var(--bg-panel)] border border-[var(--border-color)] overflow-visible group transition-all cursor-pointer relative"
+                            className="teammate-wars-card-enter bg-[var(--bg-panel)] border border-[var(--border-color)] overflow-visible group transition-colors cursor-pointer relative"
                         >
                             {/* Team Header */}
                             <div className="h-1 w-full" style={{ backgroundColor: teamColor }} />
@@ -712,7 +712,7 @@ export function TeammateWars({ season, onSelectDriver }: TeammateWarsProps) {
                                 <div className="flex items-center gap-2 md:gap-3 z-10 flex-shrink-0">
                                     {/* WCC HUD Badge - Desktop */}
                                     {wccStats && (
-                                        <div className="hidden md:flex items-center -skew-x-12 border border-[var(--border-color)] bg-black/40 backdrop-blur-sm whitespace-nowrap">
+                                        <div className="hidden md:flex items-center -skew-x-12 border border-[var(--border-color)] bg-black/60 whitespace-nowrap">
                                             {/* POS */}
                                             <div className="px-2 py-0.5 bg-[var(--bg-panel)] border-r border-[var(--border-color)] flex items-center justify-center">
                                                 <span className="font-oxanium text-[9px] text-[var(--text-muted)] uppercase skew-x-12">POS</span>

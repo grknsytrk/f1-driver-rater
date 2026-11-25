@@ -1067,7 +1067,7 @@ export function ResultsDashboard({ season, onReset, onSelectDriver }: ResultsDas
                                                     {visibleFormDrivers.length} SELECTED
                                                 </span>
                                             </div>
-                                            {visibleFormDrivers.length > 0 && <div aria-label="Selected drivers" className="flex gap-3 overflow-x-auto pb-2">
+                                            {visibleFormDrivers.length > 0 && <div aria-label="Selected drivers" className="flex gap-3 overflow-x-auto pb-2 h-scroll-perf">
                                                 {visibleFormDrivers.map(driver => {
                                                     const color = getTeamColor(driver.latestConstructorId);
                                                     return (
@@ -1114,7 +1114,7 @@ export function ResultsDashboard({ season, onReset, onSelectDriver }: ResultsDas
                                                 <span className="font-oxanium text-[10px] uppercase tracking-widest text-[var(--text-muted)]">SELECT DRIVERS</span>
                                                 <span className="font-oxanium text-[9px] uppercase tracking-wider text-[var(--text-muted)]">Click again to remove</span>
                                             </div>
-                                            <div role="group" aria-label="Select drivers to compare in Form Tracker" className="overflow-x-auto pb-2">
+                                            <div role="group" aria-label="Select drivers to compare in Form Tracker" className="overflow-x-auto pb-2 h-scroll-perf">
                                                 <div className="flex min-w-max gap-2">
                                                     {activeRankedFormSeries.map(driver => {
                                                         const isSelected = selectedFormDriverIds.includes(driver.driverId);

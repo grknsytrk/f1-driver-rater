@@ -118,7 +118,6 @@ function RaceCard({ race, season, index, onClick, onPrefetch }: RaceCardProps) {
                 delay: index * 0.03,
                 ease: "circOut",
             }}
-            whileHover={isClickable ? { x: 4, backgroundColor: 'var(--bg-panel-hover)' } : {}}
             onClick={isClickable ? handleClick : undefined}
             onMouseEnter={isClickable ? handleMouseEnter : undefined}
             onMouseLeave={isClickable ? handleMouseLeave : undefined}
@@ -134,8 +133,8 @@ function RaceCard({ race, season, index, onClick, onPrefetch }: RaceCardProps) {
             tabIndex={isClickable ? 0 : undefined}
             className={`
                 group relative border-b border-[var(--border-color)] p-3 sm:p-4 bg-[var(--bg-panel)]
-                ${isClickable ? 'cursor-pointer hover:bg-[var(--bg-panel-hover)]' : 'opacity-50 cursor-not-allowed bg-[var(--bg-darker)]'}
-                transition-all duration-200
+                ${isClickable ? 'cursor-pointer hover:translate-x-1 hover:bg-[var(--bg-panel-hover)]' : 'opacity-50 cursor-not-allowed bg-[var(--bg-darker)]'}
+                transition-[transform,background-color] duration-200
             `}
         >
             {isClickable && <div className="absolute left-0 top-0 bottom-0 w-1 bg-[var(--accent-red)] opacity-0 group-hover:opacity-100 transition-opacity" />}

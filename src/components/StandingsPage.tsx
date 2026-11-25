@@ -357,7 +357,7 @@ function WDCTable({ season, drivers, races, raceMap, latestTeamMap, getTeamColor
             animate={{ opacity: 1, y: 0 }}
             className="bg-[var(--bg-panel)] border border-[var(--border-color)] overflow-hidden"
         >
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto h-scroll-table">
                 <table className="w-full min-w-max">
                     {/* Header */}
                     <thead>
@@ -552,7 +552,7 @@ function WCCTable({ constructors, races, raceMap, polesMap, podiumsMap, getTeamC
             animate={{ opacity: 1, y: 0 }}
             className="bg-[var(--bg-panel)] border border-[var(--border-color)] overflow-hidden"
         >
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto h-scroll-table">
                 <table className="w-full min-w-max">
                     {/* Header */}
                     <thead>

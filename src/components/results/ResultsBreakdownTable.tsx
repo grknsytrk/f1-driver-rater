@@ -136,7 +136,7 @@ export function ResultsBreakdownTable({
                         </p>
                     </div>
                 )}
-                <div className={`overflow-x-auto ${showCommunityBreakdownStatus ? 'hidden' : ''}`}>
+                <div className={`overflow-x-auto h-scroll-table ${showCommunityBreakdownStatus ? 'hidden' : ''}`}>
                     <table aria-label="Race-by-race breakdown" className="w-full min-w-max">
                         {/* Header */}
                         <thead>

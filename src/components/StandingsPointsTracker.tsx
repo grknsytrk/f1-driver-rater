@@ -177,7 +177,7 @@ export function StandingsPointsTracker({
                             </div>
                         </div>
 
-                        <div className="overflow-x-auto pb-2" role="group" aria-label={`Choose ${mode} to compare`}>
+                        <div className="overflow-x-auto pb-2 h-scroll-perf" role="group" aria-label={`Choose ${mode} to compare`}>
                             <div className="flex gap-2 min-w-max">
                                 {entries.map(entry => {
                                     const selected = selectedIds.has(entry.id);
