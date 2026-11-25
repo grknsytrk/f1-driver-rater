@@ -534,7 +534,9 @@ export function DriverSeasonCardGenerator(props: DriverSeasonCardGeneratorProps)
         setError(null);
         try {
             await new Promise<void>(resolve => {
-                window.setTimeout(resolve, 0);
+                window.requestAnimationFrame(() => {
+                    window.requestAnimationFrame(() => resolve());
+                });
             });
             if (!cardRef.current) return;
             const targetHeight = Math.max(1200, HEADER_HEIGHT + Math.ceil(targetEntries.length / 2) * ROW_HEIGHT + BOTTOM_PADDING);
@@ -669,20 +671,22 @@ export function DriverSeasonCardGenerator(props: DriverSeasonCardGeneratorProps)
                 </div>
             )}
 
-            <div aria-hidden="true" className="pointer-events-none fixed left-[-15000px] top-0 z-[-1]">
-                <SeasonCardArtwork
-                    cardRef={cardRef}
-                    mode={cardMode}
-                    season={props.season}
-                    driverName={props.driverName}
-                    teamId={team.id}
-                    teamName={team.name}
-                    teamColor={teamColor}
-                    stats={props.stats}
-                    races={activeEntries}
-                    portraitUrl={cardPortraitUrl}
-                />
-            </div>
+            {isGenerating && (
+                <div aria-hidden="true" className="pointer-events-none fixed left-[-15000px] top-0 z-[-1]">
+                    <SeasonCardArtwork
+                        cardRef={cardRef}
+                        mode={cardMode}
+                        season={props.season}
+                        driverName={props.driverName}
+                        teamId={team.id}
+                        teamName={team.name}
+                        teamColor={teamColor}
+                        stats={props.stats}
+                        races={activeEntries}
+                        portraitUrl={cardPortraitUrl}
+                    />
+                </div>
+            )}
         </section>
     );
 }

@@ -1060,7 +1060,7 @@ export function DriverProfilePage({
                                                         {driverCode} vs {teammateCode}
                                                     </span>
                                                 </div>
-                                                <div className="flex gap-2 overflow-x-auto pb-1.5 custom-scrollbar">
+                                                <div className="flex gap-2 overflow-x-auto pb-1.5 custom-scrollbar h-scroll-perf">
                                                     {activeRatingH2H.rounds.map(roundDuel => {
                                                         const decimals = activeMode === 'community' ? 2 : 1;
                                                         const absDiff = Math.abs(roundDuel.diff).toFixed(decimals);
@@ -1076,7 +1076,7 @@ export function DriverProfilePage({
                                                                 <div className="flex items-center justify-between gap-1.5 border-b border-white/10 pb-1.5 mb-1.5">
                                                                     <div className="flex items-center gap-1.5 min-w-0">
                                                                         {roundDuel.countryCode !== 'XX' && (
-                                                                            <CountryFlag country={roundDuel.countryCode} size="sm" />
+                                                                            <CountryFlag country={roundDuel.countryCode} size="sm" className="!shadow-none" />
                                                                         )}
                                                                         <span className="truncate font-ui text-[9px] font-bold uppercase text-white">
                                                                             {formatShortRaceName(roundDuel.raceName)}

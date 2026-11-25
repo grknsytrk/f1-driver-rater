@@ -989,7 +989,7 @@ export function TeammateWars({ season, onSelectDriver }: TeammateWarsProps) {
                                                                 {driverAFamilyName.slice(0, 3)} vs {driverBFamilyName.slice(0, 3)}
                                                             </span>
                                                         </div>
-                                                        <div className="flex gap-2 overflow-x-auto pb-1.5 custom-scrollbar">
+                                                        <div className="flex gap-2 overflow-x-auto pb-1.5 custom-scrollbar h-scroll-perf">
                                                             {ratingH2H.rounds.map(battle => {
                                                                 const shortRaceName = battle.raceName
                                                                     .replace(' Grand Prix', '')

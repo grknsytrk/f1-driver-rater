@@ -2,7 +2,7 @@ import { useId, useRef, type CSSProperties } from 'react';
 import { useInView } from 'framer-motion';
 import { COUNTRY_CODES, COUNTRY_CODE_ALIASES, FLAG_COMPONENTS, NATIONALITY_CODES } from '../utils/countryCodes';
 
-const STRIP_COUNT = 48;
+const STRIP_COUNT = 24;
 const FLAG_WIDTH = 600;
 const FLAG_HEIGHT = 400;
 const strips = Array.from({ length: STRIP_COUNT }, (_, index) => index);
@@ -46,7 +46,7 @@ export function PodiumFlagBackdrop({ nationality, country }: PodiumFlagBackdropP
                     const progress = index / (STRIP_COUNT - 1);
                     const style = {
                         left: `${index / STRIP_COUNT * 100}%`,
-                        '--wave-delay': `${-index * 0.12}s`,
+                        '--wave-delay': `${-index * 0.24}s`,
                         '--wave-lift': 3 + progress * 15,
                         '--wave-lean': `${2.5 + progress * 5}deg`,
                     } as CSSProperties;

@@ -167,6 +167,7 @@ body::before {
     radial-gradient(circle at 50% -20%, rgba(20, 25, 35, 0.4) 0%, transparent 60%),
     linear-gradient(180deg, rgba(8, 9, 12, 0) 0%, rgba(8, 9, 12, 1) 100%);
   pointer-events: none;
+  transform: translateZ(0);
 }
 
 /* Minimal Carbon Texture (Low opacity) */
@@ -180,6 +181,7 @@ body::after {
   background-position: 0 0, 1px 1px;
   background-size: 4px 4px;
   pointer-events: none;
+  transform: translateZ(0);
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
@@ -767,11 +769,24 @@ h6 {
    MOBILE: Results Dashboard
 ────────────────────────────────────────────────────────────────────────── */
 
+.h-scroll-perf {
+  contain: layout paint;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+  transform: translateZ(0);
+  will-change: scroll-position;
+}
+
+.h-scroll-perf > * {
+  contain: layout style paint;
+}
+
 .podium-flag {
   --wave-unit: 1.25px;
   position: absolute;
   inset: 0 -5%;
   overflow: hidden;
+  contain: strict;
   pointer-events: none;
   opacity: 0.18;
   filter: saturate(0.7);
@@ -782,12 +797,13 @@ h6 {
 .podium-flag__cloth {
   position: absolute;
   inset: -10% 4%;
+  transform: translateZ(0);
 }
 
 .podium-flag__strip {
   position: absolute;
   top: 0;
-  width: calc(100% / 48 + 0.75px);
+  width: calc(100% / 24 + 0.75px);
   height: 100%;
   transform-origin: center;
   animation: podium-flag-wave 7.2s linear infinite;
